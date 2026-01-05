@@ -104,7 +104,10 @@ class ServerMonitoringServiceImpl(
 			// 获取系统启动时长（可选）
 			val uptime = getUptime(session).getOrNull()
 
-			Result.success(ServerStatus(cpu = cpu, memory = memory, disk = disk, uptime = uptime))
+			// 获取系统信息和内核版本（可选）
+			val systemInfo = getSystemInfo(session).getOrNull()
+
+			Result.success(ServerStatus(cpu = cpu, memory = memory, disk = disk, uptime = uptime, systemInfo = systemInfo))
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to get server status: ${e.message}", e))
 		}
@@ -337,15 +340,168 @@ class ServerMonitoringServiceImpl(
 	private suspend fun getUptime(session: Session): Result<String> {
 		return try {
 			val result = sshCommandService.executeCommand(session, "uptime -p")
-			if (result.isSuccess) {
-				Result.success(result.getOrNull() ?: "")
+			val uptimeText = if (result.isSuccess) {
+				result.getOrNull() ?: ""
 			} else {
 				// 备用方法
 				val result2 = sshCommandService.executeCommand(session, "uptime")
-				Result.success(result2.getOrNull() ?: "")
+				result2.getOrNull() ?: ""
 			}
+			
+			// 格式化 uptime 输出
+			val formatted = formatUptime(uptimeText)
+			Result.success(formatted)
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to get uptime: ${e.message}", e))
+		}
+	}
+
+	/**
+	 * 格式化 uptime 输出为 "xxx days,xx hours,xxx minutes" 格式
+	 * 输入示例: "up 2 days, 3 hours, 45 minutes" 或 "up 1 hour, 30 minutes"
+	 */
+	private fun formatUptime(uptimeText: String): String {
+		if (uptimeText.isBlank()) return ""
+		
+		// 去掉 "up" 单词（不区分大小写）
+		var text = uptimeText.trim()
+		text = text.replace(Regex("^up\\s+", RegexOption.IGNORE_CASE), "")
+		
+		// 解析各个时间单位
+		var totalDays = 0
+		var hours = 0
+		var minutes = 0
+		
+		// 匹配 years（不区分大小写），1 year = 365 days
+		val yearsMatch = Regex("(\\d+)\\s+year", RegexOption.IGNORE_CASE).find(text)
+		yearsMatch?.let { 
+			val years = it.groupValues[1].toIntOrNull() ?: 0
+			totalDays += years * 365
+		}
+		
+		// 匹配 weeks（不区分大小写），1 week = 7 days
+		val weeksMatch = Regex("(\\d+)\\s+week", RegexOption.IGNORE_CASE).find(text)
+		weeksMatch?.let { 
+			val weeks = it.groupValues[1].toIntOrNull() ?: 0
+			totalDays += weeks * 7
+		}
+		
+		// 匹配 days（不区分大小写）
+		val daysMatch = Regex("(\\d+)\\s+day", RegexOption.IGNORE_CASE).find(text)
+		daysMatch?.let { 
+			val days = it.groupValues[1].toIntOrNull() ?: 0
+			totalDays += days
+		}
+		
+		// 匹配 hours（不区分大小写）
+		val hoursMatch = Regex("(\\d+)\\s+hour", RegexOption.IGNORE_CASE).find(text)
+		hoursMatch?.let { hours = it.groupValues[1].toIntOrNull() ?: 0 }
+		
+		// 匹配 minutes（不区分大小写）
+		val minutesMatch = Regex("(\\d+)\\s+minute", RegexOption.IGNORE_CASE).find(text)
+		minutesMatch?.let { minutes = it.groupValues[1].toIntOrNull() ?: 0 }
+		
+		// 如果没有找到任何时间单位，尝试从 /proc/uptime 解析（备用方案）
+		if (totalDays == 0 && hours == 0 && minutes == 0) {
+			// 尝试解析秒数（如果输出是秒数格式）
+			val secondsMatch = Regex("(\\d+)").find(text)
+			secondsMatch?.let {
+				val totalSeconds = it.groupValues[1].toLongOrNull() ?: 0
+				totalDays = (totalSeconds / 86400).toInt()
+				hours = ((totalSeconds % 86400) / 3600).toInt()
+				minutes = ((totalSeconds % 3600) / 60).toInt()
+			}
+		}
+		
+		// 构建格式化字符串，按照用户要求的格式：xxx days,xx hours,xxx minutes
+		val parts = mutableListOf<String>()
+		if (totalDays > 0) {
+			parts.add("$totalDays days")
+		}
+		if (hours > 0) {
+			parts.add("$hours hours")
+		}
+		if (minutes > 0) {
+			parts.add("$minutes minutes")
+		}
+		
+		// 如果所有值都是0，返回默认值
+		if (parts.isEmpty()) {
+			return "0 minutes"
+		}
+		
+		return parts.joinToString(", ")
+	}
+
+	/**
+	 * 获取系统信息和内核版本
+	 */
+	private suspend fun getSystemInfo(session: Session): Result<com.vcserver.models.SystemInfo> {
+		return try {
+			// 获取内核版本
+			val kernelResult = sshCommandService.executeCommand(session, "uname -r")
+			val kernelVersion = kernelResult.getOrNull()?.trim() ?: "Unknown"
+
+			// 获取操作系统信息
+			val osResult = sshCommandService.executeCommand(session, "cat /etc/os-release")
+			val osRelease = osResult.getOrNull() ?: ""
+
+			var osName = "Unknown"
+			var osVersion = "Unknown"
+
+			if (osRelease.isNotEmpty()) {
+				// 解析 /etc/os-release 文件
+				val lines = osRelease.lines()
+				for (line in lines) {
+					when {
+						line.startsWith("PRETTY_NAME=") -> {
+							// 提取操作系统名称和版本
+							val value = line.substringAfter("=").trim('"', '\'')
+							// 尝试分离名称和版本（例如 "Ubuntu 22.04.3 LTS"）
+							val parts = value.split(" ", limit = 2)
+							if (parts.size >= 1) {
+								osName = parts[0]
+								if (parts.size >= 2) {
+									// 提取版本号（例如从 "22.04.3 LTS" 中提取 "22.04"）
+									val versionMatch = Regex("(\\d+\\.\\d+)").find(parts[1])
+									versionMatch?.let {
+										osVersion = it.groupValues[1]
+									} ?: run {
+										osVersion = parts[1].split(" ")[0]
+									}
+								}
+							}
+						}
+						line.startsWith("NAME=") && osName == "Unknown" -> {
+							osName = line.substringAfter("=").trim('"', '\'')
+						}
+						line.startsWith("VERSION_ID=") && osVersion == "Unknown" -> {
+							osVersion = line.substringAfter("=").trim('"', '\'')
+						}
+					}
+				}
+			} else {
+				// 备用方法：使用 uname -a
+				val unameResult = sshCommandService.executeCommand(session, "uname -a")
+				val unameOutput = unameResult.getOrNull() ?: ""
+				if (unameOutput.isNotEmpty()) {
+					// 从 uname -a 输出中提取信息
+					// 格式通常为: Linux hostname kernel-version #version date time arch
+					val parts = unameOutput.split(" ")
+					if (parts.size >= 3) {
+						osName = parts[0] // "Linux"
+						// 尝试从其他部分提取更多信息
+					}
+				}
+			}
+
+			Result.success(com.vcserver.models.SystemInfo(
+				osName = osName,
+				osVersion = osVersion,
+				kernelVersion = kernelVersion
+			))
+		} catch (e: Exception) {
+			Result.failure(Exception("Failed to get system info: ${e.message}", e))
 		}
 	}
 
@@ -356,10 +512,16 @@ class ServerMonitoringServiceImpl(
 		val sizeUpper = size.uppercase().trim()
 		val number = sizeUpper.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
 		return when {
-			sizeUpper.endsWith("TB") || sizeUpper.endsWith("T") -> (number * 1024 * 1024 * 1024 * 1024).toLong()
-			sizeUpper.endsWith("GB") || sizeUpper.endsWith("G") -> (number * 1024 * 1024 * 1024).toLong()
-			sizeUpper.endsWith("MB") || sizeUpper.endsWith("M") -> (number * 1024 * 1024).toLong()
-			sizeUpper.endsWith("KB") || sizeUpper.endsWith("K") -> (number * 1024).toLong()
+			// 二进制单位（TiB, GiB, MiB, KiB等）- 先检查长单位
+			sizeUpper.endsWith("TIB") || sizeUpper.endsWith("TB") -> (number * 1024 * 1024 * 1024 * 1024).toLong()
+			sizeUpper.endsWith("GIB") || sizeUpper.endsWith("GB") || sizeUpper.endsWith("GI") -> (number * 1024 * 1024 * 1024).toLong()
+			sizeUpper.endsWith("MIB") || sizeUpper.endsWith("MB") || sizeUpper.endsWith("MI") -> (number * 1024 * 1024).toLong()
+			sizeUpper.endsWith("KIB") || sizeUpper.endsWith("KB") || sizeUpper.endsWith("KI") -> (number * 1024).toLong()
+			// 短单位（T, G, M, K）- 最后检查，避免误匹配
+			sizeUpper.endsWith("T") -> (number * 1024 * 1024 * 1024 * 1024).toLong()
+			sizeUpper.endsWith("G") -> (number * 1024 * 1024 * 1024).toLong()
+			sizeUpper.endsWith("M") -> (number * 1024 * 1024).toLong()
+			sizeUpper.endsWith("K") -> (number * 1024).toLong()
 			sizeUpper.endsWith("B") -> number.toLong()
 			else -> {
 				// 如果没有单位，假设是字节

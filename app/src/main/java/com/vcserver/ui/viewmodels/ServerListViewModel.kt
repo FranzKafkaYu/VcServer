@@ -79,6 +79,10 @@ class ServerListViewModel(
 				onSuccess = { session ->
 					val sessionKey = "${server.id}_${System.currentTimeMillis()}"
 					com.vcserver.utils.SessionManager.putSession(sessionKey, session)
+					
+					// 获取系统信息并更新服务器
+					updateServerSystemInfo(server, session)
+					
 					_uiState.value = _uiState.value.copy(
 						connectingServerId = null
 					)
@@ -91,6 +95,37 @@ class ServerListViewModel(
 					)
 				}
 			)
+		}
+	}
+
+	/**
+	 * 更新服务器的系统版本信息
+	 */
+	private suspend fun updateServerSystemInfo(server: Server, session: com.jcraft.jsch.Session) {
+		try {
+			// 获取服务器状态（包含系统信息）
+			val statusResult = serverMonitoringService.getServerStatus(session)
+			statusResult.fold(
+				onSuccess = { status ->
+					status.systemInfo?.let { systemInfo ->
+						// 构建系统版本字符串（例如 "Ubuntu 22.04"）
+						val systemVersion = "${systemInfo.osName} ${systemInfo.osVersion}".trim()
+						if (systemVersion.isNotEmpty() && systemVersion != "Unknown Unknown") {
+							// 更新服务器的系统版本信息
+							val updatedServer = server.copy(
+								systemVersion = systemVersion,
+								updatedAt = System.currentTimeMillis()
+							)
+							serverManagementService.updateServer(updatedServer)
+						}
+					}
+				},
+				onFailure = {
+					// 获取系统信息失败，不影响连接流程
+				}
+			)
+		} catch (e: Exception) {
+			// 更新失败，不影响连接流程
 		}
 	}
 

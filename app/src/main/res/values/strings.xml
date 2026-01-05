@@ -43,6 +43,25 @@
 	<string name="available_space">可用容量</string>
 	<string name="disk_usage">使用率</string>
 	<string name="uptime">运行时长</string>
+	<string name="enter_terminal">进入终端</string>
+	<string name="terminal">终端</string>
+	<string name="terminal_output">终端输出</string>
+	<string name="command_input">命令输入</string>
+	<string name="send_command">发送</string>
+	<string name="clear_output">清空输出</string>
+	<string name="auto_complete">补全</string>
+	<string name="previous_command">上一条</string>
+	<string name="next_command">下一条</string>
+	<string name="shell_connecting">正在连接Shell...</string>
+	<string name="shell_connected">Shell已连接</string>
+	<string name="shell_disconnected">Shell连接已断开</string>
+	<string name="command_history">命令历史</string>
+	<string name="reconnect">重连</string>
+	<string name="reconnecting">正在重连...</string>
+	<string name="system_info">系统信息</string>
+	<string name="os_name">操作系统</string>
+	<string name="os_version">系统版本</string>
+	<string name="kernel_version">内核版本</string>
 </resources>
 
 

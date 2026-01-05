@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -34,7 +35,8 @@ import kotlin.math.sin
 @Composable
 fun ServerMonitoringScreen(
 	viewModel: ServerMonitoringViewModel,
-	onBackClick: () -> Unit
+	onBackClick: () -> Unit,
+	onEnterTerminal: () -> Unit = {}
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 
@@ -48,6 +50,12 @@ fun ServerMonitoringScreen(
 					}
 				},
 				actions = {
+					IconButton(
+						onClick = onEnterTerminal,
+						enabled = !uiState.isLoading
+					) {
+						Icon(Icons.Default.Code, contentDescription = stringResource(R.string.enter_terminal))
+					}
 					IconButton(
 						onClick = { viewModel.loadServerStatus() },
 						enabled = !uiState.isLoading
@@ -101,6 +109,35 @@ fun ServerMonitoringScreen(
 
 			// 服务器状态信息
 			uiState.serverStatus?.let { status ->
+				// 系统信息（如果有）
+				status.systemInfo?.let { systemInfo ->
+					Card(modifier = Modifier.fillMaxWidth()) {
+						Column(
+							modifier = Modifier.padding(16.dp),
+							verticalArrangement = Arrangement.spacedBy(8.dp)
+						) {
+							Text(
+								text = stringResource(R.string.system_info),
+								style = MaterialTheme.typography.titleMedium
+							)
+							Row(
+								modifier = Modifier.fillMaxWidth(),
+								horizontalArrangement = Arrangement.SpaceBetween
+							) {
+								Text(stringResource(R.string.os_name))
+								Text("${systemInfo.osName} ${systemInfo.osVersion}", fontWeight = FontWeight.Medium)
+							}
+							Row(
+								modifier = Modifier.fillMaxWidth(),
+								horizontalArrangement = Arrangement.SpaceBetween
+							) {
+								Text(stringResource(R.string.kernel_version))
+								Text(systemInfo.kernelVersion, fontWeight = FontWeight.Medium)
+							}
+						}
+					}
+				}
+
 				// CPU 信息
 				Card(modifier = Modifier.fillMaxWidth()) {
 					Column(

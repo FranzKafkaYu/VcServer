@@ -164,6 +164,14 @@ fun ServerItem(
 					text = server.username,
 					style = MaterialTheme.typography.bodySmall
 				)
+				// 显示系统版本信息（如果有）
+				server.systemVersion?.let { systemVersion ->
+					Text(
+						text = systemVersion,
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.primary
+					)
+				}
 			}
 			Row(
 				horizontalArrangement = Arrangement.spacedBy(8.dp),

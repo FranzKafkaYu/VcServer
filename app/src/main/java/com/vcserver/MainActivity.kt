@@ -9,12 +9,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.vcserver.data.AppDatabase
 import com.vcserver.repositories.ServerRepositoryImpl
 import com.vcserver.services.ServerManagementServiceImpl
 import com.vcserver.services.ServerMonitoringServiceImpl
 import com.vcserver.services.SshAuthenticationServiceImpl
 import com.vcserver.services.SshCommandServiceImpl
+import com.vcserver.services.TerminalServiceImpl
 import com.vcserver.ui.navigation.NavGraph
 import com.vcserver.ui.navigation.Screen
 import com.vcserver.ui.screens.AddServerScreen
@@ -29,11 +32,20 @@ class MainActivity : ComponentActivity() {
 		super.onCreate(savedInstanceState)
 
 		// 初始化依赖
+		// 数据库迁移：从版本 1 到版本 2，添加 systemVersion 字段
+		val migration1To2 = object : Migration(1, 2) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("ALTER TABLE servers ADD COLUMN systemVersion TEXT")
+			}
+		}
+
 		val database = Room.databaseBuilder(
 			applicationContext,
 			AppDatabase::class.java,
 			"vcserver_database"
-		).build()
+		)
+			.addMigrations(migration1To2)
+			.build()
 
 		val secureStorage = SecureStorage(applicationContext)
 		val serverRepository = ServerRepositoryImpl(database.serverDao())
@@ -49,6 +61,7 @@ class MainActivity : ComponentActivity() {
 			sshCommandService,
 			secureStorage
 		)
+		val terminalService = TerminalServiceImpl()
 
 		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService)
 		val addServerViewModel = AddServerViewModel(serverManagementService)
@@ -64,7 +77,8 @@ class MainActivity : ComponentActivity() {
 						navController = navController,
 						serverListViewModel = serverListViewModel,
 						addServerViewModel = addServerViewModel,
-						serverMonitoringService = serverMonitoringService
+						serverMonitoringService = serverMonitoringService,
+						terminalService = terminalService
 					)
 				}
 			}

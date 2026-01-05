@@ -22,19 +22,26 @@ import kotlinx.coroutines.launch
 class ServerMonitoringViewModel(
 	private val serverMonitoringService: ServerMonitoringService,
 	val server: Server,
-	val session: Session,
+	var session: Session, // 改为 var，支持重连后更新
 	private val refreshInterval: Long = 3000L // 默认3秒
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(ServerMonitoringUiState())
 	val uiState: StateFlow<ServerMonitoringUiState> = _uiState.asStateFlow()
 
 	private var autoRefreshJob: Job? = null
+	private var isReconnecting = false
 
 	init {
-		// 首次加载显示加载状态
-		loadServerStatus(showLoading = true)
-		// 启动自动刷新（不显示加载状态，避免界面闪烁）
-		startAutoRefresh()
+		// 检查 session 是否连接
+		if (!session.isConnected) {
+			// 如果断开，先尝试重连
+			reconnectSession()
+		} else {
+			// 首次加载显示加载状态
+			loadServerStatus(showLoading = true)
+			// 启动自动刷新（不显示加载状态，避免界面闪烁）
+			startAutoRefresh()
+		}
 	}
 
 	/**
@@ -43,6 +50,15 @@ class ServerMonitoringViewModel(
 	 */
 	fun loadServerStatus(showLoading: Boolean = true) {
 		viewModelScope.launch {
+			// 检查 session 是否连接
+			if (!session.isConnected) {
+				// 尝试自动重连
+				if (!isReconnecting) {
+					reconnectSession()
+				}
+				return@launch
+			}
+
 			_uiState.value = _uiState.value.copy(
 				isLoading = showLoading,
 				error = null
@@ -57,6 +73,52 @@ class ServerMonitoringViewModel(
 					)
 				},
 				onFailure = { exception ->
+					// 如果错误是连接相关，尝试重连
+					val errorMessage = exception.message ?: ""
+					if (errorMessage.contains("not connected", ignoreCase = true) ||
+						errorMessage.contains("connection", ignoreCase = true)) {
+						if (!isReconnecting) {
+							reconnectSession()
+						}
+					} else {
+						_uiState.value = _uiState.value.copy(
+							isLoading = false,
+							error = exception.toAppError()
+						)
+					}
+				}
+			)
+		}
+	}
+
+	/**
+	 * 重新连接 SSH session
+	 */
+	private fun reconnectSession() {
+		if (isReconnecting) return
+		isReconnecting = true
+
+		viewModelScope.launch {
+			_uiState.value = _uiState.value.copy(
+				isLoading = true,
+				error = null
+			)
+
+			val result = serverMonitoringService.connectToServer(server)
+			result.fold(
+				onSuccess = { newSession ->
+					// 更新 session
+					session = newSession
+					isReconnecting = false
+					// 重新加载状态
+					loadServerStatus(showLoading = false)
+					// 确保自动刷新在运行
+					if (autoRefreshJob == null || !autoRefreshJob!!.isActive) {
+						startAutoRefresh()
+					}
+				},
+				onFailure = { exception ->
+					isReconnecting = false
 					_uiState.value = _uiState.value.copy(
 						isLoading = false,
 						error = exception.toAppError()
@@ -104,6 +166,15 @@ class ServerMonitoringViewModel(
 	 */
 	fun clearError() {
 		_uiState.value = _uiState.value.copy(error = null)
+	}
+
+	/**
+	 * 手动重连 SSH session（供 UI 调用）
+	 */
+	fun reconnect() {
+		if (!isReconnecting) {
+			reconnectSession()
+		}
 	}
 
 	override fun onCleared() {
