@@ -1,0 +1,15 @@
+.cursor/
+.idea/
+.vscode/
+.gradle/
+app/build/
+local.properties
+
+# Keystore files (sensitive)
+app/jks/
+app/release/
+*.jks
+*.keystore
+keystore_base64.txt
+openspec/
+AGENTS.md

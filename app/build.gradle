@@ -1,0 +1,181 @@
+plugins {
+	id 'com.android.application'
+	id 'org.jetbrains.kotlin.android'
+	id 'com.google.devtools.ksp' version '1.9.10-1.0.13'
+}
+
+android {
+	namespace 'com.franzkafkayu.vcserver'
+	compileSdk 34
+
+	// 获取 Git commit hash
+	def getGitCommitHash = { ->
+		try {
+			def stdout = new ByteArrayOutputStream()
+			exec {
+				commandLine 'git', 'rev-parse', '--short', 'HEAD'
+				standardOutput = stdout
+				ignoreExitValue = true
+			}
+			def hash = stdout.toString().trim()
+			return hash.isEmpty() ? "unknown" : hash
+		} catch (Exception e) {
+			return "unknown"
+		}
+	}
+
+	// 获取当前日期（年月日格式）
+	def getBuildDate = { ->
+		def date = new Date()
+		def formattedDate = date.format('yyyyMMdd')
+		return formattedDate
+	}
+
+	// 版本号规则：x.x.x-年月日
+	def majorVersion = 1
+	def minorVersion = 0
+	def patchVersion = 0
+	def buildDate = getBuildDate()
+	def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
+
+		defaultConfig {
+			applicationId "com.franzkafkayu.vcserver"
+			minSdk 29
+			targetSdk 34
+			versionCode 1
+			versionName versionNameString
+
+			// 获取 Git commit hash
+			def gitCommitHash = getGitCommitHash()
+
+			// 在 BuildConfig 中添加 commit hash 和构建日期
+			buildConfigField "String", "GIT_COMMIT_HASH", "\"${gitCommitHash}\""
+			buildConfigField "String", "BUILD_DATE", "\"${buildDate}\""
+
+			testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+			vectorDrawables {
+				useSupportLibrary true
+			}
+		}
+
+		// 签名配置（必须在 buildTypes 之前定义）
+		signingConfigs {
+			release {
+				// 优先从环境变量读取（用于 CI/CD），否则从 local.properties 读取（用于本地开发）
+				def keystorePropertiesFile = rootProject.file("local.properties")
+				def keystoreProperties = new Properties()
+				if (keystorePropertiesFile.exists()) {
+					keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+				}
+				
+			// 环境变量优先级高于 local.properties
+			def keystoreFilePath = System.getenv("RELEASE_STORE_FILE") ?: keystoreProperties['RELEASE_STORE_FILE'] ?: 'app/jks/release'
+			def keystorePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: keystoreProperties['RELEASE_STORE_PASSWORD'] ?: ''
+			def keyAliasName = System.getenv("RELEASE_KEY_ALIAS") ?: keystoreProperties['RELEASE_KEY_ALIAS'] ?: ''
+			def keyPasswordValue = System.getenv("RELEASE_KEY_PASSWORD") ?: keystoreProperties['RELEASE_KEY_PASSWORD'] ?: ''
+			
+			// keystore 文件路径相对于项目根目录
+			storeFile file(keystoreFilePath)
+				storePassword keystorePassword
+				keyAlias keyAliasName
+				keyPassword keyPasswordValue
+			}
+		}
+
+		buildTypes {
+			release {
+				minifyEnabled false
+				proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+				
+				// 配置 release 签名
+				signingConfig signingConfigs.release
+			}
+			debug {
+				// debug 版本不进行签名（使用默认的 debug 签名）
+				// 如果需要完全禁用签名，可以设置为 null，但通常保留默认的 debug 签名更安全
+			}
+		}
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_17
+		targetCompatibility JavaVersion.VERSION_17
+	}
+	kotlinOptions {
+		jvmTarget = '17'
+	}
+	buildFeatures {
+		compose true
+		buildConfig true
+	}
+	composeOptions {
+		kotlinCompilerExtensionVersion '1.5.3'
+	}
+	packaging {
+		resources {
+			excludes += '/META-INF/{AL2.0,LGPL2.1}'
+		}
+	}
+	
+	// 自定义 APK 文件名：buildType-版本号-commit.apk
+	applicationVariants.all { variant ->
+		variant.outputs.all { output ->
+			def buildType = variant.buildType.name
+			def gitCommitHash = getGitCommitHash()
+			def newName = "${buildType}-${versionNameString}-${gitCommitHash}.apk"
+			outputFileName = newName
+		}
+	}
+}
+
+dependencies {
+	// Core Android
+	implementation 'androidx.core:core-ktx:1.12.0'
+	implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+	implementation 'androidx.activity:activity-compose:1.8.0'
+
+	// Compose
+	implementation platform('androidx.compose:compose-bom:2023.09.00')
+	implementation 'androidx.compose.ui:ui'
+	implementation 'androidx.compose.ui:ui-graphics'
+	implementation 'androidx.compose.ui:ui-tooling-preview'
+	implementation 'androidx.compose.material3:material3'
+	implementation 'androidx.compose.material:material-icons-extended'
+	implementation 'androidx.navigation:navigation-compose:2.7.4'
+
+	// ViewModel
+	implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2'
+	implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
+
+	// Room
+	implementation 'androidx.room:room-runtime:2.6.0'
+	implementation 'androidx.room:room-ktx:2.6.0'
+	ksp 'androidx.room:room-compiler:2.6.0'
+
+	// Security Crypto
+	implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+
+	// DataStore
+	implementation 'androidx.datastore:datastore-preferences:1.0.0'
+
+	// JSch for SSH
+	implementation 'com.jcraft:jsch:0.1.55'
+
+	// Coroutines
+	implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+	// JSON
+	implementation 'com.google.code.gson:gson:2.10.1'
+
+	// Testing
+	testImplementation 'junit:junit:4.13.2'
+	testImplementation 'org.mockito:mockito-core:5.5.0'
+	testImplementation 'org.mockito.kotlin:mockito-kotlin:5.1.0'
+	testImplementation 'androidx.arch.core:core-testing:2.2.0'
+	testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
+	androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+	androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+	androidTestImplementation platform('androidx.compose:compose-bom:2023.09.00')
+	androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+	debugImplementation 'androidx.compose.ui:ui-tooling'
+	debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}
+
