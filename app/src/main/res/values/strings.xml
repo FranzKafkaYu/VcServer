@@ -24,6 +24,25 @@
 	<string name="connection_failed">连接失败</string>
 	<string name="invalid_input">输入无效</string>
 	<string name="empty_server_list">暂无服务器，点击添加按钮添加服务器</string>
+	<string name="connect">连接</string>
+	<string name="server_monitoring">服务器监控</string>
+	<string name="disconnect">断开连接</string>
+	<string name="refresh">刷新</string>
+	<string name="cpu_info">CPU 信息</string>
+	<string name="memory_info">内存信息</string>
+	<string name="disk_info">磁盘信息</string>
+	<string name="cpu_cores">CPU 核心数</string>
+	<string name="cpu_usage">CPU 使用率</string>
+	<string name="total_memory">总内存</string>
+	<string name="used_memory">已用内存</string>
+	<string name="available_memory">可用内存</string>
+	<string name="memory_usage">内存使用率</string>
+	<string name="mount_point">挂载点</string>
+	<string name="total_space">总容量</string>
+	<string name="used_space">已用容量</string>
+	<string name="available_space">可用容量</string>
+	<string name="disk_usage">使用率</string>
+	<string name="uptime">运行时长</string>
 </resources>
 
 

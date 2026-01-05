@@ -12,7 +12,9 @@ import androidx.room.Room
 import com.vcserver.data.AppDatabase
 import com.vcserver.repositories.ServerRepositoryImpl
 import com.vcserver.services.ServerManagementServiceImpl
+import com.vcserver.services.ServerMonitoringServiceImpl
 import com.vcserver.services.SshAuthenticationServiceImpl
+import com.vcserver.services.SshCommandServiceImpl
 import com.vcserver.ui.navigation.NavGraph
 import com.vcserver.ui.navigation.Screen
 import com.vcserver.ui.screens.AddServerScreen
@@ -36,13 +38,19 @@ class MainActivity : ComponentActivity() {
 		val secureStorage = SecureStorage(applicationContext)
 		val serverRepository = ServerRepositoryImpl(database.serverDao())
 		val sshAuthService = SshAuthenticationServiceImpl(secureStorage)
+		val sshCommandService = SshCommandServiceImpl()
 		val serverManagementService = ServerManagementServiceImpl(
 			serverRepository,
 			sshAuthService,
 			secureStorage
 		)
+		val serverMonitoringService = ServerMonitoringServiceImpl(
+			sshAuthService,
+			sshCommandService,
+			secureStorage
+		)
 
-		val serverListViewModel = ServerListViewModel(serverManagementService)
+		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService)
 		val addServerViewModel = AddServerViewModel(serverManagementService)
 
 		setContent {
@@ -55,7 +63,8 @@ class MainActivity : ComponentActivity() {
 					NavGraph(
 						navController = navController,
 						serverListViewModel = serverListViewModel,
-						addServerViewModel = addServerViewModel
+						addServerViewModel = addServerViewModel,
+						serverMonitoringService = serverMonitoringService
 					)
 				}
 			}

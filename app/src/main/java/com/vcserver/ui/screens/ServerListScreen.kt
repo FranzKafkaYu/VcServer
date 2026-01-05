@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,7 +29,8 @@ import com.vcserver.ui.viewmodels.ServerListViewModel
 fun ServerListScreen(
 	viewModel: ServerListViewModel,
 	onAddServerClick: () -> Unit,
-	onServerClick: (Server) -> Unit
+	onServerClick: (Server) -> Unit,
+	onConnectClick: (Server, String) -> Unit
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 	val snackbarHostState = remember { SnackbarHostState() }
@@ -84,7 +86,13 @@ fun ServerListScreen(
 							ServerItem(
 								server = server,
 								onClick = { onServerClick(server) },
-								onDeleteClick = { viewModel.deleteServer(server) }
+								onConnectClick = {
+									viewModel.connectToServer(server) { sessionKey ->
+										onConnectClick(server, sessionKey)
+									}
+								},
+								onDeleteClick = { viewModel.deleteServer(server) },
+								isConnecting = uiState.connectingServerId == server.id
 							)
 						}
 					}
@@ -124,7 +132,9 @@ fun EmptyServerList(
 fun ServerItem(
 	server: Server,
 	onClick: () -> Unit,
-	onDeleteClick: () -> Unit
+	onConnectClick: () -> Unit,
+	onDeleteClick: () -> Unit,
+	isConnecting: Boolean = false
 ) {
 	Card(
 		modifier = Modifier
@@ -155,8 +165,29 @@ fun ServerItem(
 					style = MaterialTheme.typography.bodySmall
 				)
 			}
-			IconButton(onClick = onDeleteClick) {
-				Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+			Row(
+				horizontalArrangement = Arrangement.spacedBy(8.dp),
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				IconButton(
+					onClick = onConnectClick,
+					enabled = !isConnecting
+				) {
+					if (isConnecting) {
+						CircularProgressIndicator(
+							modifier = Modifier.size(24.dp),
+							strokeWidth = 2.dp
+						)
+					} else {
+						Icon(
+							Icons.Default.PlayArrow,
+							contentDescription = stringResource(R.string.connect)
+						)
+					}
+				}
+				IconButton(onClick = onDeleteClick) {
+					Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+				}
 			}
 		}
 	}
