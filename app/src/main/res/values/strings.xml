@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">VcServer</string>
+	<string name="server_list">服务器列表</string>
+	<string name="add_server">添加服务器</string>
+	<string name="server_name">服务器名称</string>
+	<string name="host">主机</string>
+	<string name="port">端口</string>
+	<string name="username">用户名</string>
+	<string name="password">密码</string>
+	<string name="private_key">私钥</string>
+	<string name="key_passphrase">密钥密码（可选）</string>
+	<string name="auth_type">认证方式</string>
+	<string name="auth_password">密码</string>
+	<string name="auth_key">密钥</string>
+	<string name="save">保存</string>
+	<string name="test_connection">测试连接</string>
+	<string name="edit">编辑</string>
+	<string name="delete">删除</string>
+	<string name="cancel">取消</string>
+	<string name="confirm">确认</string>
+	<string name="delete_server_confirm">确定要删除此服务器吗？</string>
+	<string name="connection_success">连接成功</string>
+	<string name="connection_failed">连接失败</string>
+	<string name="invalid_input">输入无效</string>
+	<string name="empty_server_list">暂无服务器，点击添加按钮添加服务器</string>
+</resources>
+
+
+

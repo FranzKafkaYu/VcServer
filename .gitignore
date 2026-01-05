@@ -1,0 +1,7 @@
+.cursor/
+.idea/
+.vscode/
+.gradle/
+app/build/
+openspec/
+local.properties
