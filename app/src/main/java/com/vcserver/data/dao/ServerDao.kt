@@ -12,7 +12,7 @@ interface ServerDao {
 	/**
 	 * 获取所有服务器列表
 	 */
-	@Query("SELECT * FROM servers ORDER BY createdAt DESC")
+	@Query("SELECT * FROM servers ORDER BY orderIndex ASC, createdAt DESC")
 	fun getAllServers(): Flow<List<Server>>
 
 	/**
@@ -38,6 +38,12 @@ interface ServerDao {
 	 */
 	@Delete
 	suspend fun deleteServer(server: Server)
+
+	/**
+	 * 批量更新服务器
+	 */
+	@Update
+	suspend fun updateServers(servers: List<Server>)
 }
 
 

@@ -29,6 +29,10 @@ class ServerRepositoryImpl(
 	override suspend fun deleteServer(server: Server) {
 		serverDao.deleteServer(server)
 	}
+
+	override suspend fun updateServers(servers: List<Server>) {
+		serverDao.updateServers(servers)
+	}
 }
 
 

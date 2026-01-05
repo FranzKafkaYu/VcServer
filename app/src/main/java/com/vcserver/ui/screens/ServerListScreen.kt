@@ -6,7 +6,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -29,7 +33,7 @@ import com.vcserver.ui.viewmodels.ServerListViewModel
 fun ServerListScreen(
 	viewModel: ServerListViewModel,
 	onAddServerClick: () -> Unit,
-	onServerClick: (Server) -> Unit,
+	onEditServerClick: (Long) -> Unit,
 	onConnectClick: (Server, String) -> Unit
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
@@ -49,16 +53,122 @@ fun ServerListScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text(stringResource(R.string.server_list)) }
+				title = { 
+					Text(
+						if (uiState.isSelectionMode) {
+							stringResource(R.string.select_mode) + " (${uiState.selectedServerIds.size})"
+						} else {
+							stringResource(R.string.server_list)
+						}
+					) 
+				},
+				actions = {
+					if (uiState.isSelectionMode) {
+						IconButton(onClick = { viewModel.toggleSelectAll() }) {
+							Icon(
+								if (uiState.selectedServerIds.size == uiState.servers.size) {
+									Icons.Default.CheckBox
+								} else {
+									Icons.Default.CheckBoxOutlineBlank
+								},
+								contentDescription = stringResource(R.string.select_all)
+							)
+						}
+						IconButton(onClick = { viewModel.exitSelectionMode() }) {
+							Icon(
+								Icons.Default.Done,
+								contentDescription = stringResource(R.string.done)
+							)
+						}
+					}
+				}
 			)
 		},
 		floatingActionButton = {
-			FloatingActionButton(onClick = onAddServerClick) {
-				Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_server))
+			if (!uiState.isSelectionMode) {
+				FloatingActionButton(onClick = onAddServerClick) {
+					Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_server))
+				}
+			}
+		},
+		bottomBar = {
+			if (uiState.isSelectionMode && uiState.selectedServerIds.isNotEmpty()) {
+				BottomAppBar {
+					Row(
+						modifier = Modifier.fillMaxWidth(),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Text(
+							text = stringResource(R.string.delete_items, uiState.selectedServerIds.size),
+							modifier = Modifier.weight(1f)
+						)
+						Button(
+							onClick = { viewModel.showBatchDeleteConfirmDialog() }
+						) {
+							Text(stringResource(R.string.delete))
+						}
+					}
+				}
 			}
 		},
 		snackbarHost = { SnackbarHost(snackbarHostState) }
 	) { paddingValues ->
+		// 单个删除确认对话框
+		uiState.serverToDelete?.let { server ->
+			AlertDialog(
+				onDismissRequest = { viewModel.cancelDelete() },
+				title = { Text(stringResource(R.string.delete_server_confirm)) },
+				text = { 
+					Text("确定要删除服务器 \"${server.name}\" (${server.host}:${server.port}) 吗？此操作无法撤销。")
+				},
+				confirmButton = {
+					TextButton(
+						onClick = { viewModel.confirmDeleteServer() }
+					) {
+						Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
+					}
+				},
+				dismissButton = {
+					TextButton(
+						onClick = { viewModel.cancelDelete() }
+					) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+
+		// 批量删除确认对话框
+		if (uiState.showBatchDeleteConfirm) {
+			AlertDialog(
+				onDismissRequest = { viewModel.cancelBatchDelete() },
+				title = { Text(stringResource(R.string.delete)) },
+				text = { 
+					Text(
+						stringResource(
+							R.string.delete_confirm,
+							uiState.selectedServerIds.size
+						)
+					)
+				},
+				confirmButton = {
+					TextButton(
+						onClick = { viewModel.confirmDeleteSelectedServers() }
+					) {
+						Text(stringResource(R.string.confirm))
+					}
+				},
+				dismissButton = {
+					TextButton(
+						onClick = { viewModel.cancelBatchDelete() }
+					) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+
 		Box(
 			modifier = Modifier
 				.fillMaxSize()
@@ -85,13 +195,38 @@ fun ServerListScreen(
 						items(uiState.servers) { server ->
 							ServerItem(
 								server = server,
-								onClick = { onServerClick(server) },
-								onConnectClick = {
-									viewModel.connectToServer(server) { sessionKey ->
-										onConnectClick(server, sessionKey)
+								isSelected = uiState.selectedServerIds.contains(server.id),
+								isSelectionMode = uiState.isSelectionMode,
+								onClick = {
+									if (uiState.isSelectionMode) {
+										// 选择模式下，点击切换选择状态
+										viewModel.toggleServerSelection(server.id)
+									} else {
+										// 正常模式下，点击卡片直接连接
+										viewModel.connectToServer(server) { sessionKey ->
+											onConnectClick(server, sessionKey)
+										}
 									}
 								},
-								onDeleteClick = { viewModel.deleteServer(server) },
+								onLongClick = {
+									// 长按进入选择模式
+									if (!uiState.isSelectionMode) {
+										viewModel.enterSelectionMode(server.id)
+									}
+								},
+								onEditClick = {
+									if (!uiState.isSelectionMode) {
+										onEditServerClick(server.id)
+									}
+								},
+								onConnectClick = {
+									if (!uiState.isSelectionMode) {
+										viewModel.connectToServer(server) { sessionKey ->
+											onConnectClick(server, sessionKey)
+										}
+									}
+								},
+								onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
 								isConnecting = uiState.connectingServerId == server.id
 							)
 						}
@@ -128,73 +263,157 @@ fun EmptyServerList(
 /**
  * 服务器项
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServerItem(
 	server: Server,
+	isSelected: Boolean = false,
+	isSelectionMode: Boolean = false,
 	onClick: () -> Unit,
+	onLongClick: () -> Unit = {},
+	onEditClick: () -> Unit,
 	onConnectClick: () -> Unit,
 	onDeleteClick: () -> Unit,
 	isConnecting: Boolean = false
 ) {
-	Card(
-		modifier = Modifier
-			.fillMaxWidth()
-			.clickable(onClick = onClick)
-	) {
-		Row(
+	if (isSelectionMode) {
+		// 选择模式下，显示复选框，不使用 SwipeToDismiss
+		Card(
 			modifier = Modifier
 				.fillMaxWidth()
-				.padding(16.dp),
-			horizontalArrangement = Arrangement.SpaceBetween,
-			verticalAlignment = Alignment.CenterVertically
+				.clickable(onClick = onClick)
 		) {
-			Column(
-				modifier = Modifier.weight(1f),
-				verticalArrangement = Arrangement.spacedBy(4.dp)
-			) {
-				Text(
-					text = server.name,
-					style = MaterialTheme.typography.titleMedium
-				)
-				Text(
-					text = "${server.host}:${server.port}",
-					style = MaterialTheme.typography.bodyMedium
-				)
-				Text(
-					text = server.username,
-					style = MaterialTheme.typography.bodySmall
-				)
-				// 显示系统版本信息（如果有）
-				server.systemVersion?.let { systemVersion ->
-					Text(
-						text = systemVersion,
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.primary
-					)
-				}
-			}
 			Row(
-				horizontalArrangement = Arrangement.spacedBy(8.dp),
+				modifier = Modifier
+					.fillMaxWidth()
+					.padding(16.dp),
+				horizontalArrangement = Arrangement.SpaceBetween,
 				verticalAlignment = Alignment.CenterVertically
 			) {
-				IconButton(
-					onClick = onConnectClick,
-					enabled = !isConnecting
+				Row(
+					horizontalArrangement = Arrangement.spacedBy(12.dp),
+					verticalAlignment = Alignment.CenterVertically,
+					modifier = Modifier.weight(1f)
 				) {
-					if (isConnecting) {
-						CircularProgressIndicator(
-							modifier = Modifier.size(24.dp),
-							strokeWidth = 2.dp
+					Icon(
+						if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+						contentDescription = null,
+						tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+					)
+					Column(
+						verticalArrangement = Arrangement.spacedBy(4.dp)
+					) {
+						Text(
+							text = server.name,
+							style = MaterialTheme.typography.titleMedium
 						)
-					} else {
-						Icon(
-							Icons.Default.PlayArrow,
-							contentDescription = stringResource(R.string.connect)
+						Text(
+							text = "${server.host}:${server.port}",
+							style = MaterialTheme.typography.bodyMedium
+						)
+						Text(
+							text = server.username,
+							style = MaterialTheme.typography.bodySmall
+						)
+						server.systemVersion?.let { systemVersion ->
+							Text(
+								text = systemVersion,
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.primary
+							)
+						}
+					}
+				}
+			}
+		}
+	} else {
+		// 正常模式下，显示卡片（左滑删除功能暂时简化，后续可以添加）
+		Card(
+			modifier = Modifier
+				.fillMaxWidth()
+				.clickable(onClick = onClick, enabled = !isConnecting)
+		) {
+			Row(
+				modifier = Modifier
+					.fillMaxWidth()
+					.padding(16.dp),
+				horizontalArrangement = Arrangement.SpaceBetween,
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				Column(
+					modifier = Modifier.weight(1f),
+					verticalArrangement = Arrangement.spacedBy(4.dp)
+				) {
+					Row(
+						horizontalArrangement = Arrangement.spacedBy(8.dp),
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Text(
+							text = server.name,
+							style = MaterialTheme.typography.titleMedium
+						)
+						if (isConnecting) {
+							CircularProgressIndicator(
+								modifier = Modifier.size(16.dp),
+								strokeWidth = 2.dp
+							)
+						}
+					}
+					Text(
+						text = "${server.host}:${server.port}",
+						style = MaterialTheme.typography.bodyMedium
+					)
+					Text(
+						text = server.username,
+						style = MaterialTheme.typography.bodySmall
+					)
+					// 显示系统版本信息（如果有）
+					server.systemVersion?.let { systemVersion ->
+						Text(
+							text = systemVersion,
+							style = MaterialTheme.typography.bodySmall,
+							color = MaterialTheme.colorScheme.primary
 						)
 					}
 				}
-				IconButton(onClick = onDeleteClick) {
-					Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+				Row(
+					horizontalArrangement = Arrangement.spacedBy(8.dp),
+					verticalAlignment = Alignment.CenterVertically
+				) {
+					IconButton(
+						onClick = onConnectClick,
+						enabled = !isConnecting
+					) {
+						if (isConnecting) {
+							CircularProgressIndicator(
+								modifier = Modifier.size(24.dp),
+								strokeWidth = 2.dp
+							)
+						} else {
+							Icon(
+								Icons.Default.PlayArrow,
+								contentDescription = stringResource(R.string.connect)
+							)
+						}
+					}
+					IconButton(
+						onClick = {
+							onEditClick()
+						}
+					) {
+						Icon(
+							Icons.Default.Edit,
+							contentDescription = stringResource(R.string.edit)
+						)
+					}
+					IconButton(
+						onClick = onDeleteClick
+					) {
+						Icon(
+							Icons.Default.Delete,
+							contentDescription = stringResource(R.string.delete)
+						)
+					}
 				}
 			}
 		}

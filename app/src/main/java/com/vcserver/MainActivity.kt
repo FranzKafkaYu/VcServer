@@ -39,12 +39,21 @@ class MainActivity : ComponentActivity() {
 			}
 		}
 
+		// 数据库迁移：从版本 2 到版本 3，添加 orderIndex 字段
+		val migration2To3 = object : Migration(2, 3) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("ALTER TABLE servers ADD COLUMN orderIndex INTEGER NOT NULL DEFAULT 0")
+				// 为现有服务器设置默认 orderIndex（使用 id 作为初始值）
+				database.execSQL("UPDATE servers SET orderIndex = id WHERE orderIndex = 0")
+			}
+		}
+
 		val database = Room.databaseBuilder(
 			applicationContext,
 			AppDatabase::class.java,
 			"vcserver_database"
 		)
-			.addMigrations(migration1To2)
+			.addMigrations(migration1To2, migration2To3)
 			.build()
 
 		val secureStorage = SecureStorage(applicationContext)
@@ -77,6 +86,7 @@ class MainActivity : ComponentActivity() {
 						navController = navController,
 						serverListViewModel = serverListViewModel,
 						addServerViewModel = addServerViewModel,
+						serverManagementService = serverManagementService,
 						serverMonitoringService = serverMonitoringService,
 						terminalService = terminalService
 					)

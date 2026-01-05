@@ -12,7 +12,7 @@ import com.vcserver.models.Server
  */
 @Database(
 	entities = [Server::class],
-	version = 2,
+	version = 3,
 	exportSchema = false
 )
 @TypeConverters(AuthTypeConverter::class)

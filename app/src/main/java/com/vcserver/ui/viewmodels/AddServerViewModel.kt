@@ -12,13 +12,49 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * 添加服务器 ViewModel
+ * 添加/编辑服务器 ViewModel
  */
 class AddServerViewModel(
-	private val serverManagementService: ServerManagementService
+	private val serverManagementService: ServerManagementService,
+	private val serverId: Long? = null // 如果为 null，则为新增模式；否则为编辑模式
 ) : ViewModel() {
-	private val _uiState = MutableStateFlow(AddServerUiState())
+	private val _uiState = MutableStateFlow(AddServerUiState(isEditMode = serverId != null))
 	val uiState: StateFlow<AddServerUiState> = _uiState.asStateFlow()
+
+	init {
+		// 如果是编辑模式，加载服务器信息
+		serverId?.let { loadServerInfo(it) }
+	}
+
+	/**
+	 * 加载服务器信息（编辑模式）
+	 */
+	private fun loadServerInfo(id: Long) {
+		viewModelScope.launch {
+			_uiState.value = _uiState.value.copy(isLoading = true, error = null)
+			val server = serverManagementService.getServerById(id)
+			if (server != null) {
+				// 解密敏感信息（如果需要显示）
+				_uiState.value = _uiState.value.copy(
+					name = server.name,
+					host = server.host,
+					port = server.port.toString(),
+					username = server.username,
+					authType = server.authType,
+					password = "", // 密码不显示，需要重新输入
+					privateKey = "", // 私钥不显示，需要重新输入
+					keyPassphrase = server.keyPassphrase ?: "",
+					isLoading = false,
+					error = null
+				)
+			} else {
+				_uiState.value = _uiState.value.copy(
+					isLoading = false,
+					error = AppError.NetworkError("无法加载服务器信息")
+				)
+			}
+		}
+	}
 
 	/**
 	 * 更新服务器名称
@@ -130,7 +166,7 @@ class AddServerViewModel(
 	}
 
 	/**
-	 * 保存服务器
+	 * 保存服务器（新增或编辑）
 	 */
 	fun saveServer(onSuccess: () -> Unit) {
 		viewModelScope.launch {
@@ -138,22 +174,39 @@ class AddServerViewModel(
 			val state = _uiState.value
 			
 			val port = state.port.toIntOrNull() ?: 22
-			val result = serverManagementService.addServer(
-				name = state.name,
-				host = state.host,
-				port = port,
-				username = state.username,
-				authType = state.authType,
-				password = if (state.authType == AuthType.PASSWORD) state.password else null,
-				privateKey = if (state.authType == AuthType.KEY) state.privateKey else null,
-				keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
-				testConnection = false
-			)
+			
+			val result = if (serverId != null) {
+				// 编辑模式：更新服务器
+				serverManagementService.updateServer(
+					serverId = serverId,
+					name = state.name,
+					host = state.host,
+					port = port,
+					username = state.username,
+					authType = state.authType,
+					password = if (state.authType == AuthType.PASSWORD && state.password.isNotEmpty()) state.password else null,
+					privateKey = if (state.authType == AuthType.KEY && state.privateKey.isNotEmpty()) state.privateKey else null,
+					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null
+				)
+			} else {
+				// 新增模式：添加服务器
+				serverManagementService.addServer(
+					name = state.name,
+					host = state.host,
+					port = port,
+					username = state.username,
+					authType = state.authType,
+					password = if (state.authType == AuthType.PASSWORD) state.password else null,
+					privateKey = if (state.authType == AuthType.KEY) state.privateKey else null,
+					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
+					testConnection = false
+				).map { Unit }
+			}
 
 			result.fold(
 				onSuccess = {
 					// 保存成功后标记成功并重置状态
-					_uiState.value = AddServerUiState(saveSuccess = true)
+					_uiState.value = AddServerUiState(saveSuccess = true, isEditMode = serverId != null)
 					// 不在这里调用 onSuccess，让 LaunchedEffect 处理导航
 				},
 				onFailure = { exception ->
@@ -174,15 +227,17 @@ class AddServerViewModel(
 	}
 
 	/**
-	 * 重置状态
+	 * 重置状态（仅在新增模式下使用）
 	 */
 	fun reset() {
-		_uiState.value = AddServerUiState(saveSuccess = false)
+		// 保留编辑模式标志，只重置表单字段
+		val isEditMode = _uiState.value.isEditMode
+		_uiState.value = AddServerUiState(saveSuccess = false, isEditMode = isEditMode)
 	}
 }
 
 /**
- * 添加服务器 UI 状态
+ * 添加/编辑服务器 UI 状态
  */
 	data class AddServerUiState(
 	val name: String = "",
@@ -199,6 +254,8 @@ class AddServerViewModel(
 	val isTestingConnection: Boolean = false,
 	val connectionTestSuccess: Boolean = false,
 	val saveSuccess: Boolean = false,
+	val isLoading: Boolean = false,
+	val isEditMode: Boolean = false,
 	val error: AppError? = null
 )
 

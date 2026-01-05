@@ -31,6 +31,11 @@ interface ServerRepository {
 	 * 删除服务器
 	 */
 	suspend fun deleteServer(server: Server)
+
+	/**
+	 * 批量更新服务器
+	 */
+	suspend fun updateServers(servers: List<Server>)
 }
 
 

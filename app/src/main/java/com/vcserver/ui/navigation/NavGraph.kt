@@ -23,6 +23,11 @@ import com.vcserver.utils.SessionManager
 sealed class Screen(val route: String) {
 	object ServerList : Screen("server_list")
 	object AddServer : Screen("add_server")
+	data class EditServer(val serverId: Long) : Screen("edit_server/{serverId}") {
+		companion object {
+			fun createRoute(serverId: Long) = "edit_server/$serverId"
+		}
+	}
 	data class ServerMonitoring(val serverId: Long, val sessionKey: String) : Screen("server_monitoring/{serverId}/{sessionKey}") {
 		companion object {
 			fun createRoute(serverId: Long, sessionKey: String) = "server_monitoring/$serverId/$sessionKey"
@@ -43,6 +48,7 @@ fun NavGraph(
 	navController: NavHostController,
 	serverListViewModel: com.vcserver.ui.viewmodels.ServerListViewModel,
 	addServerViewModel: com.vcserver.ui.viewmodels.AddServerViewModel,
+	serverManagementService: com.vcserver.services.ServerManagementService,
 	serverMonitoringService: com.vcserver.services.ServerMonitoringService,
 	terminalService: TerminalService
 ) {
@@ -56,8 +62,8 @@ fun NavGraph(
 				onAddServerClick = {
 					navController.navigate(Screen.AddServer.route)
 				},
-				onServerClick = { server ->
-					// TODO: 后续实现服务器详情功能
+				onEditServerClick = { serverId ->
+					navController.navigate(Screen.EditServer.createRoute(serverId))
 				},
 				onConnectClick = { server, sessionKey ->
 					navController.navigate(Screen.ServerMonitoring.createRoute(server.id, sessionKey))
@@ -67,6 +73,29 @@ fun NavGraph(
 		composable(Screen.AddServer.route) {
 			AddServerScreen(
 				viewModel = addServerViewModel,
+				onBackClick = {
+					navController.popBackStack()
+				},
+				onSaveSuccess = {
+					navController.popBackStack()
+				}
+			)
+		}
+		composable(
+			route = "edit_server/{serverId}",
+			arguments = listOf(
+				navArgument("serverId") { type = NavType.LongType }
+			)
+		) { backStackEntry ->
+			val serverId = backStackEntry.arguments?.getLong("serverId") ?: 0L
+			val editServerViewModel = viewModel<com.vcserver.ui.viewmodels.AddServerViewModel>(
+				factory = EditServerViewModelFactory(
+					serverManagementService = serverManagementService,
+					serverId = serverId
+				)
+			)
+			AddServerScreen(
+				viewModel = editServerViewModel,
 				onBackClick = {
 					navController.popBackStack()
 				},
@@ -179,6 +208,22 @@ class TerminalViewModelFactory(
 		if (modelClass.isAssignableFrom(TerminalViewModel::class.java)) {
 			@Suppress("UNCHECKED_CAST")
 			return TerminalViewModel(terminalService, serverMonitoringService, server, session, sessionKey) as T
+		}
+		throw IllegalArgumentException("Unknown ViewModel class")
+	}
+}
+
+/**
+ * EditServerViewModel 工厂
+ */
+class EditServerViewModelFactory(
+	private val serverManagementService: com.vcserver.services.ServerManagementService,
+	private val serverId: Long
+) : androidx.lifecycle.ViewModelProvider.Factory {
+	override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+		if (modelClass.isAssignableFrom(com.vcserver.ui.viewmodels.AddServerViewModel::class.java)) {
+			@Suppress("UNCHECKED_CAST")
+			return com.vcserver.ui.viewmodels.AddServerViewModel(serverManagementService, serverId) as T
 		}
 		throw IllegalArgumentException("Unknown ViewModel class")
 	}

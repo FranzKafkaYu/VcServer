@@ -42,11 +42,30 @@ class ServerListViewModel(
 	}
 
 	/**
-	 * 删除服务器
+	 * 显示删除确认对话框
 	 */
-	fun deleteServer(server: Server) {
+	fun showDeleteConfirmDialog(server: Server) {
+		_uiState.value = _uiState.value.copy(
+			serverToDelete = server
+		)
+	}
+
+	/**
+	 * 取消删除
+	 */
+	fun cancelDelete() {
+		_uiState.value = _uiState.value.copy(
+			serverToDelete = null
+		)
+	}
+
+	/**
+	 * 确认删除服务器
+	 */
+	fun confirmDeleteServer() {
+		val server = _uiState.value.serverToDelete ?: return
 		viewModelScope.launch {
-			_uiState.value = _uiState.value.copy(isLoading = true)
+			_uiState.value = _uiState.value.copy(isLoading = true, serverToDelete = null)
 			val result = serverManagementService.deleteServer(server)
 			result.fold(
 				onSuccess = {
@@ -135,6 +154,136 @@ class ServerListViewModel(
 	fun clearError() {
 		_uiState.value = _uiState.value.copy(error = null)
 	}
+
+	/**
+	 * 更新服务器排序顺序
+	 */
+	fun updateServerOrder(servers: List<Server>) {
+		viewModelScope.launch {
+			val result = serverManagementService.updateServerOrder(servers)
+			result.fold(
+				onSuccess = {
+					// 排序更新成功，列表会自动刷新（通过 Flow）
+				},
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(
+						error = exception.toAppError()
+					)
+				}
+			)
+		}
+	}
+
+	/**
+	 * 进入选择模式
+	 */
+	fun enterSelectionMode(initialServerId: Long? = null) {
+		_uiState.value = _uiState.value.copy(
+			isSelectionMode = true,
+			selectedServerIds = if (initialServerId != null) setOf(initialServerId) else emptySet()
+		)
+	}
+
+	/**
+	 * 退出选择模式
+	 */
+	fun exitSelectionMode() {
+		_uiState.value = _uiState.value.copy(
+			isSelectionMode = false,
+			selectedServerIds = emptySet()
+		)
+	}
+
+	/**
+	 * 切换服务器选择状态
+	 */
+	fun toggleServerSelection(serverId: Long) {
+		val currentSelected = _uiState.value.selectedServerIds
+		_uiState.value = _uiState.value.copy(
+			selectedServerIds = if (currentSelected.contains(serverId)) {
+				currentSelected - serverId
+			} else {
+				currentSelected + serverId
+			}
+		)
+	}
+
+	/**
+	 * 全选/取消全选
+	 */
+	fun toggleSelectAll() {
+		val currentSelected = _uiState.value.selectedServerIds
+		val allServerIds = _uiState.value.servers.map { it.id }.toSet()
+		_uiState.value = _uiState.value.copy(
+			selectedServerIds = if (currentSelected.size == allServerIds.size) {
+				emptySet()
+			} else {
+				allServerIds
+			}
+		)
+	}
+
+	/**
+	 * 显示批量删除确认对话框
+	 */
+	fun showBatchDeleteConfirmDialog() {
+		val selectedIds = _uiState.value.selectedServerIds
+		val serversToDelete = _uiState.value.servers.filter { it.id in selectedIds }
+		if (serversToDelete.isNotEmpty()) {
+			_uiState.value = _uiState.value.copy(
+				showBatchDeleteConfirm = true
+			)
+		}
+	}
+
+	/**
+	 * 取消批量删除
+	 */
+	fun cancelBatchDelete() {
+		_uiState.value = _uiState.value.copy(
+			showBatchDeleteConfirm = false
+		)
+	}
+
+	/**
+	 * 确认批量删除选中的服务器
+	 */
+	fun confirmDeleteSelectedServers() {
+		viewModelScope.launch {
+			val selectedIds = _uiState.value.selectedServerIds
+			val serversToDelete = _uiState.value.servers.filter { it.id in selectedIds }
+			
+			if (serversToDelete.isEmpty()) return@launch
+			
+			_uiState.value = _uiState.value.copy(
+				isLoading = true,
+				showBatchDeleteConfirm = false
+			)
+			
+			var successCount = 0
+			var failCount = 0
+			
+			serversToDelete.forEach { server ->
+				val result = serverManagementService.deleteServer(server)
+				if (result.isSuccess) {
+					successCount++
+				} else {
+					failCount++
+				}
+			}
+			
+			_uiState.value = _uiState.value.copy(
+				isLoading = false,
+				isSelectionMode = false,
+				selectedServerIds = emptySet(),
+				error = if (failCount > 0) {
+					AppError.NetworkError("成功删除 $successCount 个，失败 $failCount 个")
+				} else {
+					null
+				}
+			)
+		}
+	}
 }
 
 /**
@@ -144,7 +293,11 @@ data class ServerListUiState(
 	val servers: List<Server> = emptyList(),
 	val isLoading: Boolean = true,
 	val connectingServerId: Long? = null,
-	val error: AppError? = null
+	val error: AppError? = null,
+	val isSelectionMode: Boolean = false,
+	val selectedServerIds: Set<Long> = emptySet(),
+	val serverToDelete: Server? = null, // 待删除的服务器（用于显示确认对话框）
+	val showBatchDeleteConfirm: Boolean = false // 是否显示批量删除确认对话框
 )
 
 

@@ -34,15 +34,22 @@ fun AddServerScreen(
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 
-	// 进入界面时重置状态
+	// 进入界面时，只在新增模式下重置状态（编辑模式下由 ViewModel 的 init 加载数据）
 	LaunchedEffect(Unit) {
-		viewModel.reset()
+		if (!uiState.isEditMode) {
+			viewModel.reset()
+		}
 	}
 
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text(stringResource(R.string.add_server)) },
+				title = { 
+					Text(
+						if (uiState.isEditMode) stringResource(R.string.edit_server) 
+						else stringResource(R.string.add_server)
+					) 
+				},
 				navigationIcon = {
 					IconButton(onClick = onBackClick) {
 						Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel))

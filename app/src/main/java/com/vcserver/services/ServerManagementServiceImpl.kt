@@ -5,6 +5,7 @@ import com.vcserver.models.Server
 import com.vcserver.repositories.ServerRepository
 import com.vcserver.utils.SecureStorage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * 服务器管理服务实现
@@ -68,6 +69,10 @@ class ServerManagementServiceImpl(
 			}
 		}
 
+		// 获取当前服务器数量，用于设置 orderIndex
+		val currentServers = serverRepository.getAllServers().first()
+		val serverCount = currentServers.size
+
 		// 创建服务器实体
 		val server = Server(
 			name = name,
@@ -77,7 +82,8 @@ class ServerManagementServiceImpl(
 			authType = authType,
 			encryptedPassword = encryptedPassword,
 			encryptedPrivateKey = encryptedPrivateKey,
-			keyPassphrase = keyPassphrase
+			keyPassphrase = keyPassphrase,
+			orderIndex = serverCount // 新服务器默认排在最后
 		)
 
 		// 保存到数据库
@@ -95,6 +101,63 @@ class ServerManagementServiceImpl(
 	override suspend fun updateServer(server: Server): Result<Unit> {
 		return try {
 			val updatedServer = server.copy(updatedAt = System.currentTimeMillis())
+			serverRepository.updateServer(updatedServer)
+			Result.success(Unit)
+		} catch (e: Exception) {
+			Result.failure(e)
+		}
+	}
+
+	override suspend fun updateServer(
+		serverId: Long,
+		name: String,
+		host: String,
+		port: Int,
+		username: String,
+		authType: AuthType,
+		password: String?,
+		privateKey: String?,
+		keyPassphrase: String?
+	): Result<Unit> {
+		return try {
+			val existingServer = serverRepository.getServerById(serverId)
+				?: return Result.failure(Exception("服务器不存在"))
+
+			// 如果密码或私钥为空，保留原有的加密值
+			val encryptedPassword = when {
+				authType == AuthType.PASSWORD && !password.isNullOrBlank() -> {
+					// 删除旧的加密文件
+					existingServer.encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
+					// 加密新密码
+					secureStorage.encryptPassword(password)
+				}
+				authType == AuthType.PASSWORD -> existingServer.encryptedPassword
+				else -> null
+			}
+
+			val encryptedPrivateKey = when {
+				authType == AuthType.KEY && !privateKey.isNullOrBlank() -> {
+					// 删除旧的加密文件
+					existingServer.encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
+					// 加密新私钥
+					secureStorage.encryptPrivateKey(privateKey)
+				}
+				authType == AuthType.KEY -> existingServer.encryptedPrivateKey
+				else -> null
+			}
+
+			val updatedServer = existingServer.copy(
+				name = name,
+				host = host,
+				port = port,
+				username = username,
+				authType = authType,
+				encryptedPassword = encryptedPassword,
+				encryptedPrivateKey = encryptedPrivateKey,
+				keyPassphrase = if (authType == AuthType.KEY) keyPassphrase else null,
+				updatedAt = System.currentTimeMillis()
+			)
+
 			serverRepository.updateServer(updatedServer)
 			Result.success(Unit)
 		} catch (e: Exception) {
@@ -130,6 +193,19 @@ class ServerManagementServiceImpl(
 			privateKey = privateKey,
 			passphrase = server.keyPassphrase
 		)
+	}
+
+	override suspend fun updateServerOrder(servers: List<Server>): Result<Unit> {
+		return try {
+			// 更新每个服务器的 orderIndex
+			val updatedServers = servers.mapIndexed { index, server ->
+				server.copy(orderIndex = index, updatedAt = System.currentTimeMillis())
+			}
+			serverRepository.updateServers(updatedServers)
+			Result.success(Unit)
+		} catch (e: Exception) {
+			Result.failure(e)
+		}
 	}
 
 	/**
