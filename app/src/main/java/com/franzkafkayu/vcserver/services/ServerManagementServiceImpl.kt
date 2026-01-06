@@ -110,7 +110,7 @@ class ServerManagementServiceImpl(
 			val id = serverRepository.insertServer(server)
 			Result.success(id)
 		} catch (e: Exception) {
-			// 如果保存失败，清理已加密的文�?
+			// 如果保存失败，清理已加密的文件
 			encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
 			encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }

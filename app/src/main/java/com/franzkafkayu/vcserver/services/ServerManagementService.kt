@@ -15,7 +15,7 @@ interface ServerManagementService {
 	fun getAllServers(): Flow<List<Server>>
 
 	/**
-	 * 根据 ID 获取服务�?
+	 * 根据 ID 获取服务器
 	 */
 	suspend fun getServerById(id: Long): Server?
 
@@ -41,17 +41,17 @@ interface ServerManagementService {
 	): Result<Long>
 
 	/**
-	 * 更新服务�?
+	 * 更新服务器
 	 */
 	suspend fun updateServer(server: Server): Result<Unit>
 
 	/**
 	 * 更新服务器（支持部分字段更新，保留未修改的敏感信息）
 	 * @param serverId 服务器ID
-	 * @param name 服务器名�?
+	 * @param name 服务器名称
 	 * @param host 主机地址
 	 * @param port 端口
-	 * @param username 用户�?
+	 * @param username 用户名
 	 * @param authType 认证类型
 	 * @param password 新密码（如果为null或空，保留原有密码）
 	 * @param privateKey 新私钥（如果为null或空，保留原有私钥）
@@ -60,7 +60,7 @@ interface ServerManagementService {
 	 * @param proxyType 代理类型
 	 * @param proxyHost 代理主机
 	 * @param proxyPort 代理端口
-	 * @param proxyUsername 代理用户�?
+	 * @param proxyUsername 代理用户名
 	 * @param proxyPassword 代理密码
 	 */
 	suspend fun updateServer(
@@ -82,17 +82,17 @@ interface ServerManagementService {
 	): Result<Unit>
 
 	/**
-	 * 删除服务�?
+	 * 删除服务器
 	 */
 	suspend fun deleteServer(server: Server): Result<Unit>
 
 	/**
-	 * 测试服务器连�?
+	 * 测试服务器连器
 	 */
 	suspend fun testServerConnection(server: Server): Result<Unit>
 
 	/**
-	 * 更新服务器排序顺�?
+	 * 更新服务器排序顺序
 	 * @param servers 按新顺序排列的服务器列表
 	 */
 	suspend fun updateServerOrder(servers: List<Server>): Result<Unit>

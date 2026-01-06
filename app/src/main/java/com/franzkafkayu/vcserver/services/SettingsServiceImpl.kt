@@ -26,17 +26,23 @@ class SettingsServiceImpl(
 	}
 
 	override suspend fun updateConnectionTimeout(timeout: Int) {
-		require(timeout > 0) { "连接超时时间必须大于 0" }
+		if (timeout <= 0) {
+			throw ValidationException("CONNECTION_TIMEOUT_INVALID")
+		}
 		settingsRepository.updateConnectionTimeout(timeout)
 	}
 
 	override suspend fun updateDefaultSshPort(port: Int) {
-		require(port in 1..65535) { "SSH 端口必须在 1-65535 范围内" }
+		if (port !in 1..65535) {
+			throw ValidationException("SSH_PORT_INVALID")
+		}
 		settingsRepository.updateDefaultSshPort(port)
 	}
 
 	override suspend fun updateRefreshInterval(interval: Int) {
-		require(interval >= 1) { "刷新间隔必须大于等于 1 秒" }
+		if (interval < 1) {
+			throw ValidationException("REFRESH_INTERVAL_INVALID")
+		}
 		settingsRepository.updateRefreshInterval(interval)
 	}
 
@@ -49,8 +55,8 @@ class SettingsServiceImpl(
 	) {
 		// 默认代理配置仅作为模板，不进行严格验证
 		// 实际使用时的验证会在服务器级别的代理设置中进行
-		if (host.isNotBlank()) {
-			require(port in 1..65535) { "代理端口必须在 1-65535 范围内" }
+		if (host.isNotBlank() && port !in 1..65535) {
+			throw ValidationException("PROXY_PORT_INVALID")
 		}
 		settingsRepository.updateDefaultProxy(type, host, port, username, password)
 	}

@@ -56,7 +56,7 @@ class SettingsViewModel(
 				settingsService.updateTheme(theme)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新主题失败: ${e.message}"
+					errorMessage = "UPDATE_THEME_FAILED:${e.message}"
 				)
 			}
 		}
@@ -73,7 +73,7 @@ class SettingsViewModel(
 				onLanguageChanged()
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新语言失败: ${e.message}"
+					errorMessage = "UPDATE_LANGUAGE_FAILED:${e.message}"
 				)
 			}
 		}
@@ -88,7 +88,7 @@ class SettingsViewModel(
 				settingsService.updateConnectionTimeout(timeout)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新连接超时时间失败: ${e.message}"
+					errorMessage = "UPDATE_CONNECTION_TIMEOUT_FAILED:${e.message}"
 				)
 			}
 		}
@@ -103,7 +103,7 @@ class SettingsViewModel(
 				settingsService.updateDefaultSshPort(port)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新默认端口失败: ${e.message}"
+					errorMessage = "UPDATE_DEFAULT_PORT_FAILED:${e.message}"
 				)
 			}
 		}
@@ -118,7 +118,7 @@ class SettingsViewModel(
 				settingsService.updateRefreshInterval(interval)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新刷新间隔失败: ${e.message}"
+					errorMessage = "UPDATE_REFRESH_INTERVAL_FAILED:${e.message}"
 				)
 			}
 		}
@@ -139,7 +139,7 @@ class SettingsViewModel(
 				settingsService.updateDefaultProxy(type, host, port, username, password)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新默认代理配置失败: ${e.message}"
+					errorMessage = "UPDATE_DEFAULT_PROXY_FAILED:${e.message}"
 				)
 			}
 		}
@@ -169,7 +169,7 @@ class SettingsViewModel(
 				hideResetDialog()
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "重置设置失败: ${e.message}"
+					errorMessage = "RESET_SETTINGS_FAILED:${e.message}"
 				)
 			}
 		}

@@ -40,7 +40,7 @@ interface SettingsService {
 	suspend fun updateRefreshInterval(interval: Int)
 
 	/**
-	 * 更新默认代理配置（仅作为模板，不启用�?
+	 * 更新默认代理配置（仅作为模板，不启用）
 	 */
 	suspend fun updateDefaultProxy(
 		type: com.franzkafkayu.vcserver.models.ProxyType,

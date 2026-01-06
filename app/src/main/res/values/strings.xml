@@ -103,6 +103,18 @@
 	<string name="language_chinese">中文</string>
 	<string name="language_english">English</string>
 	<string name="language_system">跟随系统</string>
+	<!-- 错误消息 -->
+	<string name="error_connection_timeout_invalid">连接超时时间必须大于 0</string>
+	<string name="error_ssh_port_invalid">SSH 端口必须在 1-65535 范围内</string>
+	<string name="error_refresh_interval_invalid">刷新间隔必须大于等于 1 秒</string>
+	<string name="error_proxy_port_invalid">代理端口必须在 1-65535 范围内</string>
+	<string name="error_update_theme_failed">更新主题失败: %1$s</string>
+	<string name="error_update_language_failed">更新语言失败: %1$s</string>
+	<string name="error_update_connection_timeout_failed">更新连接超时时间失败: %1$s</string>
+	<string name="error_update_default_port_failed">更新默认端口失败: %1$s</string>
+	<string name="error_update_refresh_interval_failed">更新刷新间隔失败: %1$s</string>
+	<string name="error_update_default_proxy_failed">更新默认代理配置失败: %1$s</string>
+	<string name="error_reset_settings_failed">重置设置失败: %1$s</string>
 	<!-- 关于界面 -->
 	<string name="about_title">关于</string>
 	<string name="about_app_name">VcServer</string>

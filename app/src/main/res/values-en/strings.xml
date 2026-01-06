@@ -103,6 +103,18 @@
 	<string name="language_chinese">Chinese</string>
 	<string name="language_english">English</string>
 	<string name="language_system">Follow System</string>
+	<!-- Error Messages -->
+	<string name="error_connection_timeout_invalid">Connection timeout must be greater than 0</string>
+	<string name="error_ssh_port_invalid">SSH port must be in the range 1-65535</string>
+	<string name="error_refresh_interval_invalid">Refresh interval must be greater than or equal to 1 second</string>
+	<string name="error_proxy_port_invalid">Proxy port must be in the range 1-65535</string>
+	<string name="error_update_theme_failed">Failed to update theme: %1$s</string>
+	<string name="error_update_language_failed">Failed to update language: %1$s</string>
+	<string name="error_update_connection_timeout_failed">Failed to update connection timeout: %1$s</string>
+	<string name="error_update_default_port_failed">Failed to update default port: %1$s</string>
+	<string name="error_update_refresh_interval_failed">Failed to update refresh interval: %1$s</string>
+	<string name="error_update_default_proxy_failed">Failed to update default proxy configuration: %1$s</string>
+	<string name="error_reset_settings_failed">Failed to reset settings: %1$s</string>
 	<!-- About Screen -->
 	<string name="about_title">About</string>
 	<string name="about_app_name">VcServer</string>

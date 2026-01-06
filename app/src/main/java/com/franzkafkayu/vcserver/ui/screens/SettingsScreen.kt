@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,8 +48,9 @@ fun SettingsScreen(
 	// 显示错误提示
 	LaunchedEffect(uiState.errorMessage) {
 		uiState.errorMessage?.let { error ->
+			val localizedError = getLocalizedErrorMessage(context, error)
 			snackbarHostState.showSnackbar(
-				message = error,
+				message = localizedError,
 				duration = SnackbarDuration.Short
 			)
 			viewModel.clearError()
@@ -470,6 +472,61 @@ private fun ProxyTypeSelector(
 				modifier = Modifier.weight(1f)
 			)
 		}
+	}
+}
+
+/**
+ * 将错误键值转换为本地化错误消息
+ */
+@Composable
+private fun getLocalizedErrorMessage(context: Context, errorKey: String): String {
+	// 错误消息格式: "OPERATION_FAILED:ERROR_KEY"
+	val parts = errorKey.split(":", limit = 2)
+	if (parts.size != 2) {
+		return errorKey // 如果不是预期格式，直接返回原消息
+	}
+	
+	val operation = parts[0]
+	val errorCode = parts[1]
+	
+	// 根据操作类型和错误代码返回本地化字符串
+	return when (operation) {
+		"UPDATE_THEME_FAILED" -> {
+			context.getString(R.string.error_update_theme_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"UPDATE_LANGUAGE_FAILED" -> {
+			context.getString(R.string.error_update_language_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"UPDATE_CONNECTION_TIMEOUT_FAILED" -> {
+			context.getString(R.string.error_update_connection_timeout_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"UPDATE_DEFAULT_PORT_FAILED" -> {
+			context.getString(R.string.error_update_default_port_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"UPDATE_REFRESH_INTERVAL_FAILED" -> {
+			context.getString(R.string.error_update_refresh_interval_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"UPDATE_DEFAULT_PROXY_FAILED" -> {
+			context.getString(R.string.error_update_default_proxy_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"RESET_SETTINGS_FAILED" -> {
+			context.getString(R.string.error_reset_settings_failed, getErrorDetailMessage(context, errorCode))
+		}
+		else -> errorKey
+	}
+}
+
+/**
+ * 获取错误详情消息
+ */
+@Composable
+private fun getErrorDetailMessage(context: Context, errorCode: String): String {
+	return when (errorCode) {
+		"CONNECTION_TIMEOUT_INVALID" -> context.getString(R.string.error_connection_timeout_invalid)
+		"SSH_PORT_INVALID" -> context.getString(R.string.error_ssh_port_invalid)
+		"REFRESH_INTERVAL_INVALID" -> context.getString(R.string.error_refresh_interval_invalid)
+		"PROXY_PORT_INVALID" -> context.getString(R.string.error_proxy_port_invalid)
+		else -> errorCode
 	}
 }
 
