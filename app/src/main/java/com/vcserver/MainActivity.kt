@@ -11,10 +11,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vcserver.data.AppDatabase
 import com.vcserver.repositories.ServerRepositoryImpl
+import com.vcserver.repositories.SettingsRepositoryImpl
 import com.vcserver.services.ServerManagementServiceImpl
 import com.vcserver.services.ServerMonitoringServiceImpl
+import com.vcserver.services.SettingsServiceImpl
 import com.vcserver.services.SshAuthenticationServiceImpl
 import com.vcserver.services.SshCommandServiceImpl
 import com.vcserver.services.TerminalServiceImpl
@@ -23,11 +27,26 @@ import com.vcserver.ui.navigation.Screen
 import com.vcserver.ui.screens.AddServerScreen
 import com.vcserver.ui.screens.ServerListScreen
 import com.vcserver.ui.theme.VcServerTheme
+import android.content.Context
 import com.vcserver.ui.viewmodels.AddServerViewModel
 import com.vcserver.ui.viewmodels.ServerListViewModel
+import com.vcserver.utils.LocaleHelper
 import com.vcserver.utils.SecureStorage
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
+	override fun attachBaseContext(newBase: Context) {
+		// 在 attachBaseContext 中设置语言，这样可以在 onCreate 之前应用
+		val settingsRepository = SettingsRepositoryImpl(newBase)
+		val locale = runBlocking {
+			val settings = settingsRepository.getSettings().first()
+			LocaleHelper.getLocale(settings.language)
+		}
+		super.attachBaseContext(LocaleHelper.wrapContext(newBase, locale))
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
@@ -72,11 +91,18 @@ class MainActivity : ComponentActivity() {
 		)
 		val terminalService = TerminalServiceImpl()
 
+		// 初始化设置服务
+		val settingsRepository = SettingsRepositoryImpl(applicationContext)
+		val settingsService = SettingsServiceImpl(settingsRepository)
+
 		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService)
 		val addServerViewModel = AddServerViewModel(serverManagementService)
 
 		setContent {
-			VcServerTheme {
+			// 获取主题设置
+			val settings by settingsService.getSettings().collectAsStateWithLifecycle(initialValue = com.vcserver.models.AppSettings())
+			
+			VcServerTheme(themeMode = settings.theme) {
 				Surface(
 					modifier = Modifier.fillMaxSize(),
 					color = MaterialTheme.colorScheme.background
@@ -88,7 +114,8 @@ class MainActivity : ComponentActivity() {
 						addServerViewModel = addServerViewModel,
 						serverManagementService = serverManagementService,
 						serverMonitoringService = serverMonitoringService,
-						terminalService = terminalService
+						terminalService = terminalService,
+						settingsService = settingsService
 					)
 				}
 			}

@@ -10,6 +10,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.vcserver.models.ThemeMode
 
 private val DarkColorScheme = darkColorScheme(
 	primary = androidx.compose.ui.graphics.Color(0xFFBB86FC),
@@ -25,9 +26,16 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun VcServerTheme(
-	darkTheme: Boolean = isSystemInDarkTheme(),
+	themeMode: ThemeMode = ThemeMode.SYSTEM,
 	content: @Composable () -> Unit
 ) {
+	val systemDarkTheme = isSystemInDarkTheme()
+	val darkTheme = when (themeMode) {
+		ThemeMode.LIGHT -> false
+		ThemeMode.DARK -> true
+		ThemeMode.SYSTEM -> systemDarkTheme
+	}
+	
 	val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 	val view = LocalView.current
 	if (!view.isInEditMode) {

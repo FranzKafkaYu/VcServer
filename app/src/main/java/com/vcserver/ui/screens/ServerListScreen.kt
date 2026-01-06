@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,7 +35,8 @@ fun ServerListScreen(
 	viewModel: ServerListViewModel,
 	onAddServerClick: () -> Unit,
 	onEditServerClick: (Long) -> Unit,
-	onConnectClick: (Server, String) -> Unit
+	onConnectClick: (Server, String) -> Unit,
+	onSettingsClick: () -> Unit
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 	val snackbarHostState = remember { SnackbarHostState() }
@@ -78,6 +80,13 @@ fun ServerListScreen(
 							Icon(
 								Icons.Default.Done,
 								contentDescription = stringResource(R.string.done)
+							)
+						}
+					} else {
+						IconButton(onClick = onSettingsClick) {
+							Icon(
+								Icons.Default.Settings,
+								contentDescription = "设置"
 							)
 						}
 					}

@@ -9,11 +9,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.jcraft.jsch.Session
 import com.vcserver.services.TerminalService
+import com.vcserver.ui.screens.AboutScreen
 import com.vcserver.ui.screens.AddServerScreen
 import com.vcserver.ui.screens.ServerListScreen
 import com.vcserver.ui.screens.ServerMonitoringScreen
+import com.vcserver.ui.screens.SettingsScreen
 import com.vcserver.ui.screens.TerminalScreen
 import com.vcserver.ui.viewmodels.ServerMonitoringViewModel
+import com.vcserver.ui.viewmodels.SettingsViewModel
 import com.vcserver.ui.viewmodels.TerminalViewModel
 import com.vcserver.utils.SessionManager
 
@@ -38,6 +41,8 @@ sealed class Screen(val route: String) {
 			fun createRoute(serverId: Long, sessionKey: String) = "terminal/$serverId/$sessionKey"
 		}
 	}
+	object Settings : Screen("settings")
+	object About : Screen("about")
 }
 
 /**
@@ -50,7 +55,8 @@ fun NavGraph(
 	addServerViewModel: com.vcserver.ui.viewmodels.AddServerViewModel,
 	serverManagementService: com.vcserver.services.ServerManagementService,
 	serverMonitoringService: com.vcserver.services.ServerMonitoringService,
-	terminalService: TerminalService
+	terminalService: TerminalService,
+	settingsService: com.vcserver.services.SettingsService
 ) {
 	NavHost(
 		navController = navController,
@@ -67,6 +73,9 @@ fun NavGraph(
 				},
 				onConnectClick = { server, sessionKey ->
 					navController.navigate(Screen.ServerMonitoring.createRoute(server.id, sessionKey))
+				},
+				onSettingsClick = {
+					navController.navigate(Screen.Settings.route)
 				}
 			)
 		}
@@ -174,6 +183,27 @@ fun NavGraph(
 				}
 			}
 		}
+		composable(Screen.Settings.route) {
+			val settingsViewModel = viewModel<SettingsViewModel>(
+				factory = SettingsViewModelFactory(settingsService)
+			)
+			SettingsScreen(
+				viewModel = settingsViewModel,
+				onBackClick = {
+					navController.popBackStack()
+				},
+				onAboutClick = {
+					navController.navigate(Screen.About.route)
+				}
+			)
+		}
+		composable(Screen.About.route) {
+			AboutScreen(
+				onBackClick = {
+					navController.popBackStack()
+				}
+			)
+		}
 	}
 }
 
@@ -224,6 +254,21 @@ class EditServerViewModelFactory(
 		if (modelClass.isAssignableFrom(com.vcserver.ui.viewmodels.AddServerViewModel::class.java)) {
 			@Suppress("UNCHECKED_CAST")
 			return com.vcserver.ui.viewmodels.AddServerViewModel(serverManagementService, serverId) as T
+		}
+		throw IllegalArgumentException("Unknown ViewModel class")
+	}
+}
+
+/**
+ * SettingsViewModel 工厂
+ */
+class SettingsViewModelFactory(
+	private val settingsService: com.vcserver.services.SettingsService
+) : androidx.lifecycle.ViewModelProvider.Factory {
+	override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+		if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
+			@Suppress("UNCHECKED_CAST")
+			return SettingsViewModel(settingsService) as T
 		}
 		throw IllegalArgumentException("Unknown ViewModel class")
 	}
