@@ -19,6 +19,23 @@ import android.content.pm.PackageManager
 /**
  * 关于界面
  */
+object AboutScreenConstants {
+	/**
+	 * GitHub 仓库地址
+	 */
+	const val GITHUB_URL = "https://github.com/FranzKafkaYu/VcServer"
+	
+	/**
+	 * 应用发布日期
+	 */
+	const val RELEASE_DATE = "2025-01-05"
+	
+	/**
+	 * 作者名称
+	 */
+	const val AUTHOR = "FranzKafkaYu"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
@@ -69,8 +86,8 @@ fun AboutScreen(
 					}
 					InfoRow("版本号", packageInfo?.versionName ?: "1.0")
 					InfoRow("版本代码", (packageInfo?.versionCode ?: 1).toString())
-					InfoRow("发布时间", "2025-01-05")
-					InfoRow("作者", "VcServer Team")
+					InfoRow("发布时间", AboutScreenConstants.RELEASE_DATE)
+					InfoRow("作者", AboutScreenConstants.AUTHOR)
 				}
 			}
 
@@ -78,7 +95,7 @@ fun AboutScreen(
 			Card(
 				modifier = Modifier.fillMaxWidth(),
 				onClick = {
-					val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/vcserver/vcserver"))
+					val intent = Intent(Intent.ACTION_VIEW, Uri.parse(AboutScreenConstants.GITHUB_URL))
 					context.startActivity(intent)
 				}
 			) {
@@ -91,10 +108,10 @@ fun AboutScreen(
 				) {
 					Text(
 						text = "GitHub",
-						style = MaterialTheme.typography.bodyLarge
+						style = MaterialTheme.typography.bodySmall
 					)
 					Text(
-						text = "https://github.com/FranzKafkaYu/VcServer.git",
+						text = AboutScreenConstants.GITHUB_URL,
 						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.primary
 					)
