@@ -94,7 +94,7 @@ fun AboutScreen(
 						style = MaterialTheme.typography.bodyLarge
 					)
 					Text(
-						text = "https://github.com/vcserver/vcserver",
+						text = "https://github.com/FranzKafkaYu/VcServer.git",
 						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.primary
 					)
