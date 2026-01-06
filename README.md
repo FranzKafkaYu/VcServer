@@ -153,7 +153,7 @@ app/src/main/java/com/vcserver/
 
 1. **克隆项目**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/FranzKafkaYu/VcServer.git
    cd VcServer
    ```
 
@@ -257,7 +257,7 @@ app/src/main/java/com/vcserver/
 ## 📞 联系方式
 
 - **GitHub**: [https://github.com/vcserver/vcserver](https://github.com/vcserver/vcserver)
-- **作者**: VcServer Team
+- **作者**: FranzKafkaYu
 
 ---
 
