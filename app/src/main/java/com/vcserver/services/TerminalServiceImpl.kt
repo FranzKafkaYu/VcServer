@@ -58,6 +58,34 @@ class TerminalServiceImpl : TerminalService {
 		}
 	}
 
+	override suspend fun sendRawBytes(channel: ChannelShell, bytes: ByteArray) = withContext(Dispatchers.IO) {
+		try {
+			if (!channel.isConnected) {
+				return@withContext
+			}
+
+			val outputStream: OutputStream = channel.outputStream
+			outputStream.write(bytes)
+			outputStream.flush()
+		} catch (e: Exception) {
+			throw Exception("Failed to send raw bytes: ${e.message}", e)
+		}
+	}
+
+	override suspend fun sendControlChar(channel: ChannelShell, controlChar: Int) = withContext(Dispatchers.IO) {
+		try {
+			if (!channel.isConnected) {
+				return@withContext
+			}
+
+			val outputStream: OutputStream = channel.outputStream
+			outputStream.write(controlChar)
+			outputStream.flush()
+		} catch (e: Exception) {
+			throw Exception("Failed to send control char: ${e.message}", e)
+		}
+	}
+
 	override fun getOutputFlow(channel: ChannelShell): Flow<String> = callbackFlow {
 		val inputStream: InputStream = channel.inputStream
 		val buffer = ByteArray(1024)

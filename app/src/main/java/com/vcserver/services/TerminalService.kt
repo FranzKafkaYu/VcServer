@@ -25,6 +25,20 @@ interface TerminalService {
 	suspend fun sendCommand(channel: ChannelShell, command: String)
 
 	/**
+	 * 发送原始字节到Shell（用于控制字符和实时输入）
+	 * @param channel Shell通道
+	 * @param bytes 要发送的字节数组
+	 */
+	suspend fun sendRawBytes(channel: ChannelShell, bytes: ByteArray)
+
+	/**
+	 * 发送控制字符到Shell
+	 * @param channel Shell通道
+	 * @param controlChar 控制字符（例如：Ctrl+C = 0x03, Ctrl+D = 0x04）
+	 */
+	suspend fun sendControlChar(channel: ChannelShell, controlChar: Int)
+
+	/**
 	 * 获取Shell输出流
 	 * @param channel Shell通道
 	 * @return 输出流（Flow<String>）

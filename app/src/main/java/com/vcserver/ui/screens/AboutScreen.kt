@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.content.pm.PackageManager
+import com.vcserver.BuildConfig
 
 /**
  * 关于界面
@@ -84,9 +85,10 @@ fun AboutScreen(
 					} catch (e: Exception) {
 						null
 					}
-					InfoRow("版本号", packageInfo?.versionName ?: "1.0")
-					InfoRow("版本代码", (packageInfo?.versionCode ?: 1).toString())
-					InfoRow("发布时间", AboutScreenConstants.RELEASE_DATE)
+					InfoRow("版本号", BuildConfig.VERSION_NAME)
+					InfoRow("版本代码", BuildConfig.VERSION_CODE.toString())
+					InfoRow("Commit", BuildConfig.GIT_COMMIT_HASH)
+					InfoRow("构建日期", BuildConfig.BUILD_DATE)
 					InfoRow("作者", AboutScreenConstants.AUTHOR)
 				}
 			}

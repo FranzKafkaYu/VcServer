@@ -8,12 +8,49 @@ android {
 	namespace 'com.vcserver'
 	compileSdk 34
 
+	// 获取 Git commit hash
+	def getGitCommitHash = { ->
+		try {
+			def stdout = new ByteArrayOutputStream()
+			exec {
+				commandLine 'git', 'rev-parse', '--short', 'HEAD'
+				standardOutput = stdout
+				ignoreExitValue = true
+			}
+			def hash = stdout.toString().trim()
+			return hash.isEmpty() ? "unknown" : hash
+		} catch (Exception e) {
+			return "unknown"
+		}
+	}
+
+	// 获取当前日期（年月日格式）
+	def getBuildDate = { ->
+		def date = new Date()
+		def formattedDate = date.format('yyyyMMdd')
+		return formattedDate
+	}
+
+	// 版本号规则：x.x.x-年月日
+	def majorVersion = 1
+	def minorVersion = 0
+	def patchVersion = 0
+	def buildDate = getBuildDate()
+	def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
+
 	defaultConfig {
 		applicationId "com.vcserver"
 		minSdk 29
 		targetSdk 34
 		versionCode 1
-		versionName "1.0"
+		versionName versionNameString
+
+		// 获取 Git commit hash
+		def gitCommitHash = getGitCommitHash()
+
+		// 在 BuildConfig 中添加 commit hash 和构建日期
+		buildConfigField "String", "GIT_COMMIT_HASH", "\"${gitCommitHash}\""
+		buildConfigField "String", "BUILD_DATE", "\"${buildDate}\""
 
 		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 		vectorDrawables {
@@ -36,6 +73,7 @@ android {
 	}
 	buildFeatures {
 		compose true
+		buildConfig true
 	}
 	composeOptions {
 		kotlinCompilerExtensionVersion '1.5.3'

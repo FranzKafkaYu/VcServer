@@ -206,6 +206,106 @@ class TerminalViewModel(
 	}
 
 	/**
+	 * 发送实时字符输入（用于支持光标移动和实时编辑）
+	 */
+	fun sendRawInput(bytes: ByteArray) {
+		val channel = shellChannel ?: return
+		if (!terminalService.isConnected(channel) || !session.isConnected) {
+			return
+		}
+
+		viewModelScope.launch {
+			try {
+				terminalService.sendRawBytes(channel, bytes)
+			} catch (e: Exception) {
+				_uiState.value = _uiState.value.copy(
+					error = e.toAppError()
+				)
+			}
+		}
+	}
+
+	/**
+	 * 发送 Ctrl+C（中断信号）
+	 */
+	fun sendInterrupt() {
+		val channel = shellChannel ?: return
+		if (!terminalService.isConnected(channel) || !session.isConnected) {
+			return
+		}
+
+		viewModelScope.launch {
+			try {
+				terminalService.sendControlChar(channel, 0x03) // Ctrl+C
+			} catch (e: Exception) {
+				_uiState.value = _uiState.value.copy(
+					error = e.toAppError()
+				)
+			}
+		}
+	}
+
+	/**
+	 * 发送 Ctrl+D（EOF 信号）
+	 */
+	fun sendEOF() {
+		val channel = shellChannel ?: return
+		if (!terminalService.isConnected(channel) || !session.isConnected) {
+			return
+		}
+
+		viewModelScope.launch {
+			try {
+				terminalService.sendControlChar(channel, 0x04) // Ctrl+D
+			} catch (e: Exception) {
+				_uiState.value = _uiState.value.copy(
+					error = e.toAppError()
+				)
+			}
+		}
+	}
+
+	/**
+	 * 发送 Ctrl+L（清屏）
+	 */
+	fun sendClearScreen() {
+		val channel = shellChannel ?: return
+		if (!terminalService.isConnected(channel) || !session.isConnected) {
+			return
+		}
+
+		viewModelScope.launch {
+			try {
+				terminalService.sendControlChar(channel, 0x0C) // Ctrl+L
+			} catch (e: Exception) {
+				_uiState.value = _uiState.value.copy(
+					error = e.toAppError()
+				)
+			}
+		}
+	}
+
+	/**
+	 * 发送 ANSI 转义序列（用于光标移动等）
+	 */
+	fun sendAnsiSequence(sequence: String) {
+		val channel = shellChannel ?: return
+		if (!terminalService.isConnected(channel) || !session.isConnected) {
+			return
+		}
+
+		viewModelScope.launch {
+			try {
+				terminalService.sendRawBytes(channel, sequence.toByteArray(Charsets.UTF_8))
+			} catch (e: Exception) {
+				_uiState.value = _uiState.value.copy(
+					error = e.toAppError()
+				)
+			}
+		}
+	}
+
+	/**
 	 * 获取上一条历史命令
 	 */
 	fun getPreviousCommand(): String? {
