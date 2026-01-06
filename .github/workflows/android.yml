@@ -40,3 +40,12 @@ jobs:
         name: release-apk
         path: app/build/outputs/apk/release/*.apk
         retention-days: 30
+
+    - name: Upload to release
+      uses: svenstaro/upload-release-action@v2
+      if: github.event.inputs.release_tag != ''
+      with:
+        file: ${{ github.workspace }}/app/build/outputs/apk/*/release/*.apk
+        tag: ${{ github.event.inputs.release_tag }}
+        file_glob: true
+        prerelease: true
