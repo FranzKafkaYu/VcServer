@@ -19,10 +19,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.models.LanguageMode
 import com.franzkafkayu.vcserver.models.ProxyType
 import com.franzkafkayu.vcserver.models.ThemeMode
@@ -56,10 +58,10 @@ fun SettingsScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text("设置") },
+				title = { Text(stringResource(R.string.settings)) },
 				navigationIcon = {
 					IconButton(onClick = onBackClick) {
-						Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+						Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
 					}
 				}
 			)
@@ -81,7 +83,7 @@ fun SettingsScreen(
 					verticalArrangement = Arrangement.spacedBy(16.dp)
 				) {
 					Text(
-						text = "主题",
+						text = stringResource(R.string.theme),
 						style = MaterialTheme.typography.titleMedium
 					)
 					ThemeModeSelector(
@@ -98,7 +100,7 @@ fun SettingsScreen(
 					verticalArrangement = Arrangement.spacedBy(16.dp)
 				) {
 					Text(
-						text = "语言",
+						text = stringResource(R.string.language),
 						style = MaterialTheme.typography.titleMedium
 					)
 					LanguageModeSelector(
@@ -120,7 +122,7 @@ fun SettingsScreen(
 					verticalArrangement = Arrangement.spacedBy(16.dp)
 				) {
 					Text(
-						text = "连接设置",
+						text = stringResource(R.string.connection_settings),
 						style = MaterialTheme.typography.titleMedium
 					)
 					
@@ -132,7 +134,7 @@ fun SettingsScreen(
 								viewModel.updateConnectionTimeout(it)
 							}
 						},
-						label = { Text("连接超时时间（秒）") },
+						label = { Text(stringResource(R.string.connection_timeout_seconds)) },
 						keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
 						modifier = Modifier.fillMaxWidth(),
 						singleLine = true
@@ -147,7 +149,7 @@ fun SettingsScreen(
 					verticalArrangement = Arrangement.spacedBy(16.dp)
 				) {
 					Text(
-						text = "显示设置",
+						text = stringResource(R.string.display_settings),
 						style = MaterialTheme.typography.titleMedium
 					)
 					
@@ -159,7 +161,7 @@ fun SettingsScreen(
 								viewModel.updateRefreshInterval(it)
 							}
 						},
-						label = { Text("服务器监控刷新间隔（秒）") },
+						label = { Text(stringResource(R.string.refresh_interval_seconds)) },
 						keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
 						modifier = Modifier.fillMaxWidth(),
 						singleLine = true
@@ -183,11 +185,11 @@ fun SettingsScreen(
 					) {
 						Column {
 							Text(
-								text = "默认代理配置",
+								text = stringResource(R.string.default_proxy_config),
 								style = MaterialTheme.typography.titleMedium
 							)
 							Text(
-								text = "用于新建服务器时的默认代理模板",
+								text = stringResource(R.string.default_proxy_template),
 								style = MaterialTheme.typography.bodySmall,
 								color = MaterialTheme.colorScheme.onSurfaceVariant
 							)
@@ -202,7 +204,7 @@ fun SettingsScreen(
 							verticalArrangement = Arrangement.spacedBy(8.dp)
 						) {
 							Text(
-								text = "代理类型",
+								text = stringResource(R.string.proxy_type),
 								style = MaterialTheme.typography.bodyMedium,
 								color = MaterialTheme.colorScheme.onSurfaceVariant
 							)
@@ -224,7 +226,7 @@ fun SettingsScreen(
 
 					// 代理服务器配置
 					Text(
-						text = "代理服务器",
+						text = stringResource(R.string.proxy_server),
 						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.onSurfaceVariant
 					)
@@ -240,7 +242,7 @@ fun SettingsScreen(
 								password = uiState.settings.defaultProxyPassword
 							)
 						},
-						label = { Text("代理主机") },
+						label = { Text(stringResource(R.string.proxy_host)) },
 						modifier = Modifier.fillMaxWidth(),
 						singleLine = true
 					)
@@ -258,7 +260,7 @@ fun SettingsScreen(
 									)
 								}
 							},
-							label = { Text("代理端口") },
+							label = { Text(stringResource(R.string.proxy_port)) },
 							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
 							modifier = Modifier.fillMaxWidth(),
 							singleLine = true
@@ -268,7 +270,7 @@ fun SettingsScreen(
 
 						// 代理鉴权配置
 						Text(
-							text = "代理鉴权（可选）",
+							text = stringResource(R.string.proxy_auth_optional),
 							style = MaterialTheme.typography.bodyMedium,
 							color = MaterialTheme.colorScheme.onSurfaceVariant
 						)
@@ -284,7 +286,7 @@ fun SettingsScreen(
 									password = uiState.settings.defaultProxyPassword
 								)
 							},
-							label = { Text("用户名") },
+							label = { Text(stringResource(R.string.username)) },
 							modifier = Modifier.fillMaxWidth(),
 							singleLine = true
 						)
@@ -300,7 +302,7 @@ fun SettingsScreen(
 									password = password
 								)
 							},
-							label = { Text("密码") },
+							label = { Text(stringResource(R.string.password)) },
 							visualTransformation = PasswordVisualTransformation(),
 							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
 							modifier = Modifier.fillMaxWidth(),
@@ -324,7 +326,7 @@ fun SettingsScreen(
 					verticalAlignment = Alignment.CenterVertically
 				) {
 					Text(
-						text = "关于",
+						text = stringResource(R.string.about),
 						style = MaterialTheme.typography.bodyLarge
 					)
 					Text(
@@ -343,7 +345,7 @@ fun SettingsScreen(
 					containerColor = MaterialTheme.colorScheme.error
 				)
 			) {
-				Text("重置为默认值")
+				Text(stringResource(R.string.reset_to_defaults))
 			}
 		}
 	}
@@ -352,16 +354,16 @@ fun SettingsScreen(
 	if (uiState.showResetDialog) {
 		AlertDialog(
 			onDismissRequest = { viewModel.hideResetDialog() },
-			title = { Text("重置设置") },
-			text = { Text("确定要将所有设置重置为默认值吗？") },
+			title = { Text(stringResource(R.string.reset_settings)) },
+			text = { Text(stringResource(R.string.reset_settings_confirm)) },
 			confirmButton = {
 				TextButton(onClick = { viewModel.resetToDefaults() }) {
-					Text("确定")
+					Text(stringResource(R.string.confirm))
 				}
 			},
 			dismissButton = {
 				TextButton(onClick = { viewModel.hideResetDialog() }) {
-					Text("取消")
+					Text(stringResource(R.string.cancel))
 				}
 			}
 		)
@@ -393,9 +395,9 @@ private fun ThemeModeSelector(
 				Spacer(modifier = Modifier.width(8.dp))
 				Text(
 					text = when (theme) {
-						ThemeMode.LIGHT -> "浅色"
-						ThemeMode.DARK -> "深色"
-						ThemeMode.SYSTEM -> "跟随系统"
+						ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+						ThemeMode.DARK -> stringResource(R.string.theme_dark)
+						ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
 					},
 					style = MaterialTheme.typography.bodyLarge
 				)
@@ -429,9 +431,9 @@ private fun LanguageModeSelector(
 				Spacer(modifier = Modifier.width(8.dp))
 				Text(
 					text = when (language) {
-						LanguageMode.CHINESE -> "中文"
-						LanguageMode.ENGLISH -> "English"
-						LanguageMode.SYSTEM -> "跟随系统"
+						LanguageMode.CHINESE -> stringResource(R.string.language_chinese)
+						LanguageMode.ENGLISH -> stringResource(R.string.language_english)
+						LanguageMode.SYSTEM -> stringResource(R.string.language_system)
 					},
 					style = MaterialTheme.typography.bodyLarge
 				)

@@ -76,6 +76,43 @@
 	<string name="undo">撤销</string>
 	<string name="server_deleted">服务器已删除</string>
 	<string name="servers_deleted">已删除 %d 个服务器</string>
+	<!-- 设置界面 -->
+	<string name="settings">设置</string>
+	<string name="back">返回</string>
+	<string name="theme">主题</string>
+	<string name="language">语言</string>
+	<string name="connection_settings">连接设置</string>
+	<string name="display_settings">显示设置</string>
+	<string name="default_proxy_config">默认代理配置</string>
+	<string name="default_proxy_template">用于新建服务器时的默认代理模板</string>
+	<string name="proxy_type">代理类型</string>
+	<string name="proxy_server">代理服务器</string>
+	<string name="proxy_host">代理主机</string>
+	<string name="proxy_port">代理端口</string>
+	<string name="proxy_auth_optional">代理鉴权（可选）</string>
+	<string name="connection_timeout_seconds">连接超时时间（秒）</string>
+	<string name="default_ssh_port">默认 SSH 端口</string>
+	<string name="refresh_interval_seconds">服务器监控刷新间隔（秒）</string>
+	<string name="about">关于</string>
+	<string name="reset_to_defaults">重置为默认值</string>
+	<string name="reset_settings">重置设置</string>
+	<string name="reset_settings_confirm">确定要将所有设置重置为默认值吗？</string>
+	<string name="theme_light">浅色</string>
+	<string name="theme_dark">深色</string>
+	<string name="theme_system">跟随系统</string>
+	<string name="language_chinese">中文</string>
+	<string name="language_english">English</string>
+	<string name="language_system">跟随系统</string>
+	<!-- 关于界面 -->
+	<string name="about_title">关于</string>
+	<string name="about_app_name">VcServer</string>
+	<string name="about_version_name">版本号</string>
+	<string name="about_version_code">版本代码</string>
+	<string name="about_commit">Commit</string>
+	<string name="about_build_date">构建日期</string>
+	<string name="about_author">作者</string>
+	<string name="about_github">GitHub</string>
+	<string name="about_description">VcServer 是一款 Android 应用，通过 SSH 连接到远程服务器并进行管理。</string>
 </resources>
 
 

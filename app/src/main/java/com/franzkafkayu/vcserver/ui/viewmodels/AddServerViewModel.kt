@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * 添加/编辑服务�?ViewModel
+ * 添加/编辑服务器ViewModel
  */
 class AddServerViewModel(
 	private val serverManagementService: ServerManagementService,
@@ -28,7 +28,7 @@ class AddServerViewModel(
 	}
 
 	/**
-	 * 加载服务器信息（编辑模式�?
+	 * 加载服务器信息（编辑模式)
 	 */
 	private fun loadServerInfo(id: Long) {
 		viewModelScope.launch {
@@ -42,15 +42,15 @@ class AddServerViewModel(
 					port = server.port.toString(),
 					username = server.username,
 					authType = server.authType,
-					password = "", // 密码不显示，需要重新输�?
-					privateKey = "", // 私钥不显示，需要重新输�?
+					password = "", // 密码不显示，需要重新输入
+					privateKey = "", // 私钥不显示，需要重新输入
 					keyPassphrase = server.keyPassphrase ?: "",
 					proxyEnabled = server.proxyEnabled,
 					proxyType = server.proxyType ?: ProxyType.HTTP,
 					proxyHost = server.proxyHost ?: "",
 					proxyPort = server.proxyPort?.toString() ?: "8080",
 					proxyUsername = server.proxyUsername ?: "",
-					proxyPassword = "", // 代理密码不显示，需要重新输�?
+					proxyPassword = "", // 代理密码不显示，需要重新输入
 					isLoading = false,
 					error = null
 				)

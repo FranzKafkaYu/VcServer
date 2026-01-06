@@ -76,5 +76,42 @@
 	<string name="undo">Undo</string>
 	<string name="server_deleted">Server Deleted</string>
 	<string name="servers_deleted">Deleted %d servers</string>
+	<!-- Settings Screen -->
+	<string name="settings">Settings</string>
+	<string name="back">Back</string>
+	<string name="theme">Theme</string>
+	<string name="language">Language</string>
+	<string name="connection_settings">Connection Settings</string>
+	<string name="display_settings">Display Settings</string>
+	<string name="default_proxy_config">Default Proxy Configuration</string>
+	<string name="default_proxy_template">Default proxy template for new servers</string>
+	<string name="proxy_type">Proxy Type</string>
+	<string name="proxy_server">Proxy Server</string>
+	<string name="proxy_host">Proxy Host</string>
+	<string name="proxy_port">Proxy Port</string>
+	<string name="proxy_auth_optional">Proxy Authentication (Optional)</string>
+	<string name="connection_timeout_seconds">Connection Timeout (seconds)</string>
+	<string name="default_ssh_port">Default SSH Port</string>
+	<string name="refresh_interval_seconds">Server Monitoring Refresh Interval (seconds)</string>
+	<string name="about">About</string>
+	<string name="reset_to_defaults">Reset to Defaults</string>
+	<string name="reset_settings">Reset Settings</string>
+	<string name="reset_settings_confirm">Are you sure you want to reset all settings to default values?</string>
+	<string name="theme_light">Light</string>
+	<string name="theme_dark">Dark</string>
+	<string name="theme_system">Follow System</string>
+	<string name="language_chinese">Chinese</string>
+	<string name="language_english">English</string>
+	<string name="language_system">Follow System</string>
+	<!-- About Screen -->
+	<string name="about_title">About</string>
+	<string name="about_app_name">VcServer</string>
+	<string name="about_version_name">Version</string>
+	<string name="about_version_code">Version Code</string>
+	<string name="about_commit">Commit</string>
+	<string name="about_build_date">Build Date</string>
+	<string name="about_author">Author</string>
+	<string name="about_github">GitHub</string>
+	<string name="about_description">VcServer is an Android application for managing remote servers via SSH.</string>
 </resources>
 

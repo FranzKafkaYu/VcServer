@@ -12,10 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import android.content.pm.PackageManager
 import com.franzkafkayu.vcserver.BuildConfig
+import com.franzkafkayu.vcserver.R
 
 /**
  * 关于界面
@@ -47,10 +48,13 @@ fun AboutScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text("关于") },
+				title = { Text(stringResource(R.string.about_title)) },
 				navigationIcon = {
 					IconButton(onClick = onBackClick) {
-						Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+						Icon(
+							Icons.Default.ArrowBack,
+							contentDescription = stringResource(R.string.back)
+						)
 					}
 				}
 			)
@@ -67,7 +71,7 @@ fun AboutScreen(
 		) {
 			// 应用图标和名称
 			Text(
-				text = "VcServer",
+				text = stringResource(R.string.about_app_name),
 				style = MaterialTheme.typography.headlineLarge,
 				fontWeight = FontWeight.Bold
 			)
@@ -80,16 +84,11 @@ fun AboutScreen(
 					modifier = Modifier.padding(16.dp),
 					verticalArrangement = Arrangement.spacedBy(12.dp)
 				) {
-					val packageInfo = try {
-						context.packageManager.getPackageInfo(context.packageName, 0)
-					} catch (e: Exception) {
-						null
-					}
-					InfoRow("版本号", BuildConfig.VERSION_NAME)
-					InfoRow("版本代码", BuildConfig.VERSION_CODE.toString())
-					InfoRow("Commit", BuildConfig.GIT_COMMIT_HASH)
-					InfoRow("构建日期", BuildConfig.BUILD_DATE)
-					InfoRow("作者", AboutScreenConstants.AUTHOR)
+					InfoRow(stringResource(R.string.about_version_name), BuildConfig.VERSION_NAME)
+					InfoRow(stringResource(R.string.about_version_code), BuildConfig.VERSION_CODE.toString())
+					InfoRow(stringResource(R.string.about_commit), BuildConfig.GIT_COMMIT_HASH)
+					InfoRow(stringResource(R.string.about_build_date), BuildConfig.BUILD_DATE)
+					InfoRow(stringResource(R.string.about_author), AboutScreenConstants.AUTHOR)
 				}
 			}
 
@@ -109,7 +108,7 @@ fun AboutScreen(
 					verticalAlignment = Alignment.CenterVertically
 				) {
 					Text(
-						text = "GitHub",
+						text = stringResource(R.string.about_github),
 						style = MaterialTheme.typography.bodySmall
 					)
 					Text(
@@ -122,7 +121,7 @@ fun AboutScreen(
 
 			// 应用描述
 			Text(
-				text = "VcServer 是一款 Android 应用，通过 SSH 连接到远程服务器并进行管理。",
+				text = stringResource(R.string.about_description),
 				style = MaterialTheme.typography.bodyMedium,
 				modifier = Modifier.fillMaxWidth()
 			)
