@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-	namespace 'com.vcserver'
+	namespace 'com.franzkafkayu.vcserver'
 	compileSdk 34
 
 	// 获取 Git commit hash
@@ -39,7 +39,7 @@ android {
 	def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
 
 	defaultConfig {
-		applicationId "com.vcserver"
+		applicationId "com.franzkafkayu.vcserver"
 		minSdk 29
 		targetSdk 34
 		versionCode 1
