@@ -34,7 +34,7 @@ interface SshAuthenticationService {
 	): Result<Session>
 
 	/**
-	 * 测试连接（连接后立即关闭�?
+	 * 测试连接（连接后立即关闭）
 	 */
 	suspend fun testConnection(
 		host: String,

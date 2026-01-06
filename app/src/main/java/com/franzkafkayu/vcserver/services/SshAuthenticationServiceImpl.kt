@@ -16,7 +16,7 @@ class SshAuthenticationServiceImpl(
 	private val secureStorage: SecureStorage
 ) : SshAuthenticationService {
 	companion object {
-		private const val CONNECTION_TIMEOUT = 30000 // 30 �?
+		private const val CONNECTION_TIMEOUT = 30000 // 30
 	}
 
 	override suspend fun connectWithPassword(
@@ -30,7 +30,7 @@ class SshAuthenticationServiceImpl(
 			val session = jsch.getSession(username, host, port)
 			session.setPassword(password)
 			
-			// 配置 SSH 连接属�?
+			// 配置 SSH 连接属�?
 			val config = Properties()
 			config["StrictHostKeyChecking"] = "no"
 			session.setConfig(config)
@@ -61,7 +61,7 @@ class SshAuthenticationServiceImpl(
 			
 			val session = jsch.getSession(username, host, port)
 			
-			// 配置 SSH 连接属�?
+			// 配置 SSH 连接属�?
 			val config = Properties()
 			config["StrictHostKeyChecking"] = "no"
 			session.setConfig(config)

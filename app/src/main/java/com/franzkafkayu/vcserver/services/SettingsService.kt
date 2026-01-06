@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface SettingsService {
 	/**
-	 * 获取设置�?
+	 * 获取设置项
 	 */
 	fun getSettings(): Flow<AppSettings>
 
@@ -40,7 +40,7 @@ interface SettingsService {
 	suspend fun updateRefreshInterval(interval: Int)
 
 	/**
-	 * 更新默认代理配置（仅作为模板，不启用�?
+	 * 更新默认代理配置（仅作为模板，不启用�?
 	 */
 	suspend fun updateDefaultProxy(
 		type: com.franzkafkayu.vcserver.models.ProxyType,
@@ -51,7 +51,7 @@ interface SettingsService {
 	)
 
 	/**
-	 * 重置所有设置为默认�?
+	 * 重置所有设置为默认�?
 	 */
 	suspend fun resetToDefaults()
 }

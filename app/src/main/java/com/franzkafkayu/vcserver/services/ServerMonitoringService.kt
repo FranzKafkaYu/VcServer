@@ -178,7 +178,7 @@ class ServerMonitoringServiceImpl(
 	}
 
 	/**
-	 * �?/proc/stat 解析 CPU 使用率
+	 * 从/proc/stat 解析 CPU 使用率
 	 */
 	private fun parseCpuUsageFromStat(statLine: String): Double {
 		// 简化实现，返回 0.0
@@ -383,7 +383,7 @@ class ServerMonitoringServiceImpl(
 
 	/**
 	 * 格式 uptime 输出"xxx days,xx hours,xxx minutes" 格式
-	 * 输入示例: "up 2 days, 3 hours, 45 minutes" �?"up 1 hour, 30 minutes"
+	 * 输入示例: "up 2 days, 3 hours, 45 minutes" 或者 "up 1 hour, 30 minutes"
 	 */
 	private fun formatUptime(uptimeText: String): String {
 		if (uptimeText.isBlank()) return ""
@@ -459,7 +459,7 @@ class ServerMonitoringServiceImpl(
 	}
 
 	/**
-	 * 获取系统信息和内核版�?
+	 * 获取系统信息和内核版本
 	 */
 	private suspend fun getSystemInfo(session: Session): Result<com.franzkafkayu.vcserver.models.SystemInfo> {
 		return try {
@@ -531,7 +531,7 @@ class ServerMonitoringServiceImpl(
 	}
 
 	/**
-	 * 将大小字符串转换为字节数（用于计算百分比�?
+	 * 将大小字符串转换为字节数（用于计算百分比）
 	 */
 	private fun parseSizeToBytes(size: String): Long {
 		val sizeUpper = size.uppercase().trim()

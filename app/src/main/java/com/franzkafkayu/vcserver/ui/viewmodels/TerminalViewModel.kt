@@ -38,7 +38,7 @@ class TerminalViewModel(
 	private var isReconnectingSession = false
 
 	init {
-		// 检�?SSH session 是否连接
+		// 检查SSH session 是否连接
 		if (!session.isConnected) {
 			// 自动尝试重连 SSH session
 			reconnectSession()
@@ -53,7 +53,7 @@ class TerminalViewModel(
 	private fun connectShell() {
 		viewModelScope.launch {
 			_uiState.value = _uiState.value.copy(isConnecting = true, error = null)
-			// 设置合理的终端大小（可以根据屏幕大小调整�?
+			// 设置合理的终端大小（可以根据屏幕大小调整）
 			val result = terminalService.connectShell(session, rows = 50, cols = 120)
 			result.fold(
 				onSuccess = { channel ->
@@ -63,7 +63,7 @@ class TerminalViewModel(
 						isConnected = true,
 						error = null
 					)
-					// 开始收集输�?
+					// 开始收集输出
 					collectOutput(channel)
 				},
 				onFailure = { exception ->
@@ -86,14 +86,14 @@ class TerminalViewModel(
 				// 处理 ANSI 转义序列并更新缓冲区
 				processAnsiOutput(output)
 				
-				// 更新 UI 状�?
+				// 更新 UI 状态
 				_uiState.value = _uiState.value.copy(
 					terminalBuffer = terminalBuffer,
-					output = terminalBuffer.getPlainText() // 保留纯文本用于兼�?
+					output = terminalBuffer.getPlainText() // 保留纯文本用于兼容
 				)
 			}
 			// 输出流结束，连接断开
-			// 检�?SSH session 是否还连接，如果连接则尝试重�?Shell channel
+			// 检查SSH session 是否还连接，如果连接则尝试重置Shell channel
 			if (session.isConnected && !isReconnecting) {
 				reconnectShell()
 			} else {
@@ -129,7 +129,7 @@ class TerminalViewModel(
 						isConnected = true,
 						error = null
 					)
-					// 重新开始收集输�?
+					// 重新开始收集输�?
 					collectOutput(channel)
 				},
 				onFailure = { exception ->
@@ -151,7 +151,7 @@ class TerminalViewModel(
 		// 检查是否有清屏命令
 		if (output.contains("\u001B[2J") || output.contains("\u001B[H")) {
 			terminalBuffer.clearScreen()
-			// 移除清屏命令后继续处�?
+			// 移除清屏命令后继续处理
 			val cleaned = output.replace(Regex("\u001B\\[2J|\u001B\\[H"), "")
 			if (cleaned.isNotEmpty()) {
 				terminalBuffer.write(cleaned)
@@ -162,13 +162,13 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 发送命�?
+	 * 发送命令
 	 */
 	fun sendCommand(command: String) {
 		val trimmed = command.trim()
 		if (trimmed.isEmpty()) return
 
-		// 检�?SSH session 是否连接
+		// 检�?SSH session 是否连接
 		if (!session.isConnected) {
 			if (!isReconnectingSession) {
 				reconnectSession()
@@ -191,11 +191,11 @@ class TerminalViewModel(
 
 		viewModelScope.launch {
 			try {
-				// 添加到历史记�?
+				// 添加到历史记录
 				commandHistory.addCommand(trimmed)
 				commandHistory.resetIndex()
 
-				// 发送命�?
+				// 发送命令
 				terminalService.sendCommand(channel, trimmed)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
@@ -226,7 +226,7 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 发�?Ctrl+C（中断信号）
+	 * 发送Ctrl+C（中断信号）
 	 */
 	fun sendInterrupt() {
 		val channel = shellChannel ?: return
@@ -246,7 +246,7 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 发�?Ctrl+D（EOF 信号�?
+	 * 发送Ctrl+D（EOF 信号）
 	 */
 	fun sendEOF() {
 		val channel = shellChannel ?: return
@@ -266,7 +266,7 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 发�?Ctrl+L（清屏）
+	 * 发送Ctrl+L（清屏）
 	 */
 	fun sendClearScreen() {
 		val channel = shellChannel ?: return
@@ -286,7 +286,7 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 发�?ANSI 转义序列（用于光标移动等�?
+	 * 发送ANSI 转义序列（用于光标移动等）
 	 */
 	fun sendAnsiSequence(sequence: String) {
 		val channel = shellChannel ?: return
@@ -306,7 +306,7 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 获取上一条历史命�?
+	 * 获取上一条历史命令
 	 */
 	fun getPreviousCommand(): String? {
 		val command = commandHistory.getPreviousCommand()
@@ -314,7 +314,7 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 获取下一条历史命�?
+	 * 获取下一条历史命令
 	 */
 	fun getNextCommand(): String {
 		val command = commandHistory.getNextCommand()
@@ -343,8 +343,8 @@ class TerminalViewModel(
 	}
 
 	/**
-	 * 手动重连（供 UI 调用�?
-	 * 如果 SSH session 断开，先重连 session，然后重�?Shell channel
+	 * 手动重连（供 UI 调用）
+	 * 如果 SSH session 断开，先重连 session，然后重连Shell channel
 	 */
 	fun reconnect() {
 		if (!session.isConnected) {
@@ -409,7 +409,7 @@ class TerminalViewModel(
 }
 
 /**
- * 终端 UI 状�?
+ * 终端 UI 状状态
  */
 data class TerminalUiState(
 	val output: String = "",

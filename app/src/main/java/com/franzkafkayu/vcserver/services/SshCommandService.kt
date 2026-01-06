@@ -13,7 +13,7 @@ interface SshCommandService {
 	 * 通过 SSH Session 执行命令
 	 * @param session SSH 会话
 	 * @param command 要执行的命令
-	 * @param timeout 超时时间（毫秒），默�?10 �?
+	 * @param timeout 超时时间（毫秒），默认10s
 	 * @return 命令执行结果（标准输出）
 	 */
 	suspend fun executeCommand(

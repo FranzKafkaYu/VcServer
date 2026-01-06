@@ -29,7 +29,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * 服务器监控界�?
+ * 服务器监控界面
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +97,7 @@ fun ServerMonitoringScreen(
 				}
 			}
 
-			// 加载状�?
+			// 加载状态
 			if (uiState.isLoading && uiState.serverStatus == null) {
 				Box(
 					modifier = Modifier.fillMaxWidth(),
@@ -107,9 +107,9 @@ fun ServerMonitoringScreen(
 				}
 			}
 
-			// 服务器状态信�?
+			// 服务器状态信息
 			uiState.serverStatus?.let { status ->
-				// 系统信息（如果有�?
+				// 系统信息（如果有�?
 				status.systemInfo?.let { systemInfo ->
 					Card(modifier = Modifier.fillMaxWidth()) {
 						Column(
@@ -185,7 +185,7 @@ fun ServerMonitoringScreen(
 									}
 								}
 								
-								// CPU 核心�?
+								// CPU 核心
 								Row(
 									modifier = Modifier.fillMaxWidth(),
 									horizontalArrangement = Arrangement.SpaceBetween
@@ -195,7 +195,7 @@ fun ServerMonitoringScreen(
 								}
 							}
 							
-							// 右侧：圆形进度图�?
+							// 右侧：圆形进度图
 							Box(
 								modifier = Modifier.size(100.dp),
 								contentAlignment = Alignment.Center
@@ -237,7 +237,7 @@ fun ServerMonitoringScreen(
 							horizontalArrangement = Arrangement.SpaceBetween,
 							verticalAlignment = Alignment.CenterVertically
 						) {
-							// 左侧：内存信�?
+							// 左侧：内存信息
 							Column(
 								modifier = Modifier.weight(1f),
 								verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -265,7 +265,7 @@ fun ServerMonitoringScreen(
 								}
 							}
 							
-							// 右侧：圆形进度图�?
+							// 右侧：圆形进度图
 							Box(
 								modifier = Modifier.size(100.dp),
 								contentAlignment = Alignment.Center
@@ -308,7 +308,7 @@ fun ServerMonitoringScreen(
 					}
 				}
 
-				// 系统启动时长（如果有�?
+				// 系统启动时长（如果有）
 				status.uptime?.let { uptime ->
 					Card(modifier = Modifier.fillMaxWidth()) {
 						Row(
@@ -351,7 +351,7 @@ fun DiskInfoItem(disk: DiskInfo) {
 		horizontalArrangement = Arrangement.SpaceBetween,
 		verticalAlignment = Alignment.CenterVertically
 	) {
-		// 左侧：磁盘信�?
+		// 左侧：磁盘信息
 		Column(
 			modifier = Modifier.weight(1f),
 			verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -379,7 +379,7 @@ fun DiskInfoItem(disk: DiskInfo) {
 			}
 		}
 		
-		// 右侧：圆形进度图�?
+		// 右侧：圆形进度图
 		Box(
 			modifier = Modifier.size(100.dp),
 			contentAlignment = Alignment.Center
@@ -406,7 +406,7 @@ fun DiskInfoItem(disk: DiskInfo) {
 }
 
 /**
- * 通用圆形进度条组�?
+ * 通用圆形进度条组
  */
 @Composable
 fun CircularProgress(
@@ -425,7 +425,7 @@ fun CircularProgress(
 		val radius = (size.minDimension - strokeWidth) / 2f
 		val center = Offset(size.width / 2f, size.height / 2f)
 		
-		// 绘制背景�?
+		// 绘制背景
 		drawCircle(
 			color = backgroundColor,
 			radius = radius,
@@ -433,11 +433,11 @@ fun CircularProgress(
 			style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
 		)
 		
-		// 绘制进度�?
+		// 绘制进度�?
 		val sweepAngle = 360f * progress
 		drawArc(
 			color = progressColor,
-			startAngle = -90f, // 从顶部开�?
+			startAngle = -90f, // 从顶部开始
 			sweepAngle = sweepAngle,
 			useCenter = false,
 			topLeft = Offset(center.x - radius, center.y - radius),

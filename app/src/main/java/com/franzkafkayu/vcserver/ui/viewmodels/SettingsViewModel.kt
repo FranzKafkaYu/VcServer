@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * 设置界面 UI 状�?
+ * 设置界面 UI 状态
  */
 data class SettingsUiState(
 	val settings: AppSettings = AppSettings(),
@@ -69,7 +69,7 @@ class SettingsViewModel(
 		viewModelScope.launch {
 			try {
 				settingsService.updateLanguage(language)
-				// 语言更改后需要重�?Activity 才能生效
+				// 语言更改后需要重启Activity 才能生效
 				onLanguageChanged()
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
@@ -125,7 +125,7 @@ class SettingsViewModel(
 	}
 
 	/**
-	 * 更新默认代理配置（仅作为模板，不启用�?
+	 * 更新默认代理配置（仅作为模板，不启用）
 	 */
 	fun updateDefaultProxy(
 		type: ProxyType,
@@ -146,21 +146,21 @@ class SettingsViewModel(
 	}
 
 	/**
-	 * 显示重置对话�?
+	 * 显示重置对话
 	 */
 	fun showResetDialog() {
 		_uiState.value = _uiState.value.copy(showResetDialog = true)
 	}
 
 	/**
-	 * 隐藏重置对话�?
+	 * 隐藏重置对话
 	 */
 	fun hideResetDialog() {
 		_uiState.value = _uiState.value.copy(showResetDialog = false)
 	}
 
 	/**
-	 * 重置所有设置为默认�?
+	 * 重置所有设置为默认状态
 	 */
 	fun resetToDefaults() {
 		viewModelScope.launch {
