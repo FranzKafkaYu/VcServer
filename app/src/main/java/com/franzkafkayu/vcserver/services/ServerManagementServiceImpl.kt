@@ -46,6 +46,22 @@ class ServerManagementServiceImpl(
 			return Result.failure(validationResult.exceptionOrNull() ?: ValidationException("Validation failed"))
 		}
 
+		// 如果是“仅测试连接”模式，不进行加密和入库，只做一次连接测试
+		if (testConnection) {
+			val testResult = sshAuthenticationService.testConnection(
+				host = host,
+				port = port,
+				username = username,
+				authType = authType,
+				password = password,
+				privateKey = privateKey,
+				passphrase = keyPassphrase
+			)
+			return testResult.map { -1L } // 返回一个占位 ID，调用方并不关心具体值
+		}
+
+		// 下面是“真正保存服务器”逻辑：加密敏感信息 + 入库
+
 		// 加密敏感信息
 		val encryptedPassword = if (authType == AuthType.PASSWORD && password != null) {
 			secureStorage.encryptPassword(password)
@@ -66,27 +82,11 @@ class ServerManagementServiceImpl(
 			null
 		}
 
-		// 如果要求测试连接，先测试
-		if (testConnection) {
-			val testResult = sshAuthenticationService.testConnection(
-				host = host,
-				port = port,
-				username = username,
-				authType = authType,
-				password = password,
-				privateKey = privateKey,
-				passphrase = keyPassphrase
-			)
-			if (testResult.isFailure) {
-				return Result.failure(testResult.exceptionOrNull() ?: Exception("Connection test failed"))
-			}
-		}
-
 		// 获取当前服务器数量，用于设置 orderIndex
 		val currentServers = serverRepository.getAllServers().first()
 		val serverCount = currentServers.size
 
-		// 创建服务器实�?
+		// 创建服务器实例
 		val server = Server(
 			name = name,
 			host = host,
@@ -102,7 +102,7 @@ class ServerManagementServiceImpl(
 			proxyPort = proxyPort,
 			proxyUsername = proxyUsername,
 			encryptedProxyPassword = encryptedProxyPassword,
-			orderIndex = serverCount // 新服务器默认排在最�?
+			orderIndex = serverCount // 新服务器默认排在最后
 		)
 
 		// 保存到数据库
@@ -149,12 +149,12 @@ class ServerManagementServiceImpl(
 			val existingServer = serverRepository.getServerById(serverId)
 				?: return Result.failure(Exception("服务器不存在"))
 
-			// 如果密码或私钥为空，保留原有的加密�?
+			// 如果密码或私钥为空，保留原有的加密方式
 			val encryptedPassword = when {
 				authType == AuthType.PASSWORD && !password.isNullOrBlank() -> {
 					// 删除旧的加密文件
 					existingServer.encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
-					// 加密新密�?
+					// 加密新密码
 					secureStorage.encryptPassword(password)
 				}
 				authType == AuthType.PASSWORD -> existingServer.encryptedPassword
@@ -165,7 +165,7 @@ class ServerManagementServiceImpl(
 				authType == AuthType.KEY && !privateKey.isNullOrBlank() -> {
 					// 删除旧的加密文件
 					existingServer.encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
-					// 加密新私�?
+					// 加密新私钥
 					secureStorage.encryptPrivateKey(privateKey)
 				}
 				authType == AuthType.KEY -> existingServer.encryptedPrivateKey
@@ -177,7 +177,7 @@ class ServerManagementServiceImpl(
 				proxyEnabled && !proxyPassword.isNullOrBlank() -> {
 					// 删除旧的加密文件
 					existingServer.encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }
-					// 加密新代理密�?
+					// 加密新代理密码
 					secureStorage.encryptPassword(proxyPassword)
 				}
 				proxyEnabled -> existingServer.encryptedProxyPassword
