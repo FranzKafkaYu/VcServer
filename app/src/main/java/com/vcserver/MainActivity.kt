@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
 			AppDatabase::class.java,
 			"vcserver_database"
 		)
-			.addMigrations(migration1To2, migration2To3)
+			.addMigrations(migration1To2, migration2To3, AppDatabase.MIGRATION_3_4)
 			.build()
 
 		val secureStorage = SecureStorage(applicationContext)

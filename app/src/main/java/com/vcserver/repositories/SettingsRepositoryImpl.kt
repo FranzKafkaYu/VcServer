@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.vcserver.models.AppSettings
 import com.vcserver.models.LanguageMode
+import com.vcserver.models.ProxyType
 import com.vcserver.models.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -27,18 +28,18 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 		private val CONNECTION_TIMEOUT_KEY = intPreferencesKey("connection_timeout")
 		private val DEFAULT_SSH_PORT_KEY = intPreferencesKey("default_ssh_port")
 		private val REFRESH_INTERVAL_KEY = intPreferencesKey("refresh_interval")
-		private val PROXY_ENABLED_KEY = booleanPreferencesKey("proxy_enabled")
-		private val PROXY_HOST_KEY = stringPreferencesKey("proxy_host")
-		private val PROXY_PORT_KEY = intPreferencesKey("proxy_port")
-		private val PROXY_USERNAME_KEY = stringPreferencesKey("proxy_username")
-		private val PROXY_PASSWORD_KEY = stringPreferencesKey("proxy_password")
+		private val DEFAULT_PROXY_TYPE_KEY = intPreferencesKey("default_proxy_type")
+		private val DEFAULT_PROXY_HOST_KEY = stringPreferencesKey("default_proxy_host")
+		private val DEFAULT_PROXY_PORT_KEY = intPreferencesKey("default_proxy_port")
+		private val DEFAULT_PROXY_USERNAME_KEY = stringPreferencesKey("default_proxy_username")
+		private val DEFAULT_PROXY_PASSWORD_KEY = stringPreferencesKey("default_proxy_password")
 
 		private val DEFAULT_THEME = ThemeMode.SYSTEM.ordinal
 		private val DEFAULT_LANGUAGE = LanguageMode.SYSTEM.ordinal
 		private const val DEFAULT_CONNECTION_TIMEOUT = 30
 		private const val DEFAULT_SSH_PORT = 22
 		private const val DEFAULT_REFRESH_INTERVAL = 5
-		private const val DEFAULT_PROXY_ENABLED = false
+		private val DEFAULT_PROXY_TYPE = ProxyType.HTTP.ordinal
 		private const val DEFAULT_PROXY_PORT = 8080
 	}
 
@@ -50,11 +51,11 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 				connectionTimeout = preferences[CONNECTION_TIMEOUT_KEY] ?: DEFAULT_CONNECTION_TIMEOUT,
 				defaultSshPort = preferences[DEFAULT_SSH_PORT_KEY] ?: DEFAULT_SSH_PORT,
 				refreshInterval = preferences[REFRESH_INTERVAL_KEY] ?: DEFAULT_REFRESH_INTERVAL,
-				proxyEnabled = preferences[PROXY_ENABLED_KEY] ?: DEFAULT_PROXY_ENABLED,
-				proxyHost = preferences[PROXY_HOST_KEY] ?: "",
-				proxyPort = preferences[PROXY_PORT_KEY] ?: DEFAULT_PROXY_PORT,
-				proxyUsername = preferences[PROXY_USERNAME_KEY] ?: "",
-				proxyPassword = preferences[PROXY_PASSWORD_KEY] ?: ""
+				defaultProxyType = ProxyType.values()[preferences[DEFAULT_PROXY_TYPE_KEY] ?: DEFAULT_PROXY_TYPE],
+				defaultProxyHost = preferences[DEFAULT_PROXY_HOST_KEY] ?: "",
+				defaultProxyPort = preferences[DEFAULT_PROXY_PORT_KEY] ?: DEFAULT_PROXY_PORT,
+				defaultProxyUsername = preferences[DEFAULT_PROXY_USERNAME_KEY] ?: "",
+				defaultProxyPassword = preferences[DEFAULT_PROXY_PASSWORD_KEY] ?: ""
 			)
 		}
 	}
@@ -89,19 +90,19 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 		}
 	}
 
-	override suspend fun updateProxy(
-		enabled: Boolean,
+	override suspend fun updateDefaultProxy(
+		type: ProxyType,
 		host: String,
 		port: Int,
 		username: String,
 		password: String
 	) {
 		context.dataStore.edit { preferences ->
-			preferences[PROXY_ENABLED_KEY] = enabled
-			preferences[PROXY_HOST_KEY] = host
-			preferences[PROXY_PORT_KEY] = port
-			preferences[PROXY_USERNAME_KEY] = username
-			preferences[PROXY_PASSWORD_KEY] = password
+			preferences[DEFAULT_PROXY_TYPE_KEY] = type.ordinal
+			preferences[DEFAULT_PROXY_HOST_KEY] = host
+			preferences[DEFAULT_PROXY_PORT_KEY] = port
+			preferences[DEFAULT_PROXY_USERNAME_KEY] = username
+			preferences[DEFAULT_PROXY_PASSWORD_KEY] = password
 		}
 	}
 
@@ -112,11 +113,11 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 			preferences[CONNECTION_TIMEOUT_KEY] = DEFAULT_CONNECTION_TIMEOUT
 			preferences[DEFAULT_SSH_PORT_KEY] = DEFAULT_SSH_PORT
 			preferences[REFRESH_INTERVAL_KEY] = DEFAULT_REFRESH_INTERVAL
-			preferences[PROXY_ENABLED_KEY] = DEFAULT_PROXY_ENABLED
-			preferences[PROXY_HOST_KEY] = ""
-			preferences[PROXY_PORT_KEY] = DEFAULT_PROXY_PORT
-			preferences[PROXY_USERNAME_KEY] = ""
-			preferences[PROXY_PASSWORD_KEY] = ""
+			preferences[DEFAULT_PROXY_TYPE_KEY] = DEFAULT_PROXY_TYPE
+			preferences[DEFAULT_PROXY_HOST_KEY] = ""
+			preferences[DEFAULT_PROXY_PORT_KEY] = DEFAULT_PROXY_PORT
+			preferences[DEFAULT_PROXY_USERNAME_KEY] = ""
+			preferences[DEFAULT_PROXY_PASSWORD_KEY] = ""
 		}
 	}
 }

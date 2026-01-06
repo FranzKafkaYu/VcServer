@@ -31,6 +31,12 @@ interface ServerManagementService {
 		password: String? = null,
 		privateKey: String? = null,
 		keyPassphrase: String? = null,
+		proxyEnabled: Boolean = false,
+		proxyType: com.vcserver.models.ProxyType? = null,
+		proxyHost: String? = null,
+		proxyPort: Int? = null,
+		proxyUsername: String? = null,
+		proxyPassword: String? = null,
 		testConnection: Boolean = false
 	): Result<Long>
 
@@ -50,6 +56,12 @@ interface ServerManagementService {
 	 * @param password 新密码（如果为null或空，保留原有密码）
 	 * @param privateKey 新私钥（如果为null或空，保留原有私钥）
 	 * @param keyPassphrase 密钥密码
+	 * @param proxyEnabled 是否启用代理
+	 * @param proxyType 代理类型
+	 * @param proxyHost 代理主机
+	 * @param proxyPort 代理端口
+	 * @param proxyUsername 代理用户名
+	 * @param proxyPassword 代理密码
 	 */
 	suspend fun updateServer(
 		serverId: Long,
@@ -60,7 +72,13 @@ interface ServerManagementService {
 		authType: com.vcserver.models.AuthType,
 		password: String? = null,
 		privateKey: String? = null,
-		keyPassphrase: String? = null
+		keyPassphrase: String? = null,
+		proxyEnabled: Boolean = false,
+		proxyType: com.vcserver.models.ProxyType? = null,
+		proxyHost: String? = null,
+		proxyPort: Int? = null,
+		proxyUsername: String? = null,
+		proxyPassword: String? = null
 	): Result<Unit>
 
 	/**

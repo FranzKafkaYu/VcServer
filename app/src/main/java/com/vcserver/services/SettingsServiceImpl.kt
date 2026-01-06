@@ -40,18 +40,19 @@ class SettingsServiceImpl(
 		settingsRepository.updateRefreshInterval(interval)
 	}
 
-	override suspend fun updateProxy(
-		enabled: Boolean,
+	override suspend fun updateDefaultProxy(
+		type: com.vcserver.models.ProxyType,
 		host: String,
 		port: Int,
 		username: String,
 		password: String
 	) {
-		if (enabled) {
-			require(host.isNotBlank()) { "代理主机不能为空" }
+		// 默认代理配置仅作为模板，不进行严格验证
+		// 实际使用时的验证会在服务器级别的代理设置中进行
+		if (host.isNotBlank()) {
 			require(port in 1..65535) { "代理端口必须在 1-65535 范围内" }
 		}
-		settingsRepository.updateProxy(enabled, host, port, username, password)
+		settingsRepository.updateDefaultProxy(type, host, port, username, password)
 	}
 
 	override suspend fun resetToDefaults() {

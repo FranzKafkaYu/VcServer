@@ -40,10 +40,10 @@ interface SettingsRepository {
 	suspend fun updateRefreshInterval(interval: Int)
 
 	/**
-	 * 更新代理设置
+	 * 更新默认代理配置（仅作为模板，不启用）
 	 */
-	suspend fun updateProxy(
-		enabled: Boolean,
+	suspend fun updateDefaultProxy(
+		type: com.vcserver.models.ProxyType,
 		host: String,
 		port: Int,
 		username: String = "",

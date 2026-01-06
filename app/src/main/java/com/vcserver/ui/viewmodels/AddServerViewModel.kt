@@ -3,6 +3,7 @@ package com.vcserver.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vcserver.models.AuthType
+import com.vcserver.models.ProxyType
 import com.vcserver.services.ServerManagementService
 import com.vcserver.utils.AppError
 import com.vcserver.utils.toAppError
@@ -44,6 +45,12 @@ class AddServerViewModel(
 					password = "", // 密码不显示，需要重新输入
 					privateKey = "", // 私钥不显示，需要重新输入
 					keyPassphrase = server.keyPassphrase ?: "",
+					proxyEnabled = server.proxyEnabled,
+					proxyType = server.proxyType ?: ProxyType.HTTP,
+					proxyHost = server.proxyHost ?: "",
+					proxyPort = server.proxyPort?.toString() ?: "8080",
+					proxyUsername = server.proxyUsername ?: "",
+					proxyPassword = "", // 代理密码不显示，需要重新输入
 					isLoading = false,
 					error = null
 				)
@@ -127,6 +134,55 @@ class AddServerViewModel(
 	}
 
 	/**
+	 * 更新代理启用状态
+	 */
+	fun updateProxyEnabled(enabled: Boolean) {
+		_uiState.value = _uiState.value.copy(proxyEnabled = enabled)
+	}
+
+	/**
+	 * 更新代理类型
+	 */
+	fun updateProxyType(type: ProxyType) {
+		_uiState.value = _uiState.value.copy(proxyType = type)
+	}
+
+	/**
+	 * 更新代理主机
+	 */
+	fun updateProxyHost(host: String) {
+		_uiState.value = _uiState.value.copy(proxyHost = host)
+	}
+
+	/**
+	 * 更新代理端口
+	 */
+	fun updateProxyPort(port: String) {
+		_uiState.value = _uiState.value.copy(proxyPort = port)
+	}
+
+	/**
+	 * 更新代理用户名
+	 */
+	fun updateProxyUsername(username: String) {
+		_uiState.value = _uiState.value.copy(proxyUsername = username)
+	}
+
+	/**
+	 * 更新代理密码
+	 */
+	fun updateProxyPassword(password: String) {
+		_uiState.value = _uiState.value.copy(proxyPassword = password)
+	}
+
+	/**
+	 * 切换代理密码可见性
+	 */
+	fun toggleProxyPasswordVisibility() {
+		_uiState.value = _uiState.value.copy(proxyPasswordVisible = !_uiState.value.proxyPasswordVisible)
+	}
+
+	/**
 	 * 测试连接
 	 */
 	fun testConnection() {
@@ -175,6 +231,10 @@ class AddServerViewModel(
 			
 			val port = state.port.toIntOrNull() ?: 22
 			
+			// 解析代理设置
+			val proxyPort = state.proxyPort.toIntOrNull() ?: 8080
+			val proxyEnabled = state.proxyEnabled && state.proxyHost.isNotBlank() && state.proxyPort.toIntOrNull() in 1..65535
+
 			val result = if (serverId != null) {
 				// 编辑模式：更新服务器
 				serverManagementService.updateServer(
@@ -186,7 +246,13 @@ class AddServerViewModel(
 					authType = state.authType,
 					password = if (state.authType == AuthType.PASSWORD && state.password.isNotEmpty()) state.password else null,
 					privateKey = if (state.authType == AuthType.KEY && state.privateKey.isNotEmpty()) state.privateKey else null,
-					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null
+					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
+					proxyEnabled = proxyEnabled,
+					proxyType = if (proxyEnabled) state.proxyType else null,
+					proxyHost = if (proxyEnabled) state.proxyHost else null,
+					proxyPort = if (proxyEnabled) proxyPort else null,
+					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
+					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null
 				)
 			} else {
 				// 新增模式：添加服务器
@@ -199,6 +265,12 @@ class AddServerViewModel(
 					password = if (state.authType == AuthType.PASSWORD) state.password else null,
 					privateKey = if (state.authType == AuthType.KEY) state.privateKey else null,
 					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
+					proxyEnabled = proxyEnabled,
+					proxyType = if (proxyEnabled) state.proxyType else null,
+					proxyHost = if (proxyEnabled) state.proxyHost else null,
+					proxyPort = if (proxyEnabled) proxyPort else null,
+					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
+					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
 					testConnection = false
 				).map { Unit }
 			}
@@ -250,6 +322,14 @@ class AddServerViewModel(
 	val privateKey: String = "",
 	val keyPassphrase: String = "",
 	val keyPassphraseVisible: Boolean = false,
+	// 代理设置
+	val proxyEnabled: Boolean = false,
+	val proxyType: ProxyType = ProxyType.HTTP,
+	val proxyHost: String = "",
+	val proxyPort: String = "8080",
+	val proxyUsername: String = "",
+	val proxyPassword: String = "",
+	val proxyPasswordVisible: Boolean = false,
 	val isSaving: Boolean = false,
 	val isTestingConnection: Boolean = false,
 	val connectionTestSuccess: Boolean = false,

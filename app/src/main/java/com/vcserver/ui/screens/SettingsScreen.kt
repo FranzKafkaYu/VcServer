@@ -7,11 +7,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,6 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vcserver.models.LanguageMode
+import com.vcserver.models.ProxyType
 import com.vcserver.models.ThemeMode
 import com.vcserver.ui.viewmodels.SettingsViewModel
 
@@ -176,45 +181,83 @@ fun SettingsScreen(
 				}
 			}
 
-			// 代理设置
+			// 默认代理配置（可折叠）
+			var proxyExpanded by remember { mutableStateOf(false) }
 			Card {
 				Column(
 					modifier = Modifier.padding(16.dp),
 					verticalArrangement = Arrangement.spacedBy(16.dp)
 				) {
 					Row(
-						modifier = Modifier.fillMaxWidth(),
+						modifier = Modifier
+							.fillMaxWidth()
+							.clickable { proxyExpanded = !proxyExpanded },
 						horizontalArrangement = Arrangement.SpaceBetween,
 						verticalAlignment = Alignment.CenterVertically
 					) {
-						Text(
-							text = "代理设置",
-							style = MaterialTheme.typography.titleMedium
-						)
-						Switch(
-							checked = uiState.settings.proxyEnabled,
-							onCheckedChange = { enabled ->
-								viewModel.updateProxy(
-									enabled = enabled,
-									host = uiState.settings.proxyHost,
-									port = uiState.settings.proxyPort,
-									username = uiState.settings.proxyUsername,
-									password = uiState.settings.proxyPassword
-								)
-							}
-						)
+						Column {
+							Text(
+								text = "默认代理配置",
+								style = MaterialTheme.typography.titleMedium
+							)
+							Text(
+								text = "用于新建服务器时的默认代理模板",
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.onSurfaceVariant
+							)
+						}
+						IconButton(onClick = { proxyExpanded = !proxyExpanded }) {
+							Icon(
+								imageVector = if (proxyExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+								contentDescription = if (proxyExpanded) "收起" else "展开"
+							)
+						}
 					}
 
-					if (uiState.settings.proxyEnabled) {
+					if (proxyExpanded) {
+						Divider()
+
+						// 代理类型选择
+						Column(
+							verticalArrangement = Arrangement.spacedBy(8.dp)
+						) {
+							Text(
+								text = "代理类型",
+								style = MaterialTheme.typography.bodyMedium,
+								color = MaterialTheme.colorScheme.onSurfaceVariant
+							)
+							ProxyTypeSelector(
+								currentType = uiState.settings.defaultProxyType,
+								onTypeSelected = { type ->
+									viewModel.updateDefaultProxy(
+										type = type,
+										host = uiState.settings.defaultProxyHost,
+										port = uiState.settings.defaultProxyPort,
+										username = uiState.settings.defaultProxyUsername,
+										password = uiState.settings.defaultProxyPassword
+									)
+								}
+							)
+						}
+
+						Divider()
+
+						// 代理服务器配置
+						Text(
+							text = "代理服务器",
+							style = MaterialTheme.typography.bodyMedium,
+							color = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+
 						OutlinedTextField(
-							value = uiState.settings.proxyHost,
+							value = uiState.settings.defaultProxyHost,
 							onValueChange = { host ->
-								viewModel.updateProxy(
-									enabled = true,
+								viewModel.updateDefaultProxy(
+									type = uiState.settings.defaultProxyType,
 									host = host,
-									port = uiState.settings.proxyPort,
-									username = uiState.settings.proxyUsername,
-									password = uiState.settings.proxyPassword
+									port = uiState.settings.defaultProxyPort,
+									username = uiState.settings.defaultProxyUsername,
+									password = uiState.settings.defaultProxyPassword
 								)
 							},
 							label = { Text("代理主机") },
@@ -223,15 +266,15 @@ fun SettingsScreen(
 						)
 
 						OutlinedTextField(
-							value = uiState.settings.proxyPort.toString(),
+							value = uiState.settings.defaultProxyPort.toString(),
 							onValueChange = { value ->
 								value.toIntOrNull()?.let { port ->
-									viewModel.updateProxy(
-										enabled = true,
-										host = uiState.settings.proxyHost,
+									viewModel.updateDefaultProxy(
+										type = uiState.settings.defaultProxyType,
+										host = uiState.settings.defaultProxyHost,
 										port = port,
-										username = uiState.settings.proxyUsername,
-										password = uiState.settings.proxyPassword
+										username = uiState.settings.defaultProxyUsername,
+										password = uiState.settings.defaultProxyPassword
 									)
 								}
 							},
@@ -241,34 +284,43 @@ fun SettingsScreen(
 							singleLine = true
 						)
 
+						Divider()
+
+						// 代理鉴权配置
+						Text(
+							text = "代理鉴权（可选）",
+							style = MaterialTheme.typography.bodyMedium,
+							color = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+
 						OutlinedTextField(
-							value = uiState.settings.proxyUsername,
+							value = uiState.settings.defaultProxyUsername,
 							onValueChange = { username ->
-								viewModel.updateProxy(
-									enabled = true,
-									host = uiState.settings.proxyHost,
-									port = uiState.settings.proxyPort,
+								viewModel.updateDefaultProxy(
+									type = uiState.settings.defaultProxyType,
+									host = uiState.settings.defaultProxyHost,
+									port = uiState.settings.defaultProxyPort,
 									username = username,
-									password = uiState.settings.proxyPassword
+									password = uiState.settings.defaultProxyPassword
 								)
 							},
-							label = { Text("用户名（可选）") },
+							label = { Text("用户名") },
 							modifier = Modifier.fillMaxWidth(),
 							singleLine = true
 						)
 
 						OutlinedTextField(
-							value = uiState.settings.proxyPassword,
+							value = uiState.settings.defaultProxyPassword,
 							onValueChange = { password ->
-								viewModel.updateProxy(
-									enabled = true,
-									host = uiState.settings.proxyHost,
-									port = uiState.settings.proxyPort,
-									username = uiState.settings.proxyUsername,
+								viewModel.updateDefaultProxy(
+									type = uiState.settings.defaultProxyType,
+									host = uiState.settings.defaultProxyHost,
+									port = uiState.settings.defaultProxyPort,
+									username = uiState.settings.defaultProxyUsername,
 									password = password
 								)
 							},
-							label = { Text("密码（可选）") },
+							label = { Text("密码") },
 							visualTransformation = PasswordVisualTransformation(),
 							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
 							modifier = Modifier.fillMaxWidth(),
@@ -404,6 +456,37 @@ private fun LanguageModeSelector(
 					style = MaterialTheme.typography.bodyLarge
 				)
 			}
+		}
+	}
+}
+
+/**
+ * 代理类型选择器
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProxyTypeSelector(
+	currentType: ProxyType,
+	onTypeSelected: (ProxyType) -> Unit
+) {
+	Row(
+		modifier = Modifier.fillMaxWidth(),
+		horizontalArrangement = Arrangement.spacedBy(16.dp)
+	) {
+		ProxyType.values().forEach { type ->
+			FilterChip(
+				selected = currentType == type,
+				onClick = { onTypeSelected(type) },
+				label = {
+					Text(
+						text = when (type) {
+							ProxyType.HTTP -> "HTTP"
+							ProxyType.SOCKS5 -> "SOCKS5"
+						}
+					)
+				},
+				modifier = Modifier.weight(1f)
+			)
 		}
 	}
 }

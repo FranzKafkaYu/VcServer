@@ -9,11 +9,12 @@ data class AppSettings(
 	val connectionTimeout: Int = 30, // 秒
 	val defaultSshPort: Int = 22,
 	val refreshInterval: Int = 5, // 秒
-	val proxyEnabled: Boolean = false,
-	val proxyHost: String = "",
-	val proxyPort: Int = 8080,
-	val proxyUsername: String = "",
-	val proxyPassword: String = ""
+	// 代理配置
+	val defaultProxyType: ProxyType = ProxyType.HTTP,
+	val defaultProxyHost: String = "",
+	val defaultProxyPort: Int = 8080,
+	val defaultProxyUsername: String = "",
+	val defaultProxyPassword: String = ""
 )
 
 /**
@@ -32,5 +33,13 @@ enum class LanguageMode {
 	CHINESE,  // 中文
 	ENGLISH,  // 英文
 	SYSTEM    // 跟随系统
+}
+
+/**
+ * 代理类型
+ */
+enum class ProxyType {
+	HTTP,     // HTTP 代理
+	SOCKS5    // SOCKS5 代理
 }
 

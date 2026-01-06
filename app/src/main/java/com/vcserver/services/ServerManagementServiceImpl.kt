@@ -32,6 +32,12 @@ class ServerManagementServiceImpl(
 		password: String?,
 		privateKey: String?,
 		keyPassphrase: String?,
+		proxyEnabled: Boolean,
+		proxyType: com.vcserver.models.ProxyType?,
+		proxyHost: String?,
+		proxyPort: Int?,
+		proxyUsername: String?,
+		proxyPassword: String?,
 		testConnection: Boolean
 	): Result<Long> {
 		// 输入验证
@@ -49,6 +55,13 @@ class ServerManagementServiceImpl(
 
 		val encryptedPrivateKey = if (authType == AuthType.KEY && privateKey != null) {
 			secureStorage.encryptPrivateKey(privateKey)
+		} else {
+			null
+		}
+
+		// 加密代理密码（如果启用代理）
+		val encryptedProxyPassword = if (proxyEnabled && proxyPassword != null && proxyPassword.isNotBlank()) {
+			secureStorage.encryptPassword(proxyPassword)
 		} else {
 			null
 		}
@@ -83,6 +96,12 @@ class ServerManagementServiceImpl(
 			encryptedPassword = encryptedPassword,
 			encryptedPrivateKey = encryptedPrivateKey,
 			keyPassphrase = keyPassphrase,
+			proxyEnabled = proxyEnabled,
+			proxyType = proxyType,
+			proxyHost = proxyHost,
+			proxyPort = proxyPort,
+			proxyUsername = proxyUsername,
+			encryptedProxyPassword = encryptedProxyPassword,
 			orderIndex = serverCount // 新服务器默认排在最后
 		)
 
@@ -94,6 +113,7 @@ class ServerManagementServiceImpl(
 			// 如果保存失败，清理已加密的文件
 			encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
+			encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			Result.failure(e)
 		}
 	}
@@ -117,7 +137,13 @@ class ServerManagementServiceImpl(
 		authType: AuthType,
 		password: String?,
 		privateKey: String?,
-		keyPassphrase: String?
+		keyPassphrase: String?,
+		proxyEnabled: Boolean,
+		proxyType: com.vcserver.models.ProxyType?,
+		proxyHost: String?,
+		proxyPort: Int?,
+		proxyUsername: String?,
+		proxyPassword: String?
 	): Result<Unit> {
 		return try {
 			val existingServer = serverRepository.getServerById(serverId)
@@ -146,6 +172,18 @@ class ServerManagementServiceImpl(
 				else -> null
 			}
 
+			// 处理代理密码加密
+			val encryptedProxyPassword = when {
+				proxyEnabled && !proxyPassword.isNullOrBlank() -> {
+					// 删除旧的加密文件
+					existingServer.encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }
+					// 加密新代理密码
+					secureStorage.encryptPassword(proxyPassword)
+				}
+				proxyEnabled -> existingServer.encryptedProxyPassword
+				else -> null
+			}
+
 			val updatedServer = existingServer.copy(
 				name = name,
 				host = host,
@@ -155,6 +193,12 @@ class ServerManagementServiceImpl(
 				encryptedPassword = encryptedPassword,
 				encryptedPrivateKey = encryptedPrivateKey,
 				keyPassphrase = if (authType == AuthType.KEY) keyPassphrase else null,
+				proxyEnabled = proxyEnabled,
+				proxyType = proxyType,
+				proxyHost = proxyHost,
+				proxyPort = proxyPort,
+				proxyUsername = proxyUsername,
+				encryptedProxyPassword = encryptedProxyPassword,
 				updatedAt = System.currentTimeMillis()
 			)
 
@@ -170,6 +214,7 @@ class ServerManagementServiceImpl(
 			// 删除加密文件
 			server.encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			server.encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
+			server.encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			
 			// 从数据库删除
 			serverRepository.deleteServer(server)

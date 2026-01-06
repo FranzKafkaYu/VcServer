@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vcserver.models.AppSettings
 import com.vcserver.models.LanguageMode
+import com.vcserver.models.ProxyType
 import com.vcserver.models.ThemeMode
 import com.vcserver.services.SettingsService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -124,10 +125,10 @@ class SettingsViewModel(
 	}
 
 	/**
-	 * 更新代理设置
+	 * 更新默认代理配置（仅作为模板，不启用）
 	 */
-	fun updateProxy(
-		enabled: Boolean,
+	fun updateDefaultProxy(
+		type: ProxyType,
 		host: String,
 		port: Int,
 		username: String = "",
@@ -135,10 +136,10 @@ class SettingsViewModel(
 	) {
 		viewModelScope.launch {
 			try {
-				settingsService.updateProxy(enabled, host, port, username, password)
+				settingsService.updateDefaultProxy(type, host, port, username, password)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
-					errorMessage = "更新代理设置失败: ${e.message}"
+					errorMessage = "更新默认代理配置失败: ${e.message}"
 				)
 			}
 		}

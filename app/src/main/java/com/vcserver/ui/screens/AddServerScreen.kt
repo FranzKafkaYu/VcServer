@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vcserver.R
 import com.vcserver.models.AuthType
+import com.vcserver.models.ProxyType
 import com.vcserver.ui.viewmodels.AddServerViewModel
 
 /**
@@ -173,6 +175,134 @@ fun AddServerScreen(
 						}
 					}
 				)
+			}
+
+			// 代理设置
+			Card {
+				Column(
+					modifier = Modifier.padding(16.dp),
+					verticalArrangement = Arrangement.spacedBy(16.dp)
+				) {
+					Row(
+						modifier = Modifier.fillMaxWidth(),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Column {
+							Text(
+								text = "代理设置",
+								style = MaterialTheme.typography.titleMedium
+							)
+							Text(
+								text = "为当前服务器启用代理连接",
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.onSurfaceVariant
+							)
+						}
+						Switch(
+							checked = uiState.proxyEnabled,
+							onCheckedChange = { enabled ->
+								viewModel.updateProxyEnabled(enabled)
+							}
+						)
+					}
+
+					if (uiState.proxyEnabled) {
+						Divider()
+
+						// 代理类型选择
+						Column(
+							verticalArrangement = Arrangement.spacedBy(8.dp)
+						) {
+							Text(
+								text = "代理类型",
+								style = MaterialTheme.typography.bodyMedium,
+								color = MaterialTheme.colorScheme.onSurfaceVariant
+							)
+							Row(
+								modifier = Modifier.fillMaxWidth(),
+								horizontalArrangement = Arrangement.spacedBy(8.dp)
+							) {
+								ProxyType.values().forEach { type ->
+									FilterChip(
+										selected = uiState.proxyType == type,
+										onClick = { viewModel.updateProxyType(type) },
+										label = {
+											Text(
+												text = when (type) {
+													ProxyType.HTTP -> "HTTP"
+													ProxyType.SOCKS5 -> "SOCKS5"
+												}
+											)
+										},
+										modifier = Modifier.weight(1f)
+									)
+								}
+							}
+						}
+
+						Divider()
+
+						// 代理服务器配置
+						Text(
+							text = "代理服务器",
+							style = MaterialTheme.typography.bodyMedium,
+							color = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+
+						OutlinedTextField(
+							value = uiState.proxyHost,
+							onValueChange = viewModel::updateProxyHost,
+							label = { Text("代理主机") },
+							modifier = Modifier.fillMaxWidth(),
+							singleLine = true
+						)
+
+						OutlinedTextField(
+							value = uiState.proxyPort,
+							onValueChange = viewModel::updateProxyPort,
+							label = { Text("代理端口") },
+							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+							modifier = Modifier.fillMaxWidth(),
+							singleLine = true
+						)
+
+						Divider()
+
+						// 代理鉴权配置
+						Text(
+							text = "代理鉴权（可选）",
+							style = MaterialTheme.typography.bodyMedium,
+							color = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+
+						OutlinedTextField(
+							value = uiState.proxyUsername,
+							onValueChange = viewModel::updateProxyUsername,
+							label = { Text("用户名") },
+							modifier = Modifier.fillMaxWidth(),
+							singleLine = true
+						)
+
+						OutlinedTextField(
+							value = uiState.proxyPassword,
+							onValueChange = viewModel::updateProxyPassword,
+							label = { Text("密码") },
+							visualTransformation = if (uiState.proxyPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+							modifier = Modifier.fillMaxWidth(),
+							singleLine = true,
+							trailingIcon = {
+								IconButton(onClick = viewModel::toggleProxyPasswordVisibility) {
+									Icon(
+										imageVector = if (uiState.proxyPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+										contentDescription = if (uiState.proxyPasswordVisible) "隐藏代理密码" else "显示代理密码"
+									)
+								}
+							}
+						)
+					}
+				}
 			}
 
 			// 连接测试成功提示
