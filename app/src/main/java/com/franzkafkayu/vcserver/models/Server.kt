@@ -19,10 +19,10 @@ data class Server(
 	val port: Int = 22,
 	val username: String,
 	val authType: AuthType,
-	val encryptedPassword: String? = null,  // 加密后的密码（authType �?PASSWORD 时使用）
-	val encryptedPrivateKey: String? = null, // 加密后的私钥（authType �?KEY 时使用）
+	val encryptedPassword: String? = null,  // 加密后的密码（authType为PASSWORD 时使用）
+	val encryptedPrivateKey: String? = null, // 加密后的私钥（authType为KEY 时使用）
 	val keyPassphrase: String? = null,       // 密钥密码（可选，如果私钥有密码保护）
-	val systemVersion: String? = null,       // 系统版本信息（例�?"Ubuntu 22.04"），连接后自动更新
+	val systemVersion: String? = null,       // 系统版本信息（例如"Ubuntu 22.04"），连接后自动更新
 	val orderIndex: Int = 0,                 // 排序索引，用于用户自定义排序
 	// 代理设置（服务器级别设置）
 	val proxyEnabled: Boolean = false,

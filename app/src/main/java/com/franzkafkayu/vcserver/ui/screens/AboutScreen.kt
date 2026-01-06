@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,11 +27,6 @@ object AboutScreenConstants {
 	 * GitHub 仓库地址
 	 */
 	const val GITHUB_URL = "https://github.com/FranzKafkaYu/VcServer"
-	
-	/**
-	 * 应用发布日期
-	 */
-	const val RELEASE_DATE = "2025-01-05"
 	
 	/**
 	 * 作者名称
@@ -107,9 +103,11 @@ fun AboutScreen(
 					horizontalArrangement = Arrangement.SpaceBetween,
 					verticalAlignment = Alignment.CenterVertically
 				) {
-					Text(
-						text = stringResource(R.string.about_github),
-						style = MaterialTheme.typography.bodySmall
+					Icon(
+						painter = painterResource(id = R.drawable.ic_github),
+						contentDescription = stringResource(R.string.about_github),
+						tint = MaterialTheme.colorScheme.primary,
+						modifier = Modifier.size(24.dp)
 					)
 					Text(
 						text = AboutScreenConstants.GITHUB_URL,
