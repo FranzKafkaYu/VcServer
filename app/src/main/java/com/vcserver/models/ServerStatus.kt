@@ -15,6 +15,8 @@ data class ServerStatus(
  * CPU 信息
  */
 data class CpuInfo(
+	val architecture: String? = null,  // CPU 架构，例如 "x86_64", "aarch64"
+	val model: String? = null,          // CPU 型号，例如 "Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz"
 	val cores: Int,
 	val usagePercent: Double
 )

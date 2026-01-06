@@ -31,6 +31,8 @@
 	<string name="cpu_info">CPU 信息</string>
 	<string name="memory_info">内存信息</string>
 	<string name="disk_info">磁盘信息</string>
+	<string name="cpu_architecture">CPU 架构</string>
+	<string name="cpu_model">CPU 型号</string>
 	<string name="cpu_cores">CPU 核心数</string>
 	<string name="cpu_usage">CPU 使用率</string>
 	<string name="total_memory">总内存</string>

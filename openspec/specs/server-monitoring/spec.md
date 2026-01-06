@@ -37,7 +37,7 @@ TBD - created by archiving change add-server-connection-and-monitoring. Update P
 - **WHEN** 系统需要获取服务器的 CPU 信息
 - **THEN** 系统通过 SSH 执行命令获取 CPU 核心数和使用率
 - **AND THEN** 系统解析命令输出
-- **AND THEN** 系统返回 CPU 信息（核心数、使用率等）
+- **AND THEN** 系统返回 CPU 信息（架构、型号、核心数、使用率等）
 
 #### Scenario: 获取内存信息
 - **WHEN** 系统需要获取服务器的内存信息

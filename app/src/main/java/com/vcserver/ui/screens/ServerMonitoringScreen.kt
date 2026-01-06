@@ -158,6 +158,34 @@ fun ServerMonitoringScreen(
 								modifier = Modifier.weight(1f),
 								verticalArrangement = Arrangement.spacedBy(8.dp)
 							) {
+								// CPU 架构
+								status.cpu.architecture?.let { arch ->
+									Row(
+										modifier = Modifier.fillMaxWidth(),
+										horizontalArrangement = Arrangement.SpaceBetween
+									) {
+										Text(stringResource(R.string.cpu_architecture))
+										Text(arch, fontWeight = FontWeight.Medium)
+									}
+								}
+								
+								// CPU 型号
+								status.cpu.model?.let { model ->
+									Row(
+										modifier = Modifier.fillMaxWidth(),
+										horizontalArrangement = Arrangement.SpaceBetween
+									) {
+										Text(stringResource(R.string.cpu_model))
+										Text(
+											text = model,
+											fontWeight = FontWeight.Medium,
+											modifier = Modifier.weight(1f),
+											style = MaterialTheme.typography.bodyMedium
+										)
+									}
+								}
+								
+								// CPU 核心数
 								Row(
 									modifier = Modifier.fillMaxWidth(),
 									horizontalArrangement = Arrangement.SpaceBetween

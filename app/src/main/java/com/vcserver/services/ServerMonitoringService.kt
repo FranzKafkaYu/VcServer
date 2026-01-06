@@ -129,6 +129,26 @@ class ServerMonitoringServiceImpl(
 			}
 			val cores = coresResult.getOrNull()?.toIntOrNull() ?: 1
 
+			// 获取 CPU 架构
+			val archResult = sshCommandService.executeCommand(session, "uname -m")
+			val architecture = if (archResult.isSuccess) {
+				archResult.getOrNull()?.trim()?.takeIf { it.isNotBlank() }
+			} else {
+				null
+			}
+
+			// 获取 CPU 型号
+			// 优先使用 lscpu，如果不可用则使用 /proc/cpuinfo
+			val modelResult = sshCommandService.executeCommand(
+				session,
+				"lscpu 2>/dev/null | grep -i 'Model name' | cut -d: -f2 | xargs || cat /proc/cpuinfo 2>/dev/null | grep -i 'model name' | head -1 | cut -d: -f2 | xargs"
+			)
+			val model = if (modelResult.isSuccess) {
+				modelResult.getOrNull()?.trim()?.takeIf { it.isNotBlank() }
+			} else {
+				null
+			}
+
 			// 获取 CPU 使用率
 			val cpuUsageResult = sshCommandService.executeCommand(
 				session,
@@ -146,7 +166,12 @@ class ServerMonitoringServiceImpl(
 				}
 			}
 
-			Result.success(CpuInfo(cores = cores, usagePercent = usagePercent))
+			Result.success(CpuInfo(
+				architecture = architecture,
+				model = model,
+				cores = cores,
+				usagePercent = usagePercent
+			))
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to parse CPU info: ${e.message}", e))
 		}

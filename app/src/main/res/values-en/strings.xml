@@ -31,6 +31,8 @@
 	<string name="cpu_info">CPU Info</string>
 	<string name="memory_info">Memory Info</string>
 	<string name="disk_info">Disk Info</string>
+	<string name="cpu_architecture">CPU Architecture</string>
+	<string name="cpu_model">CPU Model</string>
 	<string name="cpu_cores">CPU Cores</string>
 	<string name="cpu_usage">CPU Usage</string>
 	<string name="total_memory">Total Memory</string>
