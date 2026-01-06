@@ -478,7 +478,6 @@ private fun ProxyTypeSelector(
 /**
  * 将错误键值转换为本地化错误消息
  */
-@Composable
 private fun getLocalizedErrorMessage(context: Context, errorKey: String): String {
 	// 错误消息格式: "OPERATION_FAILED:ERROR_KEY"
 	val parts = errorKey.split(":", limit = 2)
@@ -519,7 +518,6 @@ private fun getLocalizedErrorMessage(context: Context, errorKey: String): String
 /**
  * 获取错误详情消息
  */
-@Composable
 private fun getErrorDetailMessage(context: Context, errorCode: String): String {
 	return when (errorCode) {
 		"CONNECTION_TIMEOUT_INVALID" -> context.getString(R.string.error_connection_timeout_invalid)
