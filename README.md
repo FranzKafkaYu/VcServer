@@ -164,9 +164,7 @@ VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安
 
 欢迎提交 Issue 和 Pull Request！
 
----
-
-**注意**：本项目使用 OpenSpec 进行规范驱动开发。有关项目规范和开发流程，请参考 `openspec/` 目录下的文档。
+ ⭐[![Stargazers over time](https://starchart.cc/FranzKafkaYu/VcServer.svg)](https://starchart.cc/FranzKafkaYu/VcServer)  
 
 
 
