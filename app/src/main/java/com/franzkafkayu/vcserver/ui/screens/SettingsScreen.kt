@@ -25,6 +25,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.net.Uri
 import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.models.LanguageMode
 import com.franzkafkayu.vcserver.models.ProxyType
@@ -44,6 +48,27 @@ fun SettingsScreen(
 	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 	val snackbarHostState = remember { SnackbarHostState() }
 	val context = LocalContext.current
+
+	// 导入确认对话框状态
+	var showImportDialog by remember { mutableStateOf<Uri?>(null) }
+
+	// 导出文件选择器
+	val exportLauncher = rememberLauncherForActivityResult(
+		contract = ActivityResultContracts.CreateDocument("application/json")
+	) { uri: Uri? ->
+		uri?.let {
+			viewModel.exportDatabase(context, it)
+		}
+	}
+
+	// 导入文件选择器
+	val importLauncher = rememberLauncherForActivityResult(
+		contract = ActivityResultContracts.GetContent()
+	) { uri: Uri? ->
+		uri?.let {
+			showImportDialog = it
+		}
+	}
 
 	// 显示错误提示
 	LaunchedEffect(uiState.errorMessage) {
@@ -339,6 +364,58 @@ fun SettingsScreen(
 				}
 			}
 
+			// 数据库导出/导入
+			Card {
+				Column(
+					modifier = Modifier.padding(16.dp),
+					verticalArrangement = Arrangement.spacedBy(16.dp)
+				) {
+					Text(
+						text = stringResource(R.string.database_export_import),
+						style = MaterialTheme.typography.titleMedium
+					)
+					
+					// 导出按钮
+					Button(
+						onClick = {
+							exportLauncher.launch("vcserver_backup_${System.currentTimeMillis()}.json")
+						},
+						modifier = Modifier.fillMaxWidth(),
+						enabled = !uiState.isExporting
+					) {
+						if (uiState.isExporting) {
+							CircularProgressIndicator(
+								modifier = Modifier.size(20.dp),
+								color = MaterialTheme.colorScheme.onPrimary
+							)
+							Spacer(modifier = Modifier.width(8.dp))
+						}
+						Text(stringResource(R.string.export_database))
+					}
+
+					// 导入按钮
+					Button(
+						onClick = {
+							importLauncher.launch("application/json")
+						},
+						modifier = Modifier.fillMaxWidth(),
+						enabled = !uiState.isImporting,
+						colors = ButtonDefaults.buttonColors(
+							containerColor = MaterialTheme.colorScheme.secondary
+						)
+					) {
+						if (uiState.isImporting) {
+							CircularProgressIndicator(
+								modifier = Modifier.size(20.dp),
+								color = MaterialTheme.colorScheme.onSecondary
+							)
+							Spacer(modifier = Modifier.width(8.dp))
+						}
+						Text(stringResource(R.string.import_database))
+					}
+				}
+			}
+
 			// 重置按钮
 			Button(
 				onClick = { viewModel.showResetDialog() },
@@ -349,6 +426,27 @@ fun SettingsScreen(
 			) {
 				Text(stringResource(R.string.reset_to_defaults))
 			}
+		}
+	}
+
+	// 显示导出/导入结果
+	LaunchedEffect(uiState.exportSuccess) {
+		if (uiState.exportSuccess) {
+			snackbarHostState.showSnackbar(
+				message = context.getString(R.string.export_success),
+				duration = SnackbarDuration.Short
+			)
+			viewModel.clearExportSuccess()
+		}
+	}
+
+	LaunchedEffect(uiState.importSuccess) {
+		uiState.importSuccess?.let { count ->
+			snackbarHostState.showSnackbar(
+				message = context.getString(R.string.import_success, count),
+				duration = SnackbarDuration.Short
+			)
+			viewModel.clearImportSuccess()
 		}
 	}
 
@@ -366,6 +464,40 @@ fun SettingsScreen(
 			dismissButton = {
 				TextButton(onClick = { viewModel.hideResetDialog() }) {
 					Text(stringResource(R.string.cancel))
+				}
+			}
+		)
+	}
+
+	// 导入确认对话框
+	showImportDialog?.let { uri ->
+		AlertDialog(
+			onDismissRequest = { showImportDialog = null },
+			title = { Text(stringResource(R.string.import_database)) },
+			text = { Text(stringResource(R.string.import_database_confirm)) },
+			confirmButton = {
+				TextButton(
+					onClick = {
+						viewModel.importDatabase(context, uri, importStrategy = true)
+						showImportDialog = null
+					}
+				) {
+					Text(stringResource(R.string.overwrite))
+				}
+			},
+			dismissButton = {
+				Row {
+					TextButton(
+						onClick = {
+							viewModel.importDatabase(context, uri, importStrategy = false)
+							showImportDialog = null
+						}
+					) {
+						Text(stringResource(R.string.skip))
+					}
+					TextButton(onClick = { showImportDialog = null }) {
+						Text(stringResource(R.string.cancel))
+					}
 				}
 			}
 		)
@@ -511,6 +643,19 @@ private fun getLocalizedErrorMessage(context: Context, errorKey: String): String
 		"RESET_SETTINGS_FAILED" -> {
 			context.getString(R.string.error_reset_settings_failed, getErrorDetailMessage(context, errorCode))
 		}
+		"EXPORT_SUCCESS" -> {
+			context.getString(R.string.export_success)
+		}
+		"EXPORT_FAILED" -> {
+			context.getString(R.string.error_export_failed, getErrorDetailMessage(context, errorCode))
+		}
+		"IMPORT_SUCCESS" -> {
+			val count = errorCode.toIntOrNull() ?: 0
+			context.getString(R.string.import_success, count)
+		}
+		"IMPORT_FAILED" -> {
+			context.getString(R.string.error_import_failed, getErrorDetailMessage(context, errorCode))
+		}
 		else -> errorKey
 	}
 }
@@ -524,6 +669,10 @@ private fun getErrorDetailMessage(context: Context, errorCode: String): String {
 		"SSH_PORT_INVALID" -> context.getString(R.string.error_ssh_port_invalid)
 		"REFRESH_INTERVAL_INVALID" -> context.getString(R.string.error_refresh_interval_invalid)
 		"PROXY_PORT_INVALID" -> context.getString(R.string.error_proxy_port_invalid)
+		"EXPORT_NO_SERVERS" -> context.getString(R.string.error_export_no_servers)
+		"EXPORT_OPEN_STREAM_FAILED" -> context.getString(R.string.error_export_open_stream_failed)
+		"IMPORT_OPEN_STREAM_FAILED" -> context.getString(R.string.error_import_open_stream_failed)
+		"IMPORT_INVALID_FORMAT" -> context.getString(R.string.error_import_invalid_format)
 		else -> errorCode
 	}
 }

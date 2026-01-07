@@ -16,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.data.AppDatabase
 import com.franzkafkayu.vcserver.repositories.ServerRepositoryImpl
 import com.franzkafkayu.vcserver.repositories.SettingsRepositoryImpl
+import com.franzkafkayu.vcserver.services.DatabaseExportImportServiceImpl
 import com.franzkafkayu.vcserver.services.ServerManagementServiceImpl
 import com.franzkafkayu.vcserver.services.ServerMonitoringServiceImpl
 import com.franzkafkayu.vcserver.services.SettingsServiceImpl
@@ -95,6 +96,9 @@ class MainActivity : ComponentActivity() {
 		val settingsRepository = SettingsRepositoryImpl(applicationContext)
 		val settingsService = SettingsServiceImpl(settingsRepository)
 
+		// 初始化导出/导入服务
+		val exportImportService = DatabaseExportImportServiceImpl(serverRepository)
+
 		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService)
 		val addServerViewModel = AddServerViewModel(serverManagementService)
 
@@ -115,7 +119,8 @@ class MainActivity : ComponentActivity() {
 						serverManagementService = serverManagementService,
 						serverMonitoringService = serverMonitoringService,
 						terminalService = terminalService,
-						settingsService = settingsService
+						settingsService = settingsService,
+						exportImportService = exportImportService
 					)
 				}
 			}

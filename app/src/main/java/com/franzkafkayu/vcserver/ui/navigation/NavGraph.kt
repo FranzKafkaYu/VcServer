@@ -62,7 +62,8 @@ fun NavGraph(
     serverManagementService: com.franzkafkayu.vcserver.services.ServerManagementService,
     serverMonitoringService: com.franzkafkayu.vcserver.services.ServerMonitoringService,
     terminalService: TerminalService,
-    settingsService: com.franzkafkayu.vcserver.services.SettingsService
+    settingsService: com.franzkafkayu.vcserver.services.SettingsService,
+    exportImportService: com.franzkafkayu.vcserver.services.DatabaseExportImportService
 ) {
     NavHost(
         navController = navController,
@@ -204,7 +205,7 @@ fun NavGraph(
         }
         composable(Screen.Settings.route) {
             val settingsViewModel = viewModel<SettingsViewModel>(
-                factory = SettingsViewModelFactory(settingsService)
+                factory = SettingsViewModelFactory(settingsService, exportImportService)
             )
             SettingsScreen(
                 viewModel = settingsViewModel,
@@ -291,12 +292,13 @@ class EditServerViewModelFactory(
  * SettingsViewModel 工厂
  */
 class SettingsViewModelFactory(
-    private val settingsService: com.franzkafkayu.vcserver.services.SettingsService
+    private val settingsService: com.franzkafkayu.vcserver.services.SettingsService,
+    private val exportImportService: com.franzkafkayu.vcserver.services.DatabaseExportImportService
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(settingsService) as T
+            return SettingsViewModel(settingsService, exportImportService) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

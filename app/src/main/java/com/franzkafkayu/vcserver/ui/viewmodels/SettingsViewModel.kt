@@ -1,11 +1,14 @@
 package com.franzkafkayu.vcserver.ui.viewmodels
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.franzkafkayu.vcserver.models.AppSettings
 import com.franzkafkayu.vcserver.models.LanguageMode
 import com.franzkafkayu.vcserver.models.ProxyType
 import com.franzkafkayu.vcserver.models.ThemeMode
+import com.franzkafkayu.vcserver.services.DatabaseExportImportService
 import com.franzkafkayu.vcserver.services.SettingsService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,14 +22,19 @@ data class SettingsUiState(
 	val settings: AppSettings = AppSettings(),
 	val isLoading: Boolean = false,
 	val errorMessage: String? = null,
-	val showResetDialog: Boolean = false
+	val showResetDialog: Boolean = false,
+	val isExporting: Boolean = false,
+	val isImporting: Boolean = false,
+	val exportSuccess: Boolean = false,
+	val importSuccess: Int? = null // 导入成功的服务器数量
 )
 
 /**
  * 设置 ViewModel
  */
 class SettingsViewModel(
-	private val settingsService: SettingsService
+	private val settingsService: SettingsService,
+	private val exportImportService: DatabaseExportImportService
 ) : ViewModel() {
 
 	private val _uiState = MutableStateFlow(SettingsUiState())
@@ -180,6 +188,84 @@ class SettingsViewModel(
 	 */
 	fun clearError() {
 		_uiState.value = _uiState.value.copy(errorMessage = null)
+	}
+
+	/**
+	 * 导出数据库
+	 */
+	fun exportDatabase(context: Context, outputUri: Uri) {
+		viewModelScope.launch {
+			_uiState.value = _uiState.value.copy(
+				isExporting = true,
+				exportSuccess = false,
+				errorMessage = null
+			)
+			exportImportService.exportDatabase(context, outputUri)
+				.onSuccess {
+					_uiState.value = _uiState.value.copy(
+						isExporting = false,
+						exportSuccess = true
+					)
+				}
+				.onFailure { e ->
+					val errorKey = when (e.message) {
+						"NO_SERVERS" -> "EXPORT_NO_SERVERS"
+						"UNABLE_TO_OPEN_OUTPUT_STREAM" -> "EXPORT_OPEN_STREAM_FAILED"
+						else -> "EXPORT_FAILED"
+					}
+					_uiState.value = _uiState.value.copy(
+						isExporting = false,
+						exportSuccess = false,
+						errorMessage = "EXPORT_FAILED:$errorKey"
+					)
+				}
+		}
+	}
+
+	/**
+	 * 导入数据库
+	 */
+	fun importDatabase(context: Context, inputUri: Uri, importStrategy: Boolean) {
+		viewModelScope.launch {
+			_uiState.value = _uiState.value.copy(
+				isImporting = true,
+				importSuccess = null,
+				errorMessage = null
+			)
+			exportImportService.importDatabase(context, inputUri, importStrategy)
+				.onSuccess { count ->
+					_uiState.value = _uiState.value.copy(
+						isImporting = false,
+						importSuccess = count
+					)
+				}
+				.onFailure { e ->
+					val errorKey = when (e.message) {
+						"UNABLE_TO_OPEN_INPUT_STREAM" -> "IMPORT_OPEN_STREAM_FAILED"
+						"INVALID_FORMAT" -> "IMPORT_INVALID_FORMAT"
+						else -> "IMPORT_FAILED"
+					}
+					_uiState.value = _uiState.value.copy(
+						isImporting = false,
+						importSuccess = null,
+						errorMessage = "IMPORT_FAILED:$errorKey"
+					)
+				}
+		}
+	}
+
+	/**
+	 * 清除导出成功状态
+	 */
+	fun clearExportSuccess() {
+		_uiState.value = _uiState.value.copy(exportSuccess = false)
+	}
+
+	/**
+	 * 清除导入成功状态
+	 */
+	fun clearImportSuccess() {
+		_uiState.value = _uiState.value.copy(importSuccess = null)
 	}
 }
 

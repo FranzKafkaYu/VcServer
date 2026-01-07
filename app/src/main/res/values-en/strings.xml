@@ -97,6 +97,14 @@
 	<string name="reset_to_defaults">Reset to Defaults</string>
 	<string name="reset_settings">Reset Settings</string>
 	<string name="reset_settings_confirm">Are you sure you want to reset all settings to default values?</string>
+	<string name="database_export_import">Database Export/Import</string>
+	<string name="export_database">Export Database</string>
+	<string name="import_database">Import Database</string>
+	<string name="import_database_confirm">Import may overwrite existing server configurations. Please choose how to handle duplicates:</string>
+	<string name="overwrite">Overwrite</string>
+	<string name="skip">Skip</string>
+	<string name="export_success">Export successful</string>
+	<string name="import_success">Import successful, %1$d servers imported</string>
 	<string name="theme_light">Light</string>
 	<string name="theme_dark">Dark</string>
 	<string name="theme_system">Follow System</string>
@@ -115,6 +123,12 @@
 	<string name="error_update_refresh_interval_failed">Failed to update refresh interval: %1$s</string>
 	<string name="error_update_default_proxy_failed">Failed to update default proxy configuration: %1$s</string>
 	<string name="error_reset_settings_failed">Failed to reset settings: %1$s</string>
+	<string name="error_export_failed">Export failed: %1$s</string>
+	<string name="error_import_failed">Import failed: %1$s</string>
+	<string name="error_export_no_servers">No server data to export</string>
+	<string name="error_export_open_stream_failed">Unable to open output stream</string>
+	<string name="error_import_open_stream_failed">Unable to open input stream</string>
+	<string name="error_import_invalid_format">Invalid file format</string>
 	<!-- About Screen -->
 	<string name="about_title">About</string>
 	<string name="about_app_name">VcServer</string>

@@ -97,6 +97,14 @@
 	<string name="reset_to_defaults">重置为默认值</string>
 	<string name="reset_settings">重置设置</string>
 	<string name="reset_settings_confirm">确定要将所有设置重置为默认值吗？</string>
+	<string name="database_export_import">数据库导出/导入</string>
+	<string name="export_database">导出数据库</string>
+	<string name="import_database">导入数据库</string>
+	<string name="import_database_confirm">导入可能会覆盖现有服务器配置，请选择处理方式：</string>
+	<string name="overwrite">覆盖</string>
+	<string name="skip">跳过</string>
+	<string name="export_success">导出成功</string>
+	<string name="import_success">导入成功，共导入 %1$d 个服务器</string>
 	<string name="theme_light">浅色</string>
 	<string name="theme_dark">深色</string>
 	<string name="theme_system">跟随系统</string>
@@ -115,6 +123,12 @@
 	<string name="error_update_refresh_interval_failed">更新刷新间隔失败: %1$s</string>
 	<string name="error_update_default_proxy_failed">更新默认代理配置失败: %1$s</string>
 	<string name="error_reset_settings_failed">重置设置失败: %1$s</string>
+	<string name="error_export_failed">导出失败: %1$s</string>
+	<string name="error_import_failed">导入失败: %1$s</string>
+	<string name="error_export_no_servers">没有服务器数据可导出</string>
+	<string name="error_export_open_stream_failed">无法打开输出流</string>
+	<string name="error_import_open_stream_failed">无法打开输入流</string>
+	<string name="error_import_invalid_format">文件格式无效</string>
 	<!-- 关于界面 -->
 	<string name="about_title">关于</string>
 	<string name="about_app_name">VcServer</string>
