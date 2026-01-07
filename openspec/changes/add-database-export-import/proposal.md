@@ -22,3 +22,4 @@
   - `Server.kt` - 可能需要添加序列化支持
   - `AndroidManifest.xml` - 可能需要添加存储权限
 
+

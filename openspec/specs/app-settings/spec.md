@@ -1,5 +1,8 @@
-## ADDED Requirements
+# app-settings Specification
 
+## Purpose
+TBD - created by archiving change add-settings-feature. Update Purpose after archive.
+## Requirements
 ### Requirement: 应用设置管理
 系统 SHALL 提供应用设置功能，允许用户配置应用的行为和外观偏好。
 
@@ -88,6 +91,4 @@
 - **AND THEN** 系统保存默认值到本地存储
 - **AND THEN** 系统立即应用默认设置（如主题切换为默认主题）
 - **AND THEN** 系统显示重置成功提示
-
-
 
