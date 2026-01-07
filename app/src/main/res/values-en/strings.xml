@@ -114,6 +114,7 @@
 	<!-- Error Messages -->
 	<string name="error_connection_timeout_invalid">Connection timeout must be greater than 0</string>
 	<string name="error_ssh_port_invalid">SSH port must be in the range 1-65535</string>
+	<string name="error_ssh_port_invalid_with_value">Current input value %1$d is not in valid range (1-65535)</string>
 	<string name="error_refresh_interval_invalid">Refresh interval must be greater than or equal to 1 second</string>
 	<string name="error_proxy_port_invalid">Proxy port must be in the range 1-65535</string>
 	<string name="error_update_theme_failed">Failed to update theme: %1$s</string>

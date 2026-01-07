@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
 		val exportImportService = DatabaseExportImportServiceImpl(serverRepository)
 
 		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService)
-		val addServerViewModel = AddServerViewModel(serverManagementService)
+		val addServerViewModel = AddServerViewModel(serverManagementService, settingsService)
 
 		setContent {
 			// 获取主题设置

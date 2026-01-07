@@ -36,9 +36,12 @@ fun AddServerScreen(
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 
-	// 进入界面时，只在新增模式下重置状态（编辑模式下由 ViewModel �?init 加载数据�?
+	// 进入界面时，如果是新增模式，重置状态
 	LaunchedEffect(Unit) {
 		if (!uiState.isEditMode) {
+			// 先清除 saveSuccess 状态，避免立即返回
+			viewModel.clearSaveSuccess()
+			// 然后重置表单字段（包括从设置读取默认端口）
 			viewModel.reset()
 		}
 	}
@@ -364,6 +367,8 @@ fun AddServerScreen(
 	LaunchedEffect(uiState.saveSuccess) {
 		if (uiState.saveSuccess) {
 			onSaveSuccess()
+			// 立即清除 saveSuccess 状态，避免下次进入界面时立即返回
+			viewModel.clearSaveSuccess()
 		}
 	}
 }

@@ -166,6 +166,40 @@ fun SettingsScreen(
 						modifier = Modifier.fillMaxWidth(),
 						singleLine = true
 					)
+
+					// 默认 SSH 端口
+					var defaultSshPortText by remember { mutableStateOf(uiState.settings.defaultSshPort.toString()) }
+					LaunchedEffect(uiState.settings.defaultSshPort) {
+						defaultSshPortText = uiState.settings.defaultSshPort.toString()
+					}
+					OutlinedTextField(
+						value = defaultSshPortText,
+						onValueChange = { value ->
+							// 只允许数字
+							if (value.isEmpty() || value.all { it.isDigit() }) {
+								defaultSshPortText = value
+								// 验证并更新
+								value.toIntOrNull()?.let {
+									viewModel.updateDefaultSshPort(it)
+								}
+							}
+						},
+						label = { Text(stringResource(R.string.default_ssh_port)) },
+						keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+						modifier = Modifier.fillMaxWidth(),
+						singleLine = true,
+						supportingText = {
+							defaultSshPortText.toIntOrNull()?.let { port ->
+								if (port !in 1..65535) {
+									Text(
+										text = stringResource(R.string.error_ssh_port_invalid_with_value, port),
+										color = MaterialTheme.colorScheme.error
+									)
+								}
+							}
+						},
+						isError = defaultSshPortText.toIntOrNull()?.let { it !in 1..65535 } ?: false
+					)
 				}
 			}
 

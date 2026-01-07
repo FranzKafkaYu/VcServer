@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.ProxyType
 import com.franzkafkayu.vcserver.services.ServerManagementService
+import com.franzkafkayu.vcserver.services.SettingsService
 import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.utils.toAppError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -17,6 +19,7 @@ import kotlinx.coroutines.launch
  */
 class AddServerViewModel(
 	private val serverManagementService: ServerManagementService,
+	private val settingsService: SettingsService? = null,
 	private val serverId: Long? = null // 如果�?null，则为新增模式；否则为编辑模�?
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(AddServerUiState(isEditMode = serverId != null))
@@ -24,6 +27,14 @@ class AddServerViewModel(
 
 	init {
 		// 如果是编辑模式，加载服务器信�?
+		// 如果是新增模式，从设置中读取默认 SSH 端口
+		if (serverId == null) {
+			viewModelScope.launch {
+				settingsService?.getSettings()?.first()?.let { settings ->
+					_uiState.value = _uiState.value.copy(port = settings.defaultSshPort.toString())
+				}
+			}
+		}
 		serverId?.let { loadServerInfo(it) }
 	}
 
@@ -185,12 +196,13 @@ class AddServerViewModel(
 	/**
 	 * 测试连接
 	 */
-	fun testConnection() {
+		fun testConnection() {
 		viewModelScope.launch {
 			_uiState.value = _uiState.value.copy(isTestingConnection = true, error = null)
 			val state = _uiState.value
 			
-			val port = state.port.toIntOrNull() ?: 22
+			val defaultPort = settingsService?.getSettings()?.first()?.defaultSshPort ?: 22
+			val port = state.port.toIntOrNull() ?: defaultPort
 			val result = serverManagementService.addServer(
 				name = state.name,
 				host = state.host,
@@ -224,12 +236,13 @@ class AddServerViewModel(
 	/**
 	 * 保存服务器（新增或编辑）
 	 */
-	fun saveServer(onSuccess: () -> Unit) {
+		fun saveServer(onSuccess: () -> Unit) {
 		viewModelScope.launch {
 			_uiState.value = _uiState.value.copy(isSaving = true, error = null)
 			val state = _uiState.value
 			
-			val port = state.port.toIntOrNull() ?: 22
+			val defaultPort = settingsService?.getSettings()?.first()?.defaultSshPort ?: 22
+			val port = state.port.toIntOrNull() ?: defaultPort
 			
 			// 解析代理设置
 			val proxyPort = state.proxyPort.toIntOrNull() ?: 8080
@@ -277,8 +290,8 @@ class AddServerViewModel(
 
 			result.fold(
 				onSuccess = {
-					// 保存成功后标记成功并重置状态
-					_uiState.value = AddServerUiState(saveSuccess = true, isEditMode = serverId != null)
+					// 保存成功后标记成功
+					_uiState.value = _uiState.value.copy(saveSuccess = true, isSaving = false)
 					// 不在这里调用 onSuccess，让 LaunchedEffect 处理导航
 				},
 				onFailure = { exception ->
@@ -299,22 +312,35 @@ class AddServerViewModel(
 	}
 
 	/**
+	 * 清除保存成功状态
+	 */
+	fun clearSaveSuccess() {
+		_uiState.value = _uiState.value.copy(saveSuccess = false)
+	}
+
+	/**
 	 * 重置状态（仅在新增模式下使用）
 	 */
 	fun reset() {
 		// 保留编辑模式标志，只重置表单字段
 		val isEditMode = _uiState.value.isEditMode
 		_uiState.value = AddServerUiState(saveSuccess = false, isEditMode = isEditMode)
+		// 重新从设置读取默认 SSH 端口
+		viewModelScope.launch {
+			settingsService?.getSettings()?.first()?.let { settings ->
+				_uiState.value = _uiState.value.copy(port = settings.defaultSshPort.toString())
+			}
+		}
 	}
 }
 
 /**
  * 添加/编辑服务器 UI 状态
  */
-data class AddServerUiState(
+	data class AddServerUiState(
 	val name: String = "",
 	val host: String = "",
-	val port: String = "22",
+	val port: String = "", // 端口将在初始化时从设置中读取
 	val username: String = "",
 	val authType: AuthType = AuthType.PASSWORD,
 	val password: String = "",

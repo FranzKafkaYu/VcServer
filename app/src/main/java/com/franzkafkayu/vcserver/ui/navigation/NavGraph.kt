@@ -113,6 +113,7 @@ fun NavGraph(
                 viewModel<com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel>(
                     factory = EditServerViewModelFactory(
                         serverManagementService = serverManagementService,
+                        settingsService = settingsService,
                         serverId = serverId
                     )
                 )
@@ -274,6 +275,7 @@ class TerminalViewModelFactory(
  */
 class EditServerViewModelFactory(
     private val serverManagementService: com.franzkafkayu.vcserver.services.ServerManagementService,
+    private val settingsService: com.franzkafkayu.vcserver.services.SettingsService,
     private val serverId: Long
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -281,6 +283,7 @@ class EditServerViewModelFactory(
             @Suppress("UNCHECKED_CAST")
             return com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel(
                 serverManagementService,
+                settingsService,
                 serverId
             ) as T
         }

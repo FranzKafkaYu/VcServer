@@ -114,6 +114,7 @@
 	<!-- 错误消息 -->
 	<string name="error_connection_timeout_invalid">连接超时时间必须大于 0</string>
 	<string name="error_ssh_port_invalid">SSH 端口必须在 1-65535 范围内</string>
+	<string name="error_ssh_port_invalid_with_value">当前输入值 %1$d 不在有效范围内（1-65535）</string>
 	<string name="error_refresh_interval_invalid">刷新间隔必须大于等于 1 秒</string>
 	<string name="error_proxy_port_invalid">代理端口必须在 1-65535 范围内</string>
 	<string name="error_update_theme_failed">更新主题失败: %1$s</string>
