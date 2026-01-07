@@ -60,86 +60,12 @@ VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安
 - **安全传输**：所有 SSH 连接使用加密协议
 - **数据持久化**：服务器配置信息安全保存到本地数据库
 
-## 🛠️ 技术栈
-
-### 核心框架
-- **编程语言**：Kotlin
-- **UI 框架**：Jetpack Compose
-- **架构模式**：MVVM (Model-View-ViewModel)
-- **异步处理**：Kotlin Coroutines + Flow
-
-### 主要依赖
-
-#### UI 层
-- `androidx.compose.ui:ui` - Compose UI 核心
-- `androidx.compose.material3:material3` - Material Design 3
-- `androidx.navigation:navigation-compose` - 导航组件
-- `androidx.lifecycle:lifecycle-viewmodel-compose` - ViewModel 支持
-
-#### 数据层
-- `androidx.room:room-runtime` - Room 数据库
-- `androidx.room:room-ktx` - Room Kotlin 扩展
-- `androidx.datastore:datastore-preferences` - DataStore 偏好设置
-
-#### 网络与安全
-- `com.jcraft:jsch:0.1.55` - SSH 客户端库
-- `androidx.security:security-crypto` - Android 安全加密库
-
-#### 工具库
-- `org.jetbrains.kotlinx:kotlinx-coroutines-android` - 协程支持
-
 ### 开发工具
 - **构建工具**：Gradle 8.7
 - **Kotlin 版本**：1.9.10
 - **编译 SDK**：34
 - **最低支持**：Android 10 (API 29)
 - **目标 SDK**：34
-
-## 📁 项目结构
-
-```
-app/src/main/java/com/vcserver/
-├── data/                    # 数据层
-│   ├── AppDatabase.kt      # Room 数据库
-│   ├── converters/         # 类型转换器
-│   └── dao/                # 数据访问对象
-├── models/                  # 数据模型
-│   ├── Server.kt           # 服务器模型
-│   ├── AppSettings.kt      # 应用设置模型
-│   ├── AuthType.kt         # 认证类型枚举
-│   └── ServerStatus.kt     # 服务器状态模型
-├── repositories/           # 数据仓库层
-│   ├── ServerRepository.kt
-│   ├── ServerRepositoryImpl.kt
-│   ├── SettingsRepository.kt
-│   └── SettingsRepositoryImpl.kt
-├── services/                # 业务逻辑层
-│   ├── ServerManagementService.kt
-│   ├── ServerMonitoringService.kt
-│   ├── SshAuthenticationService.kt
-│   ├── SshCommandService.kt
-│   ├── TerminalService.kt
-│   └── SettingsService.kt
-├── ui/                      # UI 层
-│   ├── navigation/          # 导航配置
-│   ├── screens/            # 界面组件
-│   │   ├── ServerListScreen.kt
-│   │   ├── AddServerScreen.kt
-│   │   ├── ServerMonitoringScreen.kt
-│   │   ├── TerminalScreen.kt
-│   │   ├── SettingsScreen.kt
-│   │   └── AboutScreen.kt
-│   ├── theme/              # 主题配置
-│   └── viewmodels/         # ViewModel
-├── utils/                   # 工具类
-│   ├── SecureStorage.kt    # 安全存储
-│   ├── SessionManager.kt   # Session 管理
-│   ├── LocaleHelper.kt     # 语言切换
-│   ├── AnsiParser.kt       # ANSI 解析
-│   ├── CommandHistory.kt   # 命令历史
-│   └── TerminalBuffer.kt   # 终端缓冲区
-└── MainActivity.kt          # 主 Activity
-```
 
 ## 🚀 快速开始
 
@@ -212,18 +138,6 @@ app/src/main/java/com/vcserver/
 - [ ] **SSH 隧道**：支持 SSH 端口转发功能
 - [ ] **文件传输**：支持 SFTP 文件上传和下载
 
-### 测试与质量
-- [ ] **单元测试**：
-  - [ ] SettingsRepository 单元测试
-  - [ ] SettingsService 单元测试
-  - [ ] SettingsViewModel 单元测试
-  - [ ] ServerRepository 单元测试
-  - [ ] SecureStorage 单元测试
-- [ ] **集成测试**：
-  - [ ] SSH 连接测试（使用 Mock 服务器）
-  - [ ] 服务器管理流程测试
-- [ ] **UI 测试**：关键界面的 UI 自动化测试
-
 ### 性能优化
 - [ ] **连接池管理**：优化 SSH 连接复用
 - [ ] **数据缓存**：服务器状态数据缓存机制
@@ -246,18 +160,9 @@ app/src/main/java/com/vcserver/
 - 应用不收集或上传任何用户数据
 - 所有数据存储在设备本地
 
-## 📄 许可证
-
-[待添加许可证信息]
-
 ## 👥 贡献
 
 欢迎提交 Issue 和 Pull Request！
-
-## 📞 联系方式
-
-- **GitHub**: [https://github.com/vcserver/vcserver](https://github.com/vcserver/vcserver)
-- **作者**: FranzKafkaYu
 
 ---
 
