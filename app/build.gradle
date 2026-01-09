@@ -68,17 +68,24 @@ android {
 					keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 				}
 				
-			// 环境变量优先级高于 local.properties
-			def keystoreFilePath = System.getenv("RELEASE_STORE_FILE") ?: keystoreProperties['RELEASE_STORE_FILE'] ?: 'app/jks/release'
-			def keystorePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: keystoreProperties['RELEASE_STORE_PASSWORD'] ?: ''
-			def keyAliasName = System.getenv("RELEASE_KEY_ALIAS") ?: keystoreProperties['RELEASE_KEY_ALIAS'] ?: ''
-			def keyPasswordValue = System.getenv("RELEASE_KEY_PASSWORD") ?: keystoreProperties['RELEASE_KEY_PASSWORD'] ?: ''
-			
-			// keystore 文件路径相对于项目根目录
-			storeFile file(keystoreFilePath)
-				storePassword keystorePassword
-				keyAlias keyAliasName
-				keyPassword keyPasswordValue
+				// 环境变量优先级高于 local.properties
+				def keystoreFilePath = System.getenv("RELEASE_STORE_FILE") ?: keystoreProperties['RELEASE_STORE_FILE'] ?: 'app/jks/release'
+				def keystorePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: keystoreProperties['RELEASE_STORE_PASSWORD'] ?: ''
+				def keyAliasName = System.getenv("RELEASE_KEY_ALIAS") ?: keystoreProperties['RELEASE_KEY_ALIAS'] ?: ''
+				def keyPasswordValue = System.getenv("RELEASE_KEY_PASSWORD") ?: keystoreProperties['RELEASE_KEY_PASSWORD'] ?: ''
+				
+				// 检查 keystore 文件是否存在，如果不存在则跳过签名配置（用于 CI/CD 中的 debug 构建）
+				// 使用 rootProject.file() 确保路径相对于项目根目录，而不是 app 目录
+				def keystoreFile = rootProject.file(keystoreFilePath)
+				if (keystoreFile.exists() && keystorePassword && keyAliasName && keyPasswordValue) {
+					storeFile keystoreFile
+					storePassword keystorePassword
+					keyAlias keyAliasName
+					keyPassword keyPasswordValue
+				} else {
+					// 如果文件不存在或缺少配置，使用空配置（Gradle 会跳过签名验证）
+					// 这允许在没有 keystore 的情况下构建（例如 debug 构建）
+				}
 			}
 		}
 
@@ -87,8 +94,14 @@ android {
 				minifyEnabled false
 				proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 				
-				// 配置 release 签名
-				signingConfig signingConfigs.release
+				// 配置 release 签名（仅在 keystore 存在时）
+				def keystoreFile = signingConfigs.release.storeFile
+				if (keystoreFile != null && keystoreFile.exists()) {
+					signingConfig signingConfigs.release
+				} else {
+					// 如果没有 keystore，使用默认的 debug 签名（允许构建但不适合发布）
+					// 在 CI/CD 中，这应该不会发生，因为 release 构建需要 keystore
+				}
 			}
 			debug {
 				// debug 版本不进行签名（使用默认的 debug 签名）
