@@ -42,7 +42,8 @@ jobs:
           echo "Creating jks directory..."
           mkdir -p app/jks
           echo "Decoding keystore file..."
-          # 移除所有换行符和回车符，但保留空格（base64可能包含空格�?          echo "$KEYSTORE_BASE64" | tr -d '\n\r' | base64 -d > app/jks/release
+          # 移除所有换行符和回车符，但保留空格（base64可能包含空格）         
+          echo "$KEYSTORE_BASE64" | tr -d '\n\r' | base64 -d > app/jks/release
           chmod 600 app/jks/release
           echo "Keystore file created successfully"
           echo "Keystore file size: $(stat -c%s app/jks/release) bytes"
