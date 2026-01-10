@@ -16,7 +16,9 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,54 +67,142 @@ fun ServerListScreen(
 		}
 	}
 
+	var searchText by remember { mutableStateOf(uiState.searchQuery) }
+	
+	// 同步搜索文本与状态
+	LaunchedEffect(uiState.searchQuery) {
+		searchText = uiState.searchQuery
+	}
+	
 	Scaffold(
 		topBar = {
-			TopAppBar(
-				title = { 
-					Text(
+			Column {
+				TopAppBar(
+					title = { 
+						Text(
+							if (uiState.isSelectionMode) {
+								stringResource(R.string.select_mode) + " (${uiState.selectedServerIds.size})"
+							} else {
+								stringResource(R.string.server_list)
+							}
+						) 
+					},
+					actions = {
 						if (uiState.isSelectionMode) {
-							stringResource(R.string.select_mode) + " (${uiState.selectedServerIds.size})"
-						} else {
-							stringResource(R.string.server_list)
-						}
-					) 
-				},
-				actions = {
-					if (uiState.isSelectionMode) {
-						IconButton(onClick = { viewModel.toggleSelectAll() }) {
-							Icon(
-								if (uiState.selectedServerIds.size == uiState.servers.size) {
-									Icons.Default.CheckBox
-								} else {
-									Icons.Default.CheckBoxOutlineBlank
-								},
-								contentDescription = stringResource(R.string.select_all)
-							)
-						}
-						IconButton(onClick = { viewModel.exitSelectionMode() }) {
-							Icon(
-								Icons.Default.Done,
-								contentDescription = stringResource(R.string.done)
-							)
-						}
-					} else {
-						if (groupManagementViewModel != null) {
-							IconButton(onClick = { showGroupManagementDialog = true }) {
+							IconButton(onClick = { viewModel.toggleSelectAll() }) {
 								Icon(
-									Icons.Default.Folder,
-									contentDescription = stringResource(R.string.manage_groups)
+									if (uiState.selectedServerIds.size == uiState.servers.size) {
+										Icons.Default.CheckBox
+									} else {
+										Icons.Default.CheckBoxOutlineBlank
+									},
+									contentDescription = stringResource(R.string.select_all)
+								)
+							}
+							IconButton(onClick = { viewModel.exitSelectionMode() }) {
+								Icon(
+									Icons.Default.Done,
+									contentDescription = stringResource(R.string.done)
+								)
+							}
+						} else {
+							IconButton(onClick = { viewModel.toggleSearch() }) {
+								Icon(
+									Icons.Default.Search,
+									contentDescription = stringResource(R.string.search)
+								)
+							}
+							if (groupManagementViewModel != null) {
+								IconButton(onClick = { showGroupManagementDialog = true }) {
+									Icon(
+										Icons.Default.Folder,
+										contentDescription = stringResource(R.string.manage_groups)
+									)
+								}
+							}
+							IconButton(onClick = onSettingsClick) {
+								Icon(
+									Icons.Default.Settings,
+									contentDescription = stringResource(R.string.settings)
 								)
 							}
 						}
-						IconButton(onClick = onSettingsClick) {
-							Icon(
-								Icons.Default.Settings,
-								contentDescription = stringResource(R.string.settings)
-							)
+					}
+				)
+				
+				// 搜索栏
+				if (uiState.isSearchActive) {
+					Card(
+						modifier = Modifier
+							.fillMaxWidth()
+							.padding(horizontal = 8.dp, vertical = 4.dp),
+						colors = CardDefaults.cardColors(
+							containerColor = MaterialTheme.colorScheme.surface
+						)
+					) {
+						Column {
+							Row(
+								modifier = Modifier
+									.fillMaxWidth()
+									.padding(horizontal = 8.dp, vertical = 4.dp),
+								verticalAlignment = Alignment.CenterVertically
+							) {
+								OutlinedTextField(
+									value = searchText,
+									onValueChange = { 
+										searchText = it
+										viewModel.updateSearchQuery(it)
+									},
+									modifier = Modifier.weight(1f),
+									placeholder = { Text(stringResource(R.string.search_hint)) },
+									singleLine = true,
+									leadingIcon = {
+										Icon(
+											Icons.Default.Search,
+											contentDescription = null
+										)
+									},
+									trailingIcon = {
+										if (searchText.isNotEmpty()) {
+											IconButton(onClick = { 
+												viewModel.clearSearchQuery()
+												searchText = ""
+											}) {
+												Icon(
+													Icons.Default.Close,
+													contentDescription = stringResource(R.string.clear_search)
+												)
+											}
+										}
+									},
+									colors = OutlinedTextFieldDefaults.colors(
+										focusedBorderColor = MaterialTheme.colorScheme.primary
+									)
+								)
+							}
+							// 显示语法错误
+							uiState.searchSyntaxError?.let { error ->
+								Text(
+									text = stringResource(R.string.search_syntax_error, error),
+									color = MaterialTheme.colorScheme.error,
+									style = MaterialTheme.typography.bodySmall,
+									modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+								)
+							}
+							// 显示匹配数量
+							if (uiState.searchQuery.isNotEmpty()) {
+								val totalCount = uiState.groupedServers.sumOf { it.second.size } + uiState.ungroupedServers.size
+								Text(
+									text = stringResource(R.string.search_results, totalCount),
+									style = MaterialTheme.typography.bodySmall,
+									color = MaterialTheme.colorScheme.onSurfaceVariant,
+									modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+								)
+							}
 						}
 					}
 				}
-			)
+			}
 		},
 		floatingActionButton = {
 			if (!uiState.isSelectionMode) {
@@ -223,6 +313,25 @@ fun ServerListScreen(
 						modifier = Modifier.align(Alignment.Center),
 						onAddServerClick = onAddServerClick
 					)
+				}
+				uiState.searchQuery.isNotEmpty() && 
+					uiState.groupedServers.isEmpty() && 
+					uiState.ungroupedServers.isEmpty() -> {
+					// 搜索无结果
+					Column(
+						modifier = Modifier.align(Alignment.Center),
+						horizontalAlignment = Alignment.CenterHorizontally,
+						verticalArrangement = Arrangement.spacedBy(16.dp)
+					) {
+						Text(
+							text = stringResource(R.string.search_no_results),
+							style = MaterialTheme.typography.bodyLarge,
+							color = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+						TextButton(onClick = { viewModel.clearSearchQuery() }) {
+							Text(stringResource(R.string.clear_search))
+						}
+					}
 				}
 				else -> {
 					LazyColumn(

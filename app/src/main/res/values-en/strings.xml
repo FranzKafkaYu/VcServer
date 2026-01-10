@@ -209,5 +209,17 @@
 	<string name="error_username_empty">Username cannot be empty</string>
 	<string name="error_password_empty">Password cannot be empty</string>
 	<string name="error_private_key_empty">Private key cannot be empty</string>
+	<!-- Server Filtering -->
+	<string name="search">Search</string>
+	<string name="search_hint">Search servers (name, host, port, username)</string>
+	<string name="search_servers">Search Servers</string>
+	<string name="clear_search">Clear Search</string>
+	<string name="search_results">Found %d servers</string>
+	<string name="search_no_results">No matching servers found</string>
+	<string name="search_syntax_error">Query syntax error: %1$s</string>
+	<string name="search_regex_error">Regular expression syntax error: %1$s</string>
+	<string name="validation_failed">Validation failed</string>
+	<string name="secure_storage_failed">Secure storage operation failed</string>
+	<string name="unknown_error">Unknown error</string>
 </resources>
 

@@ -68,11 +68,11 @@ class SshAuthenticationServiceImpl(
 			
 			session.connect(CONNECTION_TIMEOUT)
 			val duration = System.currentTimeMillis() - startTime
-			Log.i(TAG, "connectWithPassword 连接成功: $host:$port, 耗时: ${duration}ms")
+			Log.i(TAG, "connectWithPassword succeed: $host:$port, cost: ${duration}ms")
 			Result.success(session)
 		} catch (e: Exception) {
 			val duration = System.currentTimeMillis() - startTime
-			Log.i(TAG, "connectWithPassword 连接失败: $host:$port, 耗时: ${duration}ms, 错误: ${e.message}")
+			Log.i(TAG, "connectWithPassword failed: $host:$port, cost: ${duration}ms,error: ${e.message}")
 			Result.failure(SshConnectionException("Failed to connect with password: ${e.message}", e))
 		}
 	}
