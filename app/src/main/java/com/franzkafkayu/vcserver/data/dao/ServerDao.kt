@@ -16,6 +16,24 @@ interface ServerDao {
 	fun getAllServers(): Flow<List<Server>>
 
 	/**
+	 * 根据分组ID获取服务器列表
+	 */
+	@Query("SELECT * FROM servers WHERE groupId = :groupId ORDER BY orderIndex ASC, createdAt DESC")
+	suspend fun getServersByGroupId(groupId: Long): List<Server>
+
+	/**
+	 * 获取未分组的服务器列表
+	 */
+	@Query("SELECT * FROM servers WHERE groupId IS NULL ORDER BY orderIndex ASC, createdAt DESC")
+	suspend fun getServersWithoutGroup(): List<Server>
+
+	/**
+	 * 将指定分组的所有服务器设为未分组
+	 */
+	@Query("UPDATE servers SET groupId = NULL WHERE groupId = :groupId")
+	suspend fun ungroupServersByGroupId(groupId: Long)
+
+	/**
 	 * 根据 ID 获取服务器
 	 */
 	@Query("SELECT * FROM servers WHERE id = :id")

@@ -177,6 +177,38 @@
 	<string name="error_sftp_upload_failed">上传失败: %1$s</string>
 	<string name="error_sftp_download_failed">下载失败: %1$s</string>
 	<string name="error_sftp_service_not_available">SFTP 服务不可用</string>
+	<!-- 服务器分组 -->
+	<string name="server_groups">服务器分组</string>
+	<string name="manage_groups">管理分组</string>
+	<string name="create_group">创建分组</string>
+	<string name="edit_group">编辑分组</string>
+	<string name="delete_group">删除分组</string>
+	<string name="group_name">分组名称</string>
+	<string name="group_name_hint">请输入分组名称</string>
+	<string name="select_group">选择分组</string>
+	<string name="no_group">未分组</string>
+	<string name="group_servers_count">%d 个服务器</string>
+	<string name="ungrouped_servers">未分组服务器</string>
+	<string name="create_group_success">分组创建成功</string>
+	<string name="edit_group_success">分组更新成功</string>
+	<string name="delete_group_success">分组删除成功</string>
+	<string name="error_group_name_empty">分组名称不能为空</string>
+	<string name="error_group_name_exists">分组名称已存在</string>
+	<string name="delete_group_confirm">确定要删除分组 \"%1$s\" 吗？该分组下的服务器将变为未分组状态。</string>
+	<string name="error_delete_group_failed">删除分组失败: %1$s</string>
+	<string name="error_create_group_failed">创建分组失败: %1$s</string>
+	<string name="error_edit_group_failed">更新分组失败: %1$s</string>
+	<string name="no_groups">暂无分组</string>
+	<string name="expand">展开</string>
+	<string name="collapse">折叠</string>
+	<string name="delete_server_confirm_message">确定要删除服务器 \"%1$s\" (%2$s:%3$d) 吗？此操作无法撤销。</string>
+	<!-- 服务器验证错误消息 -->
+	<string name="error_server_name_empty">服务器名称不能为空</string>
+	<string name="error_host_empty">主机地址不能为空</string>
+	<string name="error_port_invalid">端口号必须在 1-65535 之间</string>
+	<string name="error_username_empty">用户名不能为空</string>
+	<string name="error_password_empty">密码不能为空</string>
+	<string name="error_private_key_empty">私钥不能为空</string>
 </resources>
 
 

@@ -19,16 +19,16 @@ sealed class AppError {
 fun Throwable.toAppError(): AppError {
 	return when (this) {
 		is com.franzkafkayu.vcserver.services.SshConnectionException -> {
-			AppError.NetworkError(message ?: "SSH 连接失败")
+			AppError.NetworkError(message ?: "CONNECTION_FAILED")
 		}
 		is com.franzkafkayu.vcserver.services.ValidationException -> {
-			AppError.ValidationError(message ?: "验证失败")
+			AppError.ValidationError(message ?: "VALIDATION_FAILED")
 		}
 		is com.franzkafkayu.vcserver.utils.SecureStorageException -> {
-			AppError.AuthenticationError(message ?: "安全存储操作失败")
+			AppError.AuthenticationError(message ?: "SECURE_STORAGE_FAILED")
 		}
 		else -> {
-			AppError.UnknownError(message ?: "未知错误")
+			AppError.UnknownError(message ?: "UNKNOWN_ERROR")
 		}
 	}
 }

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.Server
+import com.franzkafkayu.vcserver.models.ServerGroup
+import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
 import com.franzkafkayu.vcserver.services.ServerManagementService
 import com.franzkafkayu.vcserver.services.ServerMonitoringService
 import com.franzkafkayu.vcserver.utils.AppError
@@ -11,6 +13,7 @@ import com.franzkafkayu.vcserver.utils.toAppError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
@@ -18,7 +21,8 @@ import kotlinx.coroutines.launch
  */
 class ServerListViewModel(
 	private val serverManagementService: ServerManagementService,
-	private val serverMonitoringService: ServerMonitoringService
+	private val serverMonitoringService: ServerMonitoringService,
+	private val serverGroupRepository: ServerGroupRepository
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(ServerListUiState())
 	val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
@@ -31,13 +35,39 @@ class ServerListViewModel(
 	 * 加载服务器列�?
 	 */
 	private fun loadServers() {
+		loadServersAndGroups()
+	}
+
+	/**
+	 * 加载服务器列表和分组
+	 */
+	private fun loadServersAndGroups() {
 		viewModelScope.launch {
-			serverManagementService.getAllServers().collect { servers ->
+			combine(
+				serverManagementService.getAllServers(),
+				serverGroupRepository.getAllGroups()
+			) { servers: List<Server>, groups: List<ServerGroup> ->
+				// 按分组ID分组服务器
+				val groupedServersMap = servers
+					.filter { it.groupId != null }
+					.groupBy { it.groupId!! }
+
+				// 构建分组列表（只显示有服务器的分组）
+				val groupedList = groups.map { group ->
+					group to (groupedServersMap[group.id] ?: emptyList())
+				}.filter { it.second.isNotEmpty() } // 只显示有服务器的分组
+
+				// 未分组的服务器
+				val ungroupedList = servers.filter { it.groupId == null }
+
 				_uiState.value = _uiState.value.copy(
-					servers = servers,
+					servers = servers, // 保留完整列表用于选择模式
+					groups = groups,
+					groupedServers = groupedList,
+					ungroupedServers = ungroupedList,
 					isLoading = false
 				)
-			}
+			}.collect { }
 		}
 	}
 
@@ -288,6 +318,20 @@ class ServerListViewModel(
 			)
 		}
 	}
+
+	/**
+	 * 切换分组展开/折叠状态
+	 */
+	fun toggleGroupExpanded(groupId: Long) {
+		val currentExpanded = _uiState.value.expandedGroupIds
+		_uiState.value = _uiState.value.copy(
+			expandedGroupIds = if (currentExpanded.contains(groupId)) {
+				currentExpanded - groupId
+			} else {
+				currentExpanded + groupId
+			}
+		)
+	}
 }
 
 /**
@@ -295,6 +339,10 @@ class ServerListViewModel(
  */
 data class ServerListUiState(
 	val servers: List<Server> = emptyList(),
+	val groups: List<ServerGroup> = emptyList(),
+	val groupedServers: List<Pair<ServerGroup, List<Server>>> = emptyList(),
+	val ungroupedServers: List<Server> = emptyList(),
+	val expandedGroupIds: Set<Long> = emptySet(), // 展开的分组ID集合（默认全部折叠）
 	val isLoading: Boolean = true,
 	val connectingServerId: Long? = null,
 	val error: AppError? = null,

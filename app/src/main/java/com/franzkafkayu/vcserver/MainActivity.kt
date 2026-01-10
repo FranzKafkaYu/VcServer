@@ -74,11 +74,15 @@ class MainActivity : ComponentActivity() {
 			AppDatabase::class.java,
 			"vcserver_database"
 		)
-			.addMigrations(migration1To2, migration2To3, AppDatabase.MIGRATION_3_4)
+			.addMigrations(migration1To2, migration2To3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
 			.build()
 
 		val secureStorage = SecureStorage(applicationContext)
 		val serverRepository = ServerRepositoryImpl(database.serverDao())
+		val serverGroupRepository = com.franzkafkayu.vcserver.repositories.ServerGroupRepositoryImpl(
+			database.serverGroupDao(),
+			database.serverDao()
+		)
 		val sshAuthService = SshAuthenticationServiceImpl(secureStorage)
 		val sshCommandService = SshCommandServiceImpl()
 		val serverManagementService = ServerManagementServiceImpl(
@@ -98,13 +102,14 @@ class MainActivity : ComponentActivity() {
 		val settingsService = SettingsServiceImpl(settingsRepository)
 
 		// 初始化导出/导入服务
-		val exportImportService = DatabaseExportImportServiceImpl(serverRepository, settingsService)
+		val exportImportService = DatabaseExportImportServiceImpl(serverRepository, serverGroupRepository, settingsService)
 
 		// 初始化 SFTP 文件传输服务
 		val sftpFileTransferService = SftpFileTransferServiceImpl(applicationContext)
 
-		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService)
-		val addServerViewModel = AddServerViewModel(serverManagementService, settingsService)
+		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService, serverGroupRepository)
+		val serverGroupManagementViewModel = com.franzkafkayu.vcserver.ui.viewmodels.ServerGroupManagementViewModel(serverGroupRepository)
+		val addServerViewModel = AddServerViewModel(serverManagementService, settingsService, serverGroupRepository)
 
 		setContent {
 			// 获取主题设置
@@ -120,6 +125,8 @@ class MainActivity : ComponentActivity() {
 						navController = navController,
 						serverListViewModel = serverListViewModel,
 						addServerViewModel = addServerViewModel,
+						serverGroupManagementViewModel = serverGroupManagementViewModel,
+						serverGroupRepository = serverGroupRepository,
 						serverManagementService = serverManagementService,
 						serverMonitoringService = serverMonitoringService,
 						terminalService = terminalService,

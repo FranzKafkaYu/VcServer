@@ -32,6 +32,7 @@ class ServerManagementServiceImpl(
 		password: String?,
 		privateKey: String?,
 		keyPassphrase: String?,
+		groupId: Long?,
 		proxyEnabled: Boolean,
 		proxyType: com.franzkafkayu.vcserver.models.ProxyType?,
 		proxyHost: String?,
@@ -43,7 +44,7 @@ class ServerManagementServiceImpl(
 		// 输入验证
 		val validationResult = validateServerInput(name, host, port, username, authType, password, privateKey)
 		if (validationResult.isFailure) {
-			return Result.failure(validationResult.exceptionOrNull() ?: ValidationException("Validation failed"))
+			return Result.failure(validationResult.exceptionOrNull() ?: ValidationException("VALIDATION_FAILED"))
 		}
 
 		// 如果是“仅测试连接”模式，不进行加密和入库，只做一次连接测试
@@ -96,6 +97,7 @@ class ServerManagementServiceImpl(
 			encryptedPassword = encryptedPassword,
 			encryptedPrivateKey = encryptedPrivateKey,
 			keyPassphrase = keyPassphrase,
+			groupId = groupId,
 			proxyEnabled = proxyEnabled,
 			proxyType = proxyType,
 			proxyHost = proxyHost,
@@ -138,6 +140,7 @@ class ServerManagementServiceImpl(
 		password: String?,
 		privateKey: String?,
 		keyPassphrase: String?,
+		groupId: Long?,
 		proxyEnabled: Boolean,
 		proxyType: com.franzkafkayu.vcserver.models.ProxyType?,
 		proxyHost: String?,
@@ -193,6 +196,7 @@ class ServerManagementServiceImpl(
 				encryptedPassword = encryptedPassword,
 				encryptedPrivateKey = encryptedPrivateKey,
 				keyPassphrase = if (authType == AuthType.KEY) keyPassphrase else null,
+				groupId = groupId,
 				proxyEnabled = proxyEnabled,
 				proxyType = proxyType,
 				proxyHost = proxyHost,
@@ -266,26 +270,26 @@ class ServerManagementServiceImpl(
 		privateKey: String?
 	): Result<Unit> {
 		if (name.isBlank()) {
-			return Result.failure(ValidationException("服务器名称不能为空"))
+			return Result.failure(ValidationException("SERVER_NAME_EMPTY"))
 		}
 		if (host.isBlank()) {
-			return Result.failure(ValidationException("主机地址不能为空"))
+			return Result.failure(ValidationException("HOST_EMPTY"))
 		}
 		if (port < 1 || port > 65535) {
-			return Result.failure(ValidationException("端口号必须在 1-65535 之间"))
+			return Result.failure(ValidationException("PORT_INVALID"))
 		}
 		if (username.isBlank()) {
-			return Result.failure(ValidationException("用户名不能为空"))
+			return Result.failure(ValidationException("USERNAME_EMPTY"))
 		}
 		when (authType) {
 			AuthType.PASSWORD -> {
 				if (password.isNullOrBlank()) {
-					return Result.failure(ValidationException("密码不能为空"))
+					return Result.failure(ValidationException("PASSWORD_EMPTY"))
 				}
 			}
 			AuthType.KEY -> {
 				if (privateKey.isNullOrBlank()) {
-					return Result.failure(ValidationException("私钥不能为空"))
+					return Result.failure(ValidationException("PRIVATE_KEY_EMPTY"))
 				}
 			}
 		}

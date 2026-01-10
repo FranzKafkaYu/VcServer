@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.ProxyType
+import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
 import com.franzkafkayu.vcserver.services.ServerManagementService
 import com.franzkafkayu.vcserver.services.SettingsService
 import com.franzkafkayu.vcserver.utils.AppError
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class AddServerViewModel(
 	private val serverManagementService: ServerManagementService,
 	private val settingsService: SettingsService? = null,
+	private val serverGroupRepository: ServerGroupRepository? = null,
 	private val serverId: Long? = null // 如果�?null，则为新增模式；否则为编辑模�?
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(AddServerUiState(isEditMode = serverId != null))
@@ -36,6 +38,22 @@ class AddServerViewModel(
 			}
 		}
 		serverId?.let { loadServerInfo(it) }
+		// 加载分组列表
+		loadGroups()
+	}
+
+	/**
+	 * 加载分组列表
+	 */
+	private fun loadGroups() {
+		if (serverGroupRepository == null) {
+			return
+		}
+		viewModelScope.launch {
+			serverGroupRepository.getAllGroups().collect { groups ->
+				_uiState.value = _uiState.value.copy(groups = groups.sortedBy { it.name })
+			}
+		}
 	}
 
 	/**
@@ -56,6 +74,7 @@ class AddServerViewModel(
 					password = "", // 密码不显示，需要重新输入
 					privateKey = "", // 私钥不显示，需要重新输入
 					keyPassphrase = server.keyPassphrase ?: "",
+					selectedGroupId = server.groupId,
 					proxyEnabled = server.proxyEnabled,
 					proxyType = server.proxyType ?: ProxyType.HTTP,
 					proxyHost = server.proxyHost ?: "",
@@ -187,6 +206,13 @@ class AddServerViewModel(
 	}
 
 	/**
+	 * 更新分组选择
+	 */
+	fun updateSelectedGroup(groupId: Long?) {
+		_uiState.value = _uiState.value.copy(selectedGroupId = groupId)
+	}
+
+	/**
 	 * 切换代理密码可见性
 	 */
 	fun toggleProxyPasswordVisibility() {
@@ -212,6 +238,7 @@ class AddServerViewModel(
 				password = if (state.authType == AuthType.PASSWORD) state.password else null,
 				privateKey = if (state.authType == AuthType.KEY) state.privateKey else null,
 				keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
+				groupId = state.selectedGroupId,
 				testConnection = true
 			)
 
@@ -260,6 +287,7 @@ class AddServerViewModel(
 					password = if (state.authType == AuthType.PASSWORD && state.password.isNotEmpty()) state.password else null,
 					privateKey = if (state.authType == AuthType.KEY && state.privateKey.isNotEmpty()) state.privateKey else null,
 					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
+					groupId = state.selectedGroupId,
 					proxyEnabled = proxyEnabled,
 					proxyType = if (proxyEnabled) state.proxyType else null,
 					proxyHost = if (proxyEnabled) state.proxyHost else null,
@@ -277,6 +305,7 @@ class AddServerViewModel(
 					authType = state.authType,
 					password = if (state.authType == AuthType.PASSWORD) state.password else null,
 					privateKey = if (state.authType == AuthType.KEY) state.privateKey else null,
+					groupId = state.selectedGroupId,
 					keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
 					proxyEnabled = proxyEnabled,
 					proxyType = if (proxyEnabled) state.proxyType else null,
@@ -348,6 +377,9 @@ class AddServerViewModel(
 	val privateKey: String = "",
 	val keyPassphrase: String = "",
 	val keyPassphraseVisible: Boolean = false,
+	// 分组设置
+	val groups: List<com.franzkafkayu.vcserver.models.ServerGroup> = emptyList(),
+	val selectedGroupId: Long? = null,
 	// 代理设置
 	val proxyEnabled: Boolean = false,
 	val proxyType: ProxyType = ProxyType.HTTP,

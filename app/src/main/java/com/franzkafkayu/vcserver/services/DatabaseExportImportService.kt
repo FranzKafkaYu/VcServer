@@ -5,7 +5,9 @@ import android.net.Uri
 import android.util.Log
 import com.franzkafkayu.vcserver.models.AppSettings
 import com.franzkafkayu.vcserver.models.Server
+import com.franzkafkayu.vcserver.models.ServerGroup
 import com.franzkafkayu.vcserver.repositories.ServerRepository
+import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
@@ -25,6 +27,8 @@ data class ExportData(
 	val version: String = "1.0",
 	@SerializedName("export_time")
 	val exportTime: String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+	@SerializedName("groups")
+	val groups: List<ServerGroup>? = null,  // 分组列表（可选，向后兼容）
 	@SerializedName("servers")
 	val servers: List<Server>,
 	@SerializedName("settings")
@@ -62,6 +66,7 @@ interface DatabaseExportImportService {
  */
 class DatabaseExportImportServiceImpl(
 	private val serverRepository: ServerRepository,
+	private val serverGroupRepository: ServerGroupRepository? = null,
 	private val settingsService: SettingsService? = null  // 可选，保持向后兼容
 ) : DatabaseExportImportService {
 
@@ -77,15 +82,19 @@ class DatabaseExportImportServiceImpl(
 				// 获取所有服务器
 				val servers = serverRepository.getAllServers().first()
 
-				if (servers.isEmpty() && settingsService == null) {
+				if (servers.isEmpty() && settingsService == null && serverGroupRepository == null) {
 					return@withContext Result.failure(Exception("NO_DATA"))
 				}
+
+				// 获取分组（如果可用）
+				val groups = serverGroupRepository?.getAllGroups()?.first()
 
 				// 获取设置（如果可用）
 				val settings = settingsService?.getSettings()?.first()
 
 				// 创建导出数据
 				val exportData = ExportData(
+					groups = groups,
 					servers = servers,
 					settings = settings
 				)
@@ -99,8 +108,9 @@ class DatabaseExportImportServiceImpl(
 				} ?: throw Exception("UNABLE_TO_OPEN_OUTPUT_STREAM")
 
 				val serverCount = servers.size
+				val groupCount = groups?.size ?: 0
 				val hasSettings = settings != null
-				Log.d(tag, "导出成功: $serverCount 个服务器${if (hasSettings) ", 包含设置" else ""}")
+				Log.d(tag, "导出成功: $serverCount 个服务器, $groupCount 个分组${if (hasSettings) ", 包含设置" else ""}")
 				Result.success(Unit)
 			}
 		} catch (e: Exception) {
@@ -130,11 +140,42 @@ class DatabaseExportImportServiceImpl(
 				}
 
 				var importedCount = 0
+				var importedGroupCount = 0
+
+				// 导入分组（如果有）
+				if (!exportData.groups.isNullOrEmpty()) {
+					val existingGroups = serverGroupRepository?.getAllGroups()?.first() ?: emptyList()
+					
+					for (group in exportData.groups) {
+						// 检查是否已存在同名分组
+						val existingGroup = existingGroups.find { it.name == group.name }
+						
+						if (existingGroup != null) {
+							// 分组已存在，根据导入策略决定是否更新
+							// 对于分组，我们默认跳过（因为名称唯一，更新可能导致混淆）
+							Log.d(tag, "跳过已存在分组: ${group.name}")
+						} else {
+							// 创建新分组（不保留原始ID）
+							serverGroupRepository?.createGroup(group.name)?.fold(
+								onSuccess = {
+									importedGroupCount++
+									Log.d(tag, "导入分组: ${group.name}")
+								},
+								onFailure = { e ->
+									Log.w(tag, "导入分组失败: ${group.name}", e)
+								}
+							)
+						}
+					}
+				}
 
 				// 导入服务器（如果有）
 				if (exportData.servers.isNotEmpty()) {
 					// 获取现有服务器（用于检测重复）
 					val existingServers = serverRepository.getAllServers().first()
+					
+					// 获取所有分组（包括新导入的）用于映射 groupId
+					val allGroups = serverGroupRepository?.getAllGroups()?.first() ?: emptyList()
 
 					// 导入每个服务器
 					for (server in exportData.servers) {
@@ -143,13 +184,28 @@ class DatabaseExportImportServiceImpl(
 							existing.host == server.host && existing.port == server.port
 						}
 
+						// 映射分组ID（如果服务器有分组）
+						val mappedGroupId = if (server.groupId != null && !exportData.groups.isNullOrEmpty()) {
+							// 查找原始分组名称
+							val originalGroup = exportData.groups.find { it.id == server.groupId }
+							// 在当前系统中查找同名分组
+							originalGroup?.let { allGroups.find { it.name == originalGroup.name }?.id }
+						} else {
+							server.groupId
+						}
+
+						val serverToImport = server.copy(
+							id = 0,  // 重置ID，让数据库自动分配
+							groupId = mappedGroupId  // 使用映射后的分组ID
+						)
+
 						if (isDuplicate) {
 							if (importStrategy) {
 								// 覆盖：更新现有服务器
 								val existingServer = existingServers.first { existing ->
 									existing.host == server.host && existing.port == server.port
 								}
-								val updatedServer = server.copy(id = existingServer.id)
+								val updatedServer = serverToImport.copy(id = existingServer.id)
 								serverRepository.updateServer(updatedServer)
 								importedCount++
 								Log.d(tag, "覆盖服务器: ${server.name}")
@@ -159,7 +215,7 @@ class DatabaseExportImportServiceImpl(
 							}
 						} else {
 							// 导入新服务器
-							serverRepository.insertServer(server)
+							serverRepository.insertServer(serverToImport)
 							importedCount++
 							Log.d(tag, "导入服务器: ${server.name}")
 						}
@@ -189,10 +245,14 @@ class DatabaseExportImportServiceImpl(
 					}
 				}
 
-				val logMessage = if (exportData.settings != null && settingsService != null) {
-					"导入完成: $importedCount 个服务器, 包含设置"
-				} else {
-					"导入完成: $importedCount 个服务器"
+				val logMessage = buildString {
+					append("导入完成: $importedCount 个服务器")
+					if (importedGroupCount > 0) {
+						append(", $importedGroupCount 个分组")
+					}
+					if (exportData.settings != null && settingsService != null) {
+						append(", 包含设置")
+					}
 				}
 				Log.d(tag, logMessage)
 				Result.success(importedCount)

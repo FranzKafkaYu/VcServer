@@ -59,6 +59,8 @@ fun NavGraph(
     navController: NavHostController,
     serverListViewModel: com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel,
     addServerViewModel: com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel,
+    serverGroupManagementViewModel: com.franzkafkayu.vcserver.ui.viewmodels.ServerGroupManagementViewModel? = null,
+    serverGroupRepository: com.franzkafkayu.vcserver.repositories.ServerGroupRepository? = null,
     serverManagementService: com.franzkafkayu.vcserver.services.ServerManagementService,
     serverMonitoringService: com.franzkafkayu.vcserver.services.ServerMonitoringService,
     terminalService: TerminalService,
@@ -73,6 +75,7 @@ fun NavGraph(
         composable(Screen.ServerList.route) {
             ServerListScreen(
                 viewModel = serverListViewModel,
+                groupManagementViewModel = serverGroupManagementViewModel,
                 onAddServerClick = {
                     navController.navigate(Screen.AddServer.route)
                 },
@@ -115,6 +118,7 @@ fun NavGraph(
                     factory = EditServerViewModelFactory(
                         serverManagementService = serverManagementService,
                         settingsService = settingsService,
+                        serverGroupRepository = serverGroupRepository,
                         serverId = serverId
                     )
                 )
@@ -284,6 +288,7 @@ class TerminalViewModelFactory(
 class EditServerViewModelFactory(
     private val serverManagementService: com.franzkafkayu.vcserver.services.ServerManagementService,
     private val settingsService: com.franzkafkayu.vcserver.services.SettingsService,
+    private val serverGroupRepository: com.franzkafkayu.vcserver.repositories.ServerGroupRepository?,
     private val serverId: Long
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -292,6 +297,7 @@ class EditServerViewModelFactory(
             return com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel(
                 serverManagementService,
                 settingsService,
+                serverGroupRepository,
                 serverId
             ) as T
         }

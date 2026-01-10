@@ -1,17 +1,23 @@
 package com.franzkafkayu.vcserver.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,6 +29,7 @@ import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.ProxyType
 import com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel
+import com.franzkafkayu.vcserver.utils.AppError
 
 /**
  * 添加服务器界�?
@@ -107,6 +114,56 @@ fun AddServerScreen(
 				modifier = Modifier.fillMaxWidth(),
 				singleLine = true
 			)
+
+			// 分组选择
+			var showGroupDropdown by remember { mutableStateOf(false) }
+			
+			Column {
+				Text(
+					text = stringResource(R.string.select_group),
+					style = MaterialTheme.typography.labelLarge
+				)
+				ExposedDropdownMenuBox(
+					expanded = showGroupDropdown,
+					onExpandedChange = { showGroupDropdown = !showGroupDropdown }
+				) {
+					OutlinedTextField(
+						value = uiState.groups.find { it.id == uiState.selectedGroupId }?.name 
+							?: stringResource(R.string.no_group),
+						onValueChange = { },
+						readOnly = true,
+						modifier = Modifier
+							.fillMaxWidth()
+							.menuAnchor(),
+						trailingIcon = {
+							ExposedDropdownMenuDefaults.TrailingIcon(expanded = showGroupDropdown)
+						},
+						label = { Text(stringResource(R.string.select_group)) }
+					)
+					
+					ExposedDropdownMenu(
+						expanded = showGroupDropdown,
+						onDismissRequest = { showGroupDropdown = false }
+					) {
+						DropdownMenuItem(
+							text = { Text(stringResource(R.string.no_group)) },
+							onClick = {
+								viewModel.updateSelectedGroup(null)
+								showGroupDropdown = false
+							}
+						)
+						uiState.groups.forEach { group ->
+							DropdownMenuItem(
+								text = { Text(group.name) },
+								onClick = {
+									viewModel.updateSelectedGroup(group.id)
+									showGroupDropdown = false
+								}
+							)
+						}
+					}
+				}
+			}
 
 			// 认证方式
 			Text(
@@ -320,7 +377,7 @@ fun AddServerScreen(
 			// 错误提示
 			uiState.error?.let { error ->
 				Text(
-					text = error.message,
+					text = getErrorLocalizedMessage(error),
 					color = MaterialTheme.colorScheme.error,
 					style = MaterialTheme.typography.bodyMedium
 				)
@@ -373,3 +430,29 @@ fun AddServerScreen(
 	}
 }
 
+/**
+ * 获取错误消息的本地化字符串
+ */
+@Composable
+private fun getErrorLocalizedMessage(error: AppError): String {
+	return when (error) {
+		is AppError.ValidationError -> {
+			when (error.message) {
+				"SERVER_NAME_EMPTY" -> stringResource(R.string.error_server_name_empty)
+				"HOST_EMPTY" -> stringResource(R.string.error_host_empty)
+				"PORT_INVALID" -> stringResource(R.string.error_port_invalid)
+				"USERNAME_EMPTY" -> stringResource(R.string.error_username_empty)
+				"PASSWORD_EMPTY" -> stringResource(R.string.error_password_empty)
+				"PRIVATE_KEY_EMPTY" -> stringResource(R.string.error_private_key_empty)
+				else -> error.message
+			}
+		}
+		is AppError.NetworkError -> {
+			when (error.message) {
+				"CONNECTION_FAILED" -> stringResource(R.string.connection_failed)
+				else -> error.message
+			}
+		}
+		else -> error.message
+	}
+}

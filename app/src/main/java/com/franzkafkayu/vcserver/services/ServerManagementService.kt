@@ -31,6 +31,7 @@ interface ServerManagementService {
 		password: String? = null,
 		privateKey: String? = null,
 		keyPassphrase: String? = null,
+		groupId: Long? = null,
 		proxyEnabled: Boolean = false,
 		proxyType: com.franzkafkayu.vcserver.models.ProxyType? = null,
 		proxyHost: String? = null,
@@ -56,6 +57,7 @@ interface ServerManagementService {
 	 * @param password 新密码（如果为null或空，保留原有密码）
 	 * @param privateKey 新私钥（如果为null或空，保留原有私钥）
 	 * @param keyPassphrase 密钥密码
+	 * @param groupId 分组ID（可为null，表示未分组）
 	 * @param proxyEnabled 是否启用代理
 	 * @param proxyType 代理类型
 	 * @param proxyHost 代理主机
@@ -73,6 +75,7 @@ interface ServerManagementService {
 		password: String? = null,
 		privateKey: String? = null,
 		keyPassphrase: String? = null,
+		groupId: Long? = null,
 		proxyEnabled: Boolean = false,
 		proxyType: com.franzkafkayu.vcserver.models.ProxyType? = null,
 		proxyHost: String? = null,

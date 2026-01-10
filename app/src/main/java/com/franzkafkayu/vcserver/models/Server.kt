@@ -31,6 +31,7 @@ data class Server(
 	val proxyPort: Int? = null,
 	val proxyUsername: String? = null,
 	val encryptedProxyPassword: String? = null, // 加密后的代理密码
+	val groupId: Long? = null,                  // 分组ID（可为空，表示未分组）
 	val createdAt: Long = System.currentTimeMillis(),
 	val updatedAt: Long = System.currentTimeMillis()
 )

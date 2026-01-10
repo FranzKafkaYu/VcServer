@@ -11,6 +11,9 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -19,7 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
+import com.franzkafkayu.vcserver.ui.screens.GroupHeader
 
 /**
  * 服务器列表界面
@@ -38,6 +44,7 @@ import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
 @Composable
 fun ServerListScreen(
 	viewModel: ServerListViewModel,
+	groupManagementViewModel: com.franzkafkayu.vcserver.ui.viewmodels.ServerGroupManagementViewModel? = null,
 	onAddServerClick: () -> Unit,
 	onEditServerClick: (Long) -> Unit,
 	onConnectClick: (Server, String) -> Unit,
@@ -45,6 +52,7 @@ fun ServerListScreen(
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 	val snackbarHostState = remember { SnackbarHostState() }
+	var showGroupManagementDialog by remember { mutableStateOf(false) }
 
 	// 显示错误提示
 	LaunchedEffect(uiState.error) {
@@ -88,10 +96,18 @@ fun ServerListScreen(
 							)
 						}
 					} else {
+						if (groupManagementViewModel != null) {
+							IconButton(onClick = { showGroupManagementDialog = true }) {
+								Icon(
+									Icons.Default.Folder,
+									contentDescription = stringResource(R.string.manage_groups)
+								)
+							}
+						}
 						IconButton(onClick = onSettingsClick) {
 							Icon(
 								Icons.Default.Settings,
-								contentDescription = "设置"
+								contentDescription = stringResource(R.string.settings)
 							)
 						}
 					}
@@ -134,7 +150,7 @@ fun ServerListScreen(
 				onDismissRequest = { viewModel.cancelDelete() },
 				title = { Text(stringResource(R.string.delete_server_confirm)) },
 				text = { 
-					Text("确定要删除服务器 \"${server.name}\" (${server.host}:${server.port}) 吗？此操作无法撤销。")
+					Text(stringResource(R.string.delete_server_confirm_message, server.name, server.host, server.port))
 				},
 				confirmButton = {
 					TextButton(
@@ -183,6 +199,14 @@ fun ServerListScreen(
 			)
 		}
 
+		// 分组管理对话框
+		if (showGroupManagementDialog && groupManagementViewModel != null) {
+			ServerGroupManagementDialog(
+				viewModel = groupManagementViewModel,
+				onDismiss = { showGroupManagementDialog = false }
+			)
+		}
+
 		Box(
 			modifier = Modifier
 				.fillMaxSize()
@@ -206,43 +230,115 @@ fun ServerListScreen(
 						contentPadding = PaddingValues(16.dp),
 						verticalArrangement = Arrangement.spacedBy(8.dp)
 					) {
-						items(uiState.servers) { server ->
-							ServerItem(
-								server = server,
-								isSelected = uiState.selectedServerIds.contains(server.id),
-								isSelectionMode = uiState.isSelectionMode,
-								onClick = {
-									if (uiState.isSelectionMode) {
-										// 选择模式下，点击切换选择状态
-										viewModel.toggleServerSelection(server.id)
-									} else {
-										// 正常模式下，点击卡片直接连接
-										viewModel.connectToServer(server) { sessionKey ->
-											onConnectClick(server, sessionKey)
-										}
-									}
-								},
-								onLongClick = {
-									// 长按进入选择模式
-									if (!uiState.isSelectionMode) {
-										viewModel.enterSelectionMode(server.id)
-									}
-								},
-								onEditClick = {
-									if (!uiState.isSelectionMode) {
-										onEditServerClick(server.id)
-									}
-								},
-								onConnectClick = {
-									if (!uiState.isSelectionMode) {
-										viewModel.connectToServer(server) { sessionKey ->
-											onConnectClick(server, sessionKey)
-										}
-									}
-								},
-								onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
-								isConnecting = uiState.connectingServerId == server.id
-							)
+						// 显示分组和分组下的服务器
+						uiState.groupedServers.forEach { (group, servers) ->
+							val isExpanded = uiState.expandedGroupIds.contains(group.id)
+							
+							// 分组标题
+							item(key = "group_${group.id}") {
+								GroupHeader(
+									groupName = group.name,
+									serverCount = servers.size,
+									isExpanded = isExpanded,
+									onClick = { viewModel.toggleGroupExpanded(group.id) }
+								)
+							}
+							
+							// 分组下的服务器（可折叠）
+							if (isExpanded) {
+								items(
+									items = servers,
+									key = { it.id }
+								) { server ->
+									ServerItem(
+										server = server,
+										isSelected = uiState.selectedServerIds.contains(server.id),
+										isSelectionMode = uiState.isSelectionMode,
+										onClick = {
+											if (uiState.isSelectionMode) {
+												viewModel.toggleServerSelection(server.id)
+											} else {
+												viewModel.connectToServer(server) { sessionKey ->
+													onConnectClick(server, sessionKey)
+												}
+											}
+										},
+										onLongClick = {
+											if (!uiState.isSelectionMode) {
+												viewModel.enterSelectionMode(server.id)
+											}
+										},
+										onEditClick = {
+											if (!uiState.isSelectionMode) {
+												onEditServerClick(server.id)
+											}
+										},
+										onConnectClick = {
+											if (!uiState.isSelectionMode) {
+												viewModel.connectToServer(server) { sessionKey ->
+													onConnectClick(server, sessionKey)
+												}
+											}
+										},
+										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
+										isConnecting = uiState.connectingServerId == server.id
+									)
+								}
+							}
+						}
+						
+						// 未分组的服务器
+						if (uiState.ungroupedServers.isNotEmpty()) {
+							val isUngroupedExpanded = uiState.expandedGroupIds.contains(-1L)
+							item(key = "ungrouped_header") {
+								GroupHeader(
+									groupName = stringResource(R.string.ungrouped_servers),
+									serverCount = uiState.ungroupedServers.size,
+									isExpanded = isUngroupedExpanded,
+									onClick = { viewModel.toggleGroupExpanded(-1L) }
+								)
+							}
+							
+							if (isUngroupedExpanded) {
+								items(
+									items = uiState.ungroupedServers,
+									key = { it.id }
+								) { server ->
+									ServerItem(
+										server = server,
+										isSelected = uiState.selectedServerIds.contains(server.id),
+										isSelectionMode = uiState.isSelectionMode,
+										onClick = {
+											if (uiState.isSelectionMode) {
+												viewModel.toggleServerSelection(server.id)
+											} else {
+												viewModel.connectToServer(server) { sessionKey ->
+													onConnectClick(server, sessionKey)
+												}
+											}
+										},
+										onLongClick = {
+											if (!uiState.isSelectionMode) {
+												viewModel.enterSelectionMode(server.id)
+											}
+										},
+										onEditClick = {
+											if (!uiState.isSelectionMode) {
+												onEditServerClick(server.id)
+											}
+										},
+										onConnectClick = {
+											if (!uiState.isSelectionMode) {
+												viewModel.connectToServer(server) { sessionKey ->
+													onConnectClick(server, sessionKey)
+												}
+											}
+										},
+										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
+										isConnecting = uiState.connectingServerId == server.id
+									)
+								}
+							}
 						}
 					}
 				}
