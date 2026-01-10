@@ -45,6 +45,14 @@
 	<string name="available_space">Available Space</string>
 	<string name="disk_usage">Usage</string>
 	<string name="uptime">Uptime</string>
+	<string name="network_info">Network Info</string>
+	<string name="tcp_connections">TCP Connections</string>
+	<string name="udp_connections">UDP Connections</string>
+	<string name="network_interfaces_info">Network Interfaces (%d)</string>
+	<string name="total_received">Total Received</string>
+	<string name="total_sent">Total Sent</string>
+	<string name="download_rate">Download Rate</string>
+	<string name="upload_rate">Upload Rate</string>
 	<string name="enter_terminal">Enter Terminal</string>
 	<string name="terminal">Terminal</string>
 	<string name="terminal_output">Terminal Output</string>

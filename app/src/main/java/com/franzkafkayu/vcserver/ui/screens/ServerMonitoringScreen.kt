@@ -474,7 +474,7 @@ fun ServerMonitoringScreen(
 							verticalArrangement = Arrangement.spacedBy(16.dp)
 						) {
 							Text(
-								text = "网络信息",
+								text = stringResource(R.string.network_info),
 								style = MaterialTheme.typography.titleMedium
 							)
 							
@@ -483,14 +483,14 @@ fun ServerMonitoringScreen(
 								modifier = Modifier.fillMaxWidth(),
 								horizontalArrangement = Arrangement.SpaceBetween
 							) {
-								Text("TCP 连接数")
+								Text(stringResource(R.string.tcp_connections))
 								Text("${network.tcpConnections}", fontWeight = FontWeight.Medium)
 							}
 							Row(
 								modifier = Modifier.fillMaxWidth(),
 								horizontalArrangement = Arrangement.SpaceBetween
 							) {
-								Text("UDP 连接数")
+								Text(stringResource(R.string.udp_connections))
 								Text("${network.udpConnections}", fontWeight = FontWeight.Medium)
 							}
 							
@@ -498,7 +498,7 @@ fun ServerMonitoringScreen(
 							if (network.interfaces.isNotEmpty()) {
 								Divider()
 								Text(
-									text = "网卡信息 (${network.interfaces.size})",
+									text = stringResource(R.string.network_interfaces_info, network.interfaces.size),
 									style = MaterialTheme.typography.titleSmall
 								)
 								network.interfaces.forEach { interfaceInfo ->
@@ -988,7 +988,7 @@ fun NetworkInterfaceItem(interfaceInfo: NetworkInterfaceInfo) {
 				modifier = Modifier.fillMaxWidth(),
 				horizontalArrangement = Arrangement.SpaceBetween
 			) {
-				Text("总接收", style = MaterialTheme.typography.bodySmall)
+				Text(stringResource(R.string.total_received), style = MaterialTheme.typography.bodySmall)
 				Text(
 					formatBytes(interfaceInfo.totalRxBytes),
 					style = MaterialTheme.typography.bodySmall,
@@ -999,7 +999,7 @@ fun NetworkInterfaceItem(interfaceInfo: NetworkInterfaceInfo) {
 				modifier = Modifier.fillMaxWidth(),
 				horizontalArrangement = Arrangement.SpaceBetween
 			) {
-				Text("总发送", style = MaterialTheme.typography.bodySmall)
+				Text(stringResource(R.string.total_sent), style = MaterialTheme.typography.bodySmall)
 				Text(
 					formatBytes(interfaceInfo.totalTxBytes),
 					style = MaterialTheme.typography.bodySmall,
@@ -1013,7 +1013,7 @@ fun NetworkInterfaceItem(interfaceInfo: NetworkInterfaceInfo) {
 				modifier = Modifier.fillMaxWidth(),
 				horizontalArrangement = Arrangement.SpaceBetween
 			) {
-				Text("下行速率", style = MaterialTheme.typography.bodySmall)
+				Text(stringResource(R.string.download_rate), style = MaterialTheme.typography.bodySmall)
 				Text(
 					formatRate(interfaceInfo.currentRxRate),
 					style = MaterialTheme.typography.bodySmall,
@@ -1025,7 +1025,7 @@ fun NetworkInterfaceItem(interfaceInfo: NetworkInterfaceInfo) {
 				modifier = Modifier.fillMaxWidth(),
 				horizontalArrangement = Arrangement.SpaceBetween
 			) {
-				Text("上行速率", style = MaterialTheme.typography.bodySmall)
+				Text(stringResource(R.string.upload_rate), style = MaterialTheme.typography.bodySmall)
 				Text(
 					formatRate(interfaceInfo.currentTxRate),
 					style = MaterialTheme.typography.bodySmall,

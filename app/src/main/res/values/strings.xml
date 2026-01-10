@@ -45,6 +45,14 @@
 	<string name="available_space">可用容量</string>
 	<string name="disk_usage">使用率</string>
 	<string name="uptime">运行时长</string>
+	<string name="network_info">网络信息</string>
+	<string name="tcp_connections">TCP 连接数</string>
+	<string name="udp_connections">UDP 连接数</string>
+	<string name="network_interfaces_info">网卡信息 (%d)</string>
+	<string name="total_received">总接收</string>
+	<string name="total_sent">总发送</string>
+	<string name="download_rate">下行速率</string>
+	<string name="upload_rate">上行速率</string>
 	<string name="enter_terminal">进入终端</string>
 	<string name="terminal">终端</string>
 	<string name="terminal_output">终端输出</string>
