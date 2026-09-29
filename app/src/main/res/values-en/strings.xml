@@ -99,6 +99,14 @@
 	<string name="proxy_host">Proxy Host</string>
 	<string name="proxy_port">Proxy Port</string>
 	<string name="proxy_auth_optional">Proxy Authentication (Optional)</string>
+	<string name="proxy_settings">Proxy Settings</string>
+	<string name="enable_proxy_for_server">Enable a proxy for this server</string>
+	<string name="hide_password">Hide password</string>
+	<string name="show_password">Show password</string>
+	<string name="hide_key_passphrase">Hide key passphrase</string>
+	<string name="show_key_passphrase">Show key passphrase</string>
+	<string name="hide_proxy_password">Hide proxy password</string>
+	<string name="show_proxy_password">Show proxy password</string>
 	<string name="connection_timeout_seconds">Connection Timeout (seconds)</string>
 	<string name="default_ssh_port">Default SSH Port</string>
 	<string name="refresh_interval_seconds">Server Monitoring Refresh Interval (seconds)</string>

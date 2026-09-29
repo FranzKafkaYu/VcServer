@@ -220,7 +220,7 @@ fun AddServerScreen(
 						IconButton(onClick = viewModel::togglePasswordVisibility) {
 							Icon(
 								imageVector = if (uiState.passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-								contentDescription = if (uiState.passwordVisible) "隐藏密码" else "显示密码"
+								contentDescription = if (uiState.passwordVisible) stringResource(R.string.hide_password) else stringResource(R.string.show_password)
 							)
 						}
 					}
@@ -251,7 +251,7 @@ fun AddServerScreen(
 						IconButton(onClick = viewModel::toggleKeyPassphraseVisibility) {
 							Icon(
 								imageVector = if (uiState.keyPassphraseVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-								contentDescription = if (uiState.keyPassphraseVisible) "隐藏密钥密码" else "显示密钥密码"
+								contentDescription = if (uiState.keyPassphraseVisible) stringResource(R.string.hide_key_passphrase) else stringResource(R.string.show_key_passphrase)
 							)
 						}
 					}
@@ -271,11 +271,11 @@ fun AddServerScreen(
 					) {
 						Column {
 							Text(
-								text = "代理设置",
+								text = stringResource(R.string.proxy_settings),
 								style = MaterialTheme.typography.titleMedium
 							)
 							Text(
-								text = "为当前服务器启用代理连接",
+								text = stringResource(R.string.enable_proxy_for_server),
 								style = MaterialTheme.typography.bodySmall,
 								color = MaterialTheme.colorScheme.onSurfaceVariant
 							)
@@ -296,7 +296,7 @@ fun AddServerScreen(
 							verticalArrangement = Arrangement.spacedBy(8.dp)
 						) {
 							Text(
-								text = "代理类型",
+								text = stringResource(R.string.proxy_type),
 								style = MaterialTheme.typography.bodyMedium,
 								color = MaterialTheme.colorScheme.onSurfaceVariant
 							)
@@ -326,7 +326,7 @@ fun AddServerScreen(
 
 					// 代理服务器配置
 					Text(
-						text = "代理服务器",
+						text = stringResource(R.string.proxy_server),
 						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.onSurfaceVariant
 					)
@@ -334,7 +334,7 @@ fun AddServerScreen(
 					OutlinedTextField(
 						value = uiState.proxyHost,
 						onValueChange = viewModel::updateProxyHost,
-						label = { Text("代理主机") },
+						label = { Text(stringResource(R.string.proxy_host)) },
 						modifier = Modifier.fillMaxWidth(),
 						singleLine = true
 					)
@@ -342,7 +342,7 @@ fun AddServerScreen(
 						OutlinedTextField(
 							value = uiState.proxyPort,
 							onValueChange = viewModel::updateProxyPort,
-							label = { Text("代理端口") },
+							label = { Text(stringResource(R.string.proxy_port)) },
 							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
 							modifier = Modifier.fillMaxWidth(),
 							singleLine = true
@@ -352,7 +352,7 @@ fun AddServerScreen(
 
 						// 代理鉴权配置
 						Text(
-							text = "代理鉴权（可选）",
+							text = stringResource(R.string.proxy_auth_optional),
 							style = MaterialTheme.typography.bodyMedium,
 							color = MaterialTheme.colorScheme.onSurfaceVariant
 						)
@@ -360,7 +360,7 @@ fun AddServerScreen(
 						OutlinedTextField(
 							value = uiState.proxyUsername,
 							onValueChange = viewModel::updateProxyUsername,
-							label = { Text("用户名") },
+							label = { Text(stringResource(R.string.username)) },
 							modifier = Modifier.fillMaxWidth(),
 							singleLine = true
 						)
@@ -368,7 +368,7 @@ fun AddServerScreen(
 						OutlinedTextField(
 							value = uiState.proxyPassword,
 							onValueChange = viewModel::updateProxyPassword,
-							label = { Text("密码") },
+							label = { Text(stringResource(R.string.password)) },
 							visualTransformation = if (uiState.proxyPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
 							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
 							modifier = Modifier.fillMaxWidth(),
@@ -377,7 +377,7 @@ fun AddServerScreen(
 								IconButton(onClick = viewModel::toggleProxyPasswordVisibility) {
 									Icon(
 										imageVector = if (uiState.proxyPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-										contentDescription = if (uiState.proxyPasswordVisible) "隐藏代理密码" else "显示代理密码"
+										contentDescription = if (uiState.proxyPasswordVisible) stringResource(R.string.hide_proxy_password) else stringResource(R.string.show_proxy_password)
 									)
 								}
 							}
