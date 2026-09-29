@@ -169,8 +169,8 @@ dependencies {
 	// DataStore
 	implementation 'androidx.datastore:datastore-preferences:1.0.0'
 
-	// JSch for SSH
-	implementation 'com.jcraft:jsch:0.1.55'
+	// mwiede JSch：ed25519 / rsa-sha2。勿用 0.2.26+（class file 68 / Java 24，Jetifier 无法处理）
+	implementation 'com.github.mwiede:jsch:0.2.16'
 
 	// Coroutines
 	implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'

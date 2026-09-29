@@ -22,6 +22,7 @@
 	<string name="delete_server_confirm">Are you sure you want to delete this server?</string>
 	<string name="connection_success">Connection Successful</string>
 	<string name="connection_failed">Connection Failed</string>
+	<string name="error_ssh_algorithm_negotiation">SSH algorithm negotiation failed (no matching host key type). The client must support ed25519 / rsa-sha2.</string>
 	<string name="invalid_input">Invalid Input</string>
 	<string name="empty_server_list">No servers yet, click the add button to add a server</string>
 	<string name="connect">Connect</string>

@@ -22,6 +22,7 @@
 	<string name="delete_server_confirm">确定要删除此服务器吗？</string>
 	<string name="connection_success">连接成功</string>
 	<string name="connection_failed">连接失败</string>
+	<string name="error_ssh_algorithm_negotiation">SSH 算法协商失败（主机密钥类型不匹配）。请确认客户端已支持 ed25519 / rsa-sha2。</string>
 	<string name="invalid_input">输入无效</string>
 	<string name="empty_server_list">暂无服务器，点击添加按钮添加服务器</string>
 	<string name="connect">连接</string>

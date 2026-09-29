@@ -19,7 +19,11 @@ sealed class AppError {
 fun Throwable.toAppError(): AppError {
 	return when (this) {
 		is com.franzkafkayu.vcserver.services.SshConnectionException -> {
-			AppError.NetworkError(message ?: "CONNECTION_FAILED")
+			when (message) {
+				"SSH_ALGORITHM_NEGOTIATION_FAILED" ->
+					AppError.NetworkError("SSH_ALGORITHM_NEGOTIATION_FAILED")
+				else -> AppError.NetworkError(message ?: "CONNECTION_FAILED")
+			}
 		}
 		is com.franzkafkayu.vcserver.services.ValidationException -> {
 			AppError.ValidationError(message ?: "VALIDATION_FAILED")

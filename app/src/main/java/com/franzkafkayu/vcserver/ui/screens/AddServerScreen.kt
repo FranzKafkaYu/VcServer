@@ -471,6 +471,7 @@ private fun getErrorLocalizedMessage(error: AppError): String {
 		is AppError.NetworkError -> {
 			when (error.message) {
 				"CONNECTION_FAILED" -> stringResource(R.string.connection_failed)
+				"SSH_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_ssh_algorithm_negotiation)
 				else -> error.message
 			}
 		}

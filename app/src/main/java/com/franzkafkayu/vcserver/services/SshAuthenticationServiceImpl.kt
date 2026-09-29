@@ -24,12 +24,20 @@ class SshAuthenticationServiceImpl(
 		 * 优化的 SSH 配置，加快连接速度
 		 * 这些配置针对 JSch 库优化，减少连接建立时的延迟
 		 */
+		private const val HOST_KEY_ALGORITHMS =
+			"ssh-ed25519,rsa-sha2-512,rsa-sha2-256," +
+				"ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-rsa"
+
 		private fun getOptimizedConfig(): Properties {
 			val config = Properties()
 			// 禁用主机密钥检查（避免等待用户确认）
 			config["StrictHostKeyChecking"] = "no"
 			config["UserKnownHostsFile"] = "/dev/null"
-			
+
+			config["server_host_key"] = HOST_KEY_ALGORITHMS
+			config["PubkeyAcceptedAlgorithms"] =
+				"ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ssh-rsa"
+
 			// 优化认证顺序，优先使用密码认证（如果使用密码）
 			config["PreferredAuthentications"] = "password,publickey,keyboard-interactive"
 			
@@ -43,11 +51,34 @@ class SshAuthenticationServiceImpl(
 			// 设置服务器存活间隔（保持连接活跃，避免超时重连）
 			config["ServerAliveInterval"] = "30"
 			config["ServerAliveCountMax"] = "3"
-			
+
 			// 禁用 DNS 查找（如果使用 IP 地址）
 			config["CheckHostIP"] = "no"
 			
 			return config
+		}
+
+		private fun wrapConnectFailure(action: String, e: Exception): SshConnectionException {
+			if (isAlgorithmNegotiationFailure(e)) {
+				return SshConnectionException("SSH_ALGORITHM_NEGOTIATION_FAILED", e)
+			}
+			return SshConnectionException("Failed to connect with $action: ${e.message}", e)
+		}
+
+		private fun isAlgorithmNegotiationFailure(e: Throwable): Boolean {
+			var current: Throwable? = e
+			while (current != null) {
+				val msg = current.message.orEmpty()
+				if (
+					msg.contains("Algorithm negotiation fail", ignoreCase = true) ||
+					msg.contains("no matching host key", ignoreCase = true) ||
+					msg.contains("no matching key exchange", ignoreCase = true)
+				) {
+					return true
+				}
+				current = current.cause
+			}
+			return false
 		}
 	}
 
@@ -73,7 +104,7 @@ class SshAuthenticationServiceImpl(
 		} catch (e: Exception) {
 			val duration = System.currentTimeMillis() - startTime
 			Log.i(TAG, "connectWithPassword failed: $host:$port, cost: ${duration}ms,error: ${e.message}")
-			Result.failure(SshConnectionException("Failed to connect with password: ${e.message}", e))
+			Result.failure(wrapConnectFailure("password", e))
 		}
 	}
 
@@ -102,7 +133,7 @@ class SshAuthenticationServiceImpl(
 			session.connect(CONNECTION_TIMEOUT)
 			Result.success(session)
 		} catch (e: Exception) {
-			Result.failure(SshConnectionException("Failed to connect with key: ${e.message}", e))
+			Result.failure(wrapConnectFailure("key", e))
 		}
 	}
 
