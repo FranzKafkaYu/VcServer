@@ -351,10 +351,13 @@ class AddServerViewModel(
 	 * 重置状态（仅在新增模式下使用）
 	 */
 	fun reset() {
-		// 保留编辑模式标志，只重置表单字段
-		val isEditMode = _uiState.value.isEditMode
-		_uiState.value = AddServerUiState(saveSuccess = false, isEditMode = isEditMode)
-		// 重新从设置读取默认 SSH 端口
+		// 保留编辑模式标志和已加载分组，只重置表单字段
+		val current = _uiState.value
+		_uiState.value = AddServerUiState(
+			saveSuccess = false,
+			isEditMode = current.isEditMode,
+			groups = current.groups
+		)
 		viewModelScope.launch {
 			settingsService?.getSettings()?.first()?.let { settings ->
 				_uiState.value = _uiState.value.copy(port = settings.defaultSshPort.toString())

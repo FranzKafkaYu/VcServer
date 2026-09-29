@@ -115,54 +115,75 @@ fun AddServerScreen(
 				singleLine = true
 			)
 
-			// 分组选择
-			var showGroupDropdown by remember { mutableStateOf(false) }
-			
+			// 分组选择（用对话框，避免滚动表单中 ExposedDropdownMenu 点选失效）
+			var showGroupPicker by remember { mutableStateOf(false) }
+			val selectedGroupName = uiState.groups.find { it.id == uiState.selectedGroupId }?.name
+				?: stringResource(R.string.no_group)
+
 			Column {
 				Text(
 					text = stringResource(R.string.select_group),
 					style = MaterialTheme.typography.labelLarge
 				)
-				ExposedDropdownMenuBox(
-					expanded = showGroupDropdown,
-					onExpandedChange = { showGroupDropdown = !showGroupDropdown }
-				) {
+				Box(modifier = Modifier.clickable { showGroupPicker = true }) {
 					OutlinedTextField(
-						value = uiState.groups.find { it.id == uiState.selectedGroupId }?.name 
-							?: stringResource(R.string.no_group),
+						value = selectedGroupName,
 						onValueChange = { },
 						readOnly = true,
-						modifier = Modifier
-							.fillMaxWidth()
-							.menuAnchor(),
+						enabled = false,
+						modifier = Modifier.fillMaxWidth(),
 						trailingIcon = {
-							ExposedDropdownMenuDefaults.TrailingIcon(expanded = showGroupDropdown)
+							Icon(
+								Icons.Default.ArrowDropDown,
+								contentDescription = stringResource(R.string.select_group)
+							)
 						},
-						label = { Text(stringResource(R.string.select_group)) }
-					)
-					
-					ExposedDropdownMenu(
-						expanded = showGroupDropdown,
-						onDismissRequest = { showGroupDropdown = false }
-					) {
-						DropdownMenuItem(
-							text = { Text(stringResource(R.string.no_group)) },
-							onClick = {
-								viewModel.updateSelectedGroup(null)
-								showGroupDropdown = false
-							}
+						label = { Text(stringResource(R.string.select_group)) },
+						colors = OutlinedTextFieldDefaults.colors(
+							disabledTextColor = MaterialTheme.colorScheme.onSurface,
+							disabledBorderColor = MaterialTheme.colorScheme.outline,
+							disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+							disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
 						)
-						uiState.groups.forEach { group ->
+					)
+				}
+			}
+
+			if (showGroupPicker) {
+				AlertDialog(
+					onDismissRequest = { showGroupPicker = false },
+					title = { Text(stringResource(R.string.select_group)) },
+					text = {
+						Column(
+							modifier = Modifier
+								.fillMaxWidth()
+								.heightIn(max = 360.dp)
+								.verticalScroll(rememberScrollState())
+						) {
 							DropdownMenuItem(
-								text = { Text(group.name) },
+								text = { Text(stringResource(R.string.no_group)) },
 								onClick = {
-									viewModel.updateSelectedGroup(group.id)
-									showGroupDropdown = false
+									viewModel.updateSelectedGroup(null)
+									showGroupPicker = false
 								}
 							)
+							uiState.groups.forEach { group ->
+								DropdownMenuItem(
+									text = { Text(group.name) },
+									onClick = {
+										viewModel.updateSelectedGroup(group.id)
+										showGroupPicker = false
+									}
+								)
+							}
+						}
+					},
+					confirmButton = {
+						TextButton(onClick = { showGroupPicker = false }) {
+							Text(stringResource(R.string.cancel))
 						}
 					}
-				}
+				)
 			}
 
 			// 认证方式

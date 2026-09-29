@@ -1,5 +1,6 @@
 .cursor/
 .idea/
+.codex/
 .vscode/
 .gradle/
 app/build/
