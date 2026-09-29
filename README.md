@@ -94,9 +94,11 @@ VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安
 
 ## 👥 贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request！  
 
- ⭐[![Stargazers over time](https://starchart.cc/FranzKafkaYu/VcServer.svg)](https://starchart.cc/FranzKafkaYu/VcServer)  
+## ⭐Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=FranzKafkaYu/VcServer&type=date&legend=top-left)](https://www.star-history.com/#FranzKafkaYu/VcServer&type=date&legend=top-left)
 
 
 
