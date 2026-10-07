@@ -337,8 +337,8 @@ class ServerMonitoringViewModel(
 
 	override fun onCleared() {
 		super.onCleared()
+		// 仅停止刷新；返回列表不断开连接池，供再次进入时复用 Session
 		stopAutoRefresh()
-		disconnect()
 	}
 }
 

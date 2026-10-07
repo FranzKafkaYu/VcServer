@@ -4,45 +4,43 @@ plugins {
 	id 'com.google.devtools.ksp' version '1.9.10-1.0.13'
 }
 
+def getGitCommitHash = { ->
+	try {
+		def stdout = new ByteArrayOutputStream()
+		exec {
+			commandLine 'git', 'rev-parse', '--short', 'HEAD'
+			standardOutput = stdout
+			ignoreExitValue = true
+		}
+		def hash = stdout.toString().trim()
+		return hash.isEmpty() ? "unknown" : hash
+	} catch (Exception e) {
+		return "unknown"
+	}
+}
+
+def getBuildDate = { ->
+	return new Date().format('yyyyMMdd')
+}
+
+def majorVersion = 1
+def minorVersion = 0
+def patchVersion = 0
+def buildDate = getBuildDate()
+def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
+def artifactStem = { String buildType ->
+	"${buildType}-${versionNameString}-${getGitCommitHash()}"
+}
+
 android {
 	namespace 'com.franzkafkayu.vcserver'
 	compileSdk 34
 
-	// 获取 Git commit hash
-	def getGitCommitHash = { ->
-		try {
-			def stdout = new ByteArrayOutputStream()
-			exec {
-				commandLine 'git', 'rev-parse', '--short', 'HEAD'
-				standardOutput = stdout
-				ignoreExitValue = true
-			}
-			def hash = stdout.toString().trim()
-			return hash.isEmpty() ? "unknown" : hash
-		} catch (Exception e) {
-			return "unknown"
-		}
-	}
-
-	// 获取当前日期（年月日格式）
-	def getBuildDate = { ->
-		def date = new Date()
-		def formattedDate = date.format('yyyyMMdd')
-		return formattedDate
-	}
-
-	// 版本号规则：x.x.x-年月日
-	def majorVersion = 1
-	def minorVersion = 0
-	def patchVersion = 0
-	def buildDate = getBuildDate()
-	def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
-
 		defaultConfig {
 			applicationId "com.franzkafkayu.vcserver"
 			minSdk 29
-			targetSdk 34
-			versionCode 1
+			targetSdk 36
+			versionCode 2
 			versionName versionNameString
 
 			// 获取 Git commit hash
@@ -128,13 +126,9 @@ android {
 		}
 	}
 	
-	// 自定义 APK 文件名：buildType-版本号-commit.apk
 	applicationVariants.all { variant ->
 		variant.outputs.all { output ->
-			def buildType = variant.buildType.name
-			def gitCommitHash = getGitCommitHash()
-			def newName = "${buildType}-${versionNameString}-${gitCommitHash}.apk"
-			outputFileName = newName
+			outputFileName = "${artifactStem(variant.buildType.name)}.apk"
 		}
 	}
 }
@@ -190,5 +184,33 @@ dependencies {
 	androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
 	debugImplementation 'androidx.compose.ui:ui-tooling'
 	debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}
+
+afterEvaluate {
+	android.applicationVariants.all { variant ->
+		def capName = variant.name.substring(0, 1).toUpperCase() + variant.name.substring(1)
+		def bundleTaskName = "bundle${capName}"
+		tasks.matching { it.name == bundleTaskName }.configureEach { bundleTask ->
+			bundleTask.doLast {
+				def destDir = file("${buildDir}/outputs/bundle/${variant.name}")
+				if (!destDir.exists()) {
+					return
+				}
+				def target = new File(destDir, "${artifactStem(variant.buildType.name)}.aab")
+				destDir.listFiles()?.findAll { it.name.endsWith('.aab') }?.each { src ->
+					if (src.canonicalFile == target.canonicalFile) {
+						return
+					}
+					if (target.exists()) {
+						target.delete()
+					}
+					if (!src.renameTo(target)) {
+						target.bytes = src.bytes
+						src.delete()
+					}
+				}
+			}
+		}
+	}
 }
 

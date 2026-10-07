@@ -159,8 +159,7 @@ fun NavGraph(
                     ServerMonitoringScreen(
                         viewModel = viewModel,
                         onBackClick = {
-                            // 从监控界面返回时才断开 SSH session
-                            // 从终端返回时不应该断开（终端只断开 Shell channel�?
+                            // 只从导航态移除 Session 引用，不断开连接池
                             SessionManager.removeSession(sessionKey)
                             navController.popBackStack()
                         },
