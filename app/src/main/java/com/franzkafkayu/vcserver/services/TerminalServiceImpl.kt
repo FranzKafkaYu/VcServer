@@ -28,11 +28,10 @@ class TerminalServiceImpl : TerminalService {
 			}
 
 			val channel = session.openChannel("shell") as ChannelShell
-			// 启用伪终端，尽量模拟原生终端环境
 			channel.setPty(true)
-			channel.setPtyType("xterm-256color") // 支持256色
-			// 设置终端窗口大小（对 top、htop 等程序很重要）
-			channel.setPtySize(cols, rows, 0, 0) // width, height, widthPixels, heightPixels
+			channel.setPtyType("xterm-256color")
+			channel.setEnv("TERM", "xterm-256color")
+			channel.setPtySize(cols, rows, 0, 0)
 			channel.connect()
 			
 			Result.success(channel)

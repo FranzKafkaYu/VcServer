@@ -63,6 +63,16 @@
 	<string name="auto_complete">Complete</string>
 	<string name="previous_command">Previous</string>
 	<string name="next_command">Next</string>
+	<string name="terminal_interrupt">Interrupt</string>
+	<string name="terminal_eof">EOF</string>
+	<string name="terminal_suspend">Suspend</string>
+	<string name="terminal_clear_screen">Clear screen</string>
+	<string name="terminal_tab">Tab</string>
+	<string name="terminal_esc">Esc</string>
+	<string name="cursor_left">Move left</string>
+	<string name="cursor_right">Move right</string>
+	<string name="arrow_up">Up</string>
+	<string name="arrow_down">Down</string>
 	<string name="shell_connecting">Connecting Shell...</string>
 	<string name="shell_connected">Shell Connected</string>
 	<string name="shell_disconnected">Shell Disconnected</string>

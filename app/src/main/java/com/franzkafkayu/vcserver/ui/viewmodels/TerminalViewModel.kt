@@ -13,10 +13,12 @@ import com.franzkafkayu.vcserver.utils.CommandHistory
 import com.franzkafkayu.vcserver.utils.SessionManager
 import com.franzkafkayu.vcserver.utils.TerminalBuffer
 import com.franzkafkayu.vcserver.utils.toAppError
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 终端 ViewModel
@@ -33,7 +35,9 @@ class TerminalViewModel(
 
 	private var shellChannel: ChannelShell? = null
 	private val commandHistory = CommandHistory()
-	private val terminalBuffer = TerminalBuffer(rows = 2000, cols = 200)
+	private val terminalBuffer = TerminalBuffer(rows = 2000, cols = 80)
+	private var ptyCols = 80
+	private var ptyRows = 24
 	private var isReconnecting = false
 	private var isReconnectingSession = false
 
@@ -54,7 +58,7 @@ class TerminalViewModel(
 		viewModelScope.launch {
 			_uiState.value = _uiState.value.copy(isConnecting = true, error = null)
 			// 设置合理的终端大小（可以根据屏幕大小调整）
-			val result = terminalService.connectShell(session, rows = 50, cols = 120)
+			val result = terminalService.connectShell(session, rows = ptyRows, cols = ptyCols)
 			result.fold(
 				onSuccess = { channel ->
 					shellChannel = channel
@@ -119,7 +123,7 @@ class TerminalViewModel(
 				error = null
 			)
 
-			val result = terminalService.connectShell(session, rows = 50, cols = 120)
+			val result = terminalService.connectShell(session, rows = ptyRows, cols = ptyCols)
 			result.fold(
 				onSuccess = { channel ->
 					shellChannel = channel
@@ -144,21 +148,29 @@ class TerminalViewModel(
 		}
 	}
 
+	fun updateTerminalSize(cols: Int, rows: Int) {
+		val c = cols.coerceAtLeast(40)
+		val r = rows.coerceAtLeast(10)
+		if (c == ptyCols && r == ptyRows) return
+		ptyCols = c
+		ptyRows = r
+		terminalBuffer.setCols(c)
+		val channel = shellChannel ?: return
+		viewModelScope.launch {
+			withContext(Dispatchers.IO) {
+				try {
+					channel.setPtySize(c, r, 0, 0)
+				} catch (_: Exception) {
+				}
+			}
+		}
+	}
+
 	/**
 	 * 处理 ANSI 输出
 	 */
 	private fun processAnsiOutput(output: String) {
-		// 检查是否有清屏命令
-		if (output.contains("\u001B[2J") || output.contains("\u001B[H")) {
-			terminalBuffer.clearScreen()
-			// 移除清屏命令后继续处理
-			val cleaned = output.replace(Regex("\u001B\\[2J|\u001B\\[H"), "")
-			if (cleaned.isNotEmpty()) {
-				terminalBuffer.write(cleaned)
-			}
-		} else {
-			terminalBuffer.write(output)
-		}
+		terminalBuffer.write(output)
 	}
 
 	/**
@@ -225,58 +237,26 @@ class TerminalViewModel(
 		}
 	}
 
-	/**
-	 * 发送Ctrl+C（中断信号）
-	 */
-	fun sendInterrupt() {
+	fun sendInterrupt() = sendControlChar(0x03)
+
+	fun sendEOF() = sendControlChar(0x04)
+
+	fun sendSuspend() = sendControlChar(0x1A)
+
+	fun sendClearScreen() = sendControlChar(0x0C)
+
+	fun sendTab() = sendControlChar(0x09)
+
+	fun sendEscape() = sendControlChar(0x1B)
+
+	private fun sendControlChar(code: Int) {
 		val channel = shellChannel ?: return
 		if (!terminalService.isConnected(channel) || !session.isConnected) {
 			return
 		}
-
 		viewModelScope.launch {
 			try {
-				terminalService.sendControlChar(channel, 0x03) // Ctrl+C
-			} catch (e: Exception) {
-				_uiState.value = _uiState.value.copy(
-					error = e.toAppError()
-				)
-			}
-		}
-	}
-
-	/**
-	 * 发送Ctrl+D（EOF 信号）
-	 */
-	fun sendEOF() {
-		val channel = shellChannel ?: return
-		if (!terminalService.isConnected(channel) || !session.isConnected) {
-			return
-		}
-
-		viewModelScope.launch {
-			try {
-				terminalService.sendControlChar(channel, 0x04) // Ctrl+D
-			} catch (e: Exception) {
-				_uiState.value = _uiState.value.copy(
-					error = e.toAppError()
-				)
-			}
-		}
-	}
-
-	/**
-	 * 发送Ctrl+L（清屏）
-	 */
-	fun sendClearScreen() {
-		val channel = shellChannel ?: return
-		if (!terminalService.isConnected(channel) || !session.isConnected) {
-			return
-		}
-
-		viewModelScope.launch {
-			try {
-				terminalService.sendControlChar(channel, 0x0C) // Ctrl+L
+				terminalService.sendControlChar(channel, code)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()

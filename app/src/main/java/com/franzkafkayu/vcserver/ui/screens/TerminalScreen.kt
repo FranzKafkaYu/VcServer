@@ -2,6 +2,7 @@ package com.franzkafkayu.vcserver.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -13,15 +14,21 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowLeft
 import androidx.compose.material.icons.filled.ArrowRight
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardTab
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -30,12 +37,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel
+import com.franzkafkayu.vcserver.utils.AnsiParser
 import com.franzkafkayu.vcserver.utils.CharCell
 
 /**
@@ -157,30 +166,44 @@ fun TerminalScreen(
 				)
 			) {
 				val scrollState = rememberScrollState()
-				LaunchedEffect(uiState.terminalBuffer) {
-					// 自动滚动到底�?
-					scrollState.animateScrollTo(scrollState.maxValue)
+				LaunchedEffect(uiState.output) {
+					withFrameNanos { }
+					scrollState.scrollTo(scrollState.maxValue)
 				}
-				
+
+				BoxWithConstraints(
+					modifier = Modifier
+						.fillMaxSize()
+						.padding(8.dp)
+				) {
+					val density = LocalDensity.current
+					val cols = with(density) {
+						((maxWidth.toPx()) / (12.sp.toPx() * 0.6f)).toInt().coerceAtLeast(40)
+					}
+					val rows = with(density) {
+						((maxHeight.toPx()) / (12.sp.toPx() * 1.2f)).toInt().coerceAtLeast(10)
+					}
+					LaunchedEffect(cols, rows) {
+						viewModel.updateTerminalSize(cols, rows)
+					}
 				Column(
 					modifier = Modifier
 						.fillMaxSize()
 						.verticalScroll(scrollState)
-						.padding(8.dp)
 				) {
 					if (uiState.terminalBuffer != null) {
-						// 使用终端缓冲区渲染格式化文本
 						TerminalTextContent(uiState.terminalBuffer)
 					} else {
-						// 回退到纯文本显示
 						Text(
 							text = uiState.output,
-							color = Color(0xFF00FF00),
+							color = AnsiParser.DefaultForeground,
 							fontFamily = FontFamily.Monospace,
 							fontSize = 12.sp,
+							softWrap = false,
 							modifier = Modifier.fillMaxWidth()
 						)
 					}
+				}
 				}
 			}
 
@@ -192,12 +215,13 @@ fun TerminalScreen(
 				Column(
 					modifier = Modifier.padding(8.dp)
 				) {
-					// 控制按钮�?
 					Row(
-						modifier = Modifier.fillMaxWidth(),
-						horizontalArrangement = Arrangement.spacedBy(4.dp)
+						modifier = Modifier
+							.fillMaxWidth()
+							.horizontalScroll(rememberScrollState()),
+						horizontalArrangement = Arrangement.spacedBy(4.dp),
+						verticalAlignment = Alignment.CenterVertically
 					) {
-						// Ctrl+C 中断按钮
 						IconButton(
 							onClick = { viewModel.sendInterrupt() },
 							enabled = uiState.isConnected,
@@ -206,21 +230,65 @@ fun TerminalScreen(
 							)
 						) {
 							Icon(
-								Icons.Default.Stop,
-								contentDescription = "Ctrl+C (中断)",
+								Icons.Default.Close,
+								contentDescription = stringResource(R.string.terminal_interrupt),
 								tint = MaterialTheme.colorScheme.onErrorContainer
 							)
 						}
-						
-						// 历史命令导航按钮（仅在命令模式下启用�?
+						IconButton(
+							onClick = { viewModel.sendSuspend() },
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.Pause,
+								contentDescription = stringResource(R.string.terminal_suspend)
+							)
+						}
+						IconButton(
+							onClick = { viewModel.sendEOF() },
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.Logout,
+								contentDescription = stringResource(R.string.terminal_eof)
+							)
+						}
+						IconButton(
+							onClick = { viewModel.sendClearScreen() },
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.CleaningServices,
+								contentDescription = stringResource(R.string.terminal_clear_screen)
+							)
+						}
+						IconButton(
+							onClick = { viewModel.sendTab() },
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.KeyboardTab,
+								contentDescription = stringResource(R.string.terminal_tab)
+							)
+						}
+						TextButton(
+							onClick = { viewModel.sendEscape() },
+							enabled = uiState.isConnected
+						) {
+							Text(stringResource(R.string.terminal_esc))
+						}
 						IconButton(
 							onClick = {
-								val prevCommand = viewModel.getPreviousCommand()
-								if (prevCommand != null) {
-									commandInput = prevCommand
+								if (realtimeInputMode) {
+									viewModel.sendAnsiSequence("\u001B[A")
+								} else {
+									val prevCommand = viewModel.getPreviousCommand()
+									if (prevCommand != null) {
+										commandInput = prevCommand
+									}
 								}
 							},
-							enabled = uiState.isConnected && !realtimeInputMode
+							enabled = uiState.isConnected
 						) {
 							Icon(
 								Icons.Default.ArrowUpward,
@@ -229,71 +297,39 @@ fun TerminalScreen(
 						}
 						IconButton(
 							onClick = {
-								val nextCommand = viewModel.getNextCommand()
-								commandInput = nextCommand
+								if (realtimeInputMode) {
+									viewModel.sendAnsiSequence("\u001B[B")
+								} else {
+									commandInput = viewModel.getNextCommand()
+								}
 							},
-							enabled = uiState.isConnected && !realtimeInputMode
+							enabled = uiState.isConnected
 						) {
 							Icon(
 								Icons.Default.ArrowDownward,
 								contentDescription = stringResource(R.string.next_command)
 							)
 						}
-						
-						// 光标移动按钮（实时输入模式下发�?ANSI 转义序列到服务器�?
 						if (realtimeInputMode) {
 							IconButton(
-								onClick = {
-									// 发送左箭头键（ANSI 转义序列�?
-									viewModel.sendAnsiSequence("\u001B[D")
-								},
+								onClick = { viewModel.sendAnsiSequence("\u001B[D") },
 								enabled = uiState.isConnected
 							) {
 								Icon(
 									Icons.Default.ArrowLeft,
-									contentDescription = "光标左移"
+									contentDescription = stringResource(R.string.cursor_left)
 								)
 							}
 							IconButton(
-								onClick = {
-									// 发送右箭头键（ANSI 转义序列�?
-									viewModel.sendAnsiSequence("\u001B[C")
-								},
+								onClick = { viewModel.sendAnsiSequence("\u001B[C") },
 								enabled = uiState.isConnected
 							) {
 								Icon(
 									Icons.Default.ArrowRight,
-									contentDescription = "光标右移"
-								)
-							}
-							IconButton(
-								onClick = {
-									// 发送上箭头"\u001B[A")
-								},
-								enabled = uiState.isConnected
-							) {
-								Icon(
-									Icons.Default.ArrowUpward,
-									contentDescription = "上箭头"
-								)
-							}
-							IconButton(
-								onClick = {
-									// 发送下箭头键（ANSI 转义序列，用于命令历史）
-									viewModel.sendAnsiSequence("\u001B[B")
-								},
-								enabled = uiState.isConnected
-							) {
-								Icon(
-									Icons.Default.ArrowDownward,
-									contentDescription = "下箭头"
+									contentDescription = stringResource(R.string.cursor_right)
 								)
 							}
 						}
-						
-						Spacer(modifier = Modifier.weight(1f))
-						
-						// 自动补全按钮（仅在命令模式下启用）
 						TextButton(
 							onClick = {
 								val completed = viewModel.triggerAutoComplete(commandInput)
@@ -442,7 +478,7 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 								
 								// 开始新样式
 								val style = SpanStyle(
-									color = currentFg ?: Color(0xFF00FF00),
+									color = currentFg ?: AnsiParser.DefaultForeground,
 									background = currentBg ?: Color.Unspecified,
 									fontWeight = if (currentBold) FontWeight.Bold else FontWeight.Normal
 								)
@@ -450,9 +486,8 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 									append(cell.char.toString())
 								}
 							} else {
-								// 继续使用当前样式
 								val style = SpanStyle(
-									color = currentFg ?: Color(0xFF00FF00),
+									color = currentFg ?: AnsiParser.DefaultForeground,
 									background = currentBg ?: Color.Unspecified,
 									fontWeight = if (currentBold) FontWeight.Bold else FontWeight.Normal
 								)
@@ -464,6 +499,8 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 					},
 					fontFamily = FontFamily.Monospace,
 					fontSize = 12.sp,
+					softWrap = false,
+					overflow = TextOverflow.Visible,
 					modifier = Modifier.fillMaxWidth()
 				)
 			}

@@ -7,8 +7,8 @@ import androidx.compose.ui.graphics.Color
  * 维护一个二维字符网格，支持 ANSI 转义序列操作
  */
 class TerminalBuffer(
-	private val rows: Int = 1000, // 最大行数
-	private val cols: Int = 120   // 每行最大列数
+	private val rows: Int = 1000,
+	private var cols: Int = 80
 ) {
 	private val buffer = mutableListOf<MutableList<CharCell>>()
 	private var cursorRow = 0
@@ -16,6 +16,10 @@ class TerminalBuffer(
 	private var currentFgColor: Color? = null
 	private var currentBgColor: Color? = null
 	private var isBold = false
+	private var savedBuffer: List<MutableList<CharCell>>? = null
+	private var savedCursorRow = 0
+	private var savedCursorCol = 0
+	private var inAlternateScreen = false
 
 	init {
 		// 初始化缓冲区
@@ -28,14 +32,22 @@ class TerminalBuffer(
 	 * 写入文本（处理 ANSI 转义序列）
 	 */
 	fun write(text: String) {
-		var i = 0
+		if (text.contains("\u001B[?1049h") || text.contains("\u001B[?47h")) {
+			enterAlternateScreen()
+		}
+		if (text.contains("\u001B[?1049l") || text.contains("\u001B[?47l")) {
+			exitAlternateScreen()
+		}
+		if (text.contains("\u001B[2J")) {
+			clearScreen()
+		}
 		val segments = AnsiParser.parseAnsi(text)
 
 		for (segment in segments) {
 			// 更新当前格式
 			segment.color?.let { currentFgColor = it }
 			segment.backgroundColor?.let { currentBgColor = it }
-			if (segment.isBold) isBold = true
+			isBold = segment.isBold
 
 			// 写入文本
 			for (char in segment.text) {
@@ -61,26 +73,71 @@ class TerminalBuffer(
 	/**
 	 * 写入单个字符
 	 */
+	fun setCols(newCols: Int) {
+		cols = newCols.coerceAtLeast(40)
+	}
+
+	fun cols(): Int = cols
+
 	private fun writeChar(char: Char) {
+		if (char == '\u0007' || char.code < 32) {
+			return
+		}
+		if (cursorCol >= cols) {
+			wrapPreferWhitespace()
+		}
 		ensureRow(cursorRow)
 		val row = buffer[cursorRow]
-
-		// 确保列足够
 		while (row.size <= cursorCol) {
 			row.add(CharCell(' ', null, null, false))
 		}
-
-		// 写入字符
-		if (cursorCol < row.size) {
-			row[cursorCol] = CharCell(char, currentFgColor, currentBgColor, isBold)
-		} else {
-			row.add(CharCell(char, currentFgColor, currentBgColor, isBold))
-		}
-
+		row[cursorCol] = CharCell(char, currentFgColor, currentBgColor, isBold)
 		cursorCol++
+		if (cursorCol >= cols) {
+			wrapPreferWhitespace()
+		}
+	}
+
+	private fun wrapPreferWhitespace() {
+		ensureRow(cursorRow)
+		val row = buffer[cursorRow]
+		if (row.isEmpty()) {
+			newLine()
+			return
+		}
+		var split = -1
+		val start = (row.size - cols).coerceAtLeast(0)
+		for (i in row.lastIndex downTo start) {
+			if (row[i].char == ' ' || row[i].char == '\t') {
+				split = i
+				break
+			}
+		}
+		if (split in 1 until row.lastIndex) {
+			val rest = row.subList(split + 1, row.size).toList()
+			while (row.size > split) {
+				row.removeAt(row.lastIndex)
+			}
+			newLine()
+			for (cell in rest) {
+				placeCell(cell)
+			}
+		} else {
+			newLine()
+		}
+	}
+
+	private fun placeCell(cell: CharCell) {
 		if (cursorCol >= cols) {
 			newLine()
 		}
+		ensureRow(cursorRow)
+		val row = buffer[cursorRow]
+		while (row.size <= cursorCol) {
+			row.add(CharCell(' ', null, null, false))
+		}
+		row[cursorCol] = cell
+		cursorCol++
 	}
 
 	/**
@@ -110,6 +167,28 @@ class TerminalBuffer(
 	/**
 	 * 处理 ANSI 清屏命令
 	 */
+	private fun enterAlternateScreen() {
+		if (inAlternateScreen) return
+		savedBuffer = buffer.map { it.toMutableList() }
+		savedCursorRow = cursorRow
+		savedCursorCol = cursorCol
+		inAlternateScreen = true
+		clearScreen()
+	}
+
+	private fun exitAlternateScreen() {
+		if (!inAlternateScreen) return
+		val snapshot = savedBuffer
+		if (snapshot != null) {
+			buffer.clear()
+			buffer.addAll(snapshot.map { it.toMutableList() })
+			cursorRow = savedCursorRow
+			cursorCol = savedCursorCol
+		}
+		savedBuffer = null
+		inAlternateScreen = false
+	}
+
 	fun clearScreen() {
 		buffer.clear()
 		for (i in 0 until rows) {

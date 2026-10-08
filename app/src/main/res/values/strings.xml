@@ -63,6 +63,16 @@
 	<string name="auto_complete">补全</string>
 	<string name="previous_command">上一条</string>
 	<string name="next_command">下一条</string>
+	<string name="terminal_interrupt">中断</string>
+	<string name="terminal_eof">结束输入</string>
+	<string name="terminal_suspend">挂起</string>
+	<string name="terminal_clear_screen">清屏</string>
+	<string name="terminal_tab">Tab</string>
+	<string name="terminal_esc">Esc</string>
+	<string name="cursor_left">光标左移</string>
+	<string name="cursor_right">光标右移</string>
+	<string name="arrow_up">上箭头</string>
+	<string name="arrow_down">下箭头</string>
 	<string name="shell_connecting">正在连接Shell...</string>
 	<string name="shell_connected">Shell已连接</string>
 	<string name="shell_disconnected">Shell连接已断开</string>
