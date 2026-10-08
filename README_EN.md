@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="media/ic_launcher.webp" width="96" />
-</p>  
+  <img src="media/ic_launcher.webp" width="128" alt="VcServer" />
+</p>
 
-# VcServer
+<h1 align="center">VcServer</h1>
+
+<p align="center"><strong>SSH in your pocket.</strong></p>
 
 A powerful Android SSH server management application that supports connecting to remote servers via SSH for management.
 

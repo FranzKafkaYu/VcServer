@@ -2,6 +2,7 @@ package com.franzkafkayu.vcserver.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,8 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -70,11 +74,23 @@ fun AboutScreen(
 			horizontalAlignment = Alignment.CenterHorizontally,
 			verticalArrangement = Arrangement.spacedBy(24.dp)
 		) {
-			// 应用图标和名称
+			Image(
+				painter = painterResource(id = R.drawable.ic_brand_logo),
+				contentDescription = stringResource(R.string.about_app_name),
+				modifier = Modifier
+					.size(96.dp)
+					.clip(RoundedCornerShape(20.dp)),
+				contentScale = ContentScale.Crop
+			)
 			Text(
 				text = stringResource(R.string.about_app_name),
 				style = MaterialTheme.typography.headlineLarge,
 				fontWeight = FontWeight.Bold
+			)
+			Text(
+				text = stringResource(R.string.app_slogan),
+				style = MaterialTheme.typography.bodyLarge,
+				color = MaterialTheme.colorScheme.onSurfaceVariant
 			)
 
 			// 版本信息

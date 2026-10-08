@@ -1,10 +1,13 @@
 <p align="center">
-  <img src="media/ic_launcher.webp" width="96" />
-</p>      
+  <img src="media/ic_launcher.webp" width="128" alt="VcServer" />
+</p>
 
-# VcServer
+<h1 align="center">VcServer</h1>
 
-简体中文|[ENGLISH](./README_EN.md)      
+<p align="center"><strong>掌上 SSH，尽在掌握</strong></p>
+
+<p align="center">简体中文 | <a href="./README_EN.md">ENGLISH</a></p>
+
 一个功能强大的 Android SSH 服务器管理应用，支持通过 SSH 连接到远程服务器并进行管理。
 
 ## 📱 应用简介

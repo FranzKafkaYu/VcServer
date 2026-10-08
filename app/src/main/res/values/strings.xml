@@ -161,6 +161,7 @@
 	<!-- 关于界面 -->
 	<string name="about_title">关于</string>
 	<string name="about_app_name">VcServer</string>
+	<string name="app_slogan">掌上 SSH，远端尽在掌握</string>
 	<string name="about_version_name">版本号</string>
 	<string name="about_version_code">版本代码</string>
 	<string name="about_commit">Commit</string>
