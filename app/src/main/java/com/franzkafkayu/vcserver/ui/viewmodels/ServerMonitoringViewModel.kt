@@ -8,7 +8,9 @@ import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerStatus
 import com.franzkafkayu.vcserver.services.ServerMonitoringService
+import com.franzkafkayu.vcserver.services.SftpDirectoryListing
 import com.franzkafkayu.vcserver.services.SftpFileTransferService
+import com.franzkafkayu.vcserver.services.SftpRemoteEntry
 import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.utils.toAppError
 import kotlinx.coroutines.Job
@@ -228,8 +230,10 @@ class ServerMonitoringViewModel(
 						isFileTransferring = false,
 						fileTransferProgress = 1f,
 						fileTransferSuccess = true
-						// 保持 fileTransferType，以便显示正确的成功消息
 					)
+					if (_uiState.value.sftpBrowserVisible) {
+						loadSftpDirectory(_uiState.value.sftpCurrentPath)
+					}
 				},
 				onFailure = { exception ->
 					val errorMessage = exception.message ?: "Unknown error"
@@ -335,6 +339,262 @@ class ServerMonitoringViewModel(
 		_uiState.value = _uiState.value.copy(fileTransferError = null)
 	}
 
+	fun openSftpBrowser() {
+		_uiState.value = _uiState.value.copy(
+			sftpBrowserVisible = true,
+			sftpBrowseError = null
+		)
+		loadSftpDirectory(null)
+	}
+
+	fun closeSftpBrowser() {
+		_uiState.value = _uiState.value.copy(
+			sftpBrowserVisible = false,
+			sftpEditorVisible = false,
+			sftpShowDiscardConfirm = false,
+			sftpBrowseError = null,
+			sftpEditorError = null
+		)
+	}
+
+	fun loadSftpDirectory(path: String?) {
+		viewModelScope.launch {
+			if (sftpFileTransferService == null) {
+				_uiState.value = _uiState.value.copy(sftpBrowseError = "SFTP_SERVICE_NOT_AVAILABLE")
+				return@launch
+			}
+			_uiState.value = _uiState.value.copy(sftpListing = true, sftpBrowseError = null)
+			sftpFileTransferService.listDirectory(session, path).fold(
+				onSuccess = { listing: SftpDirectoryListing ->
+					_uiState.value = _uiState.value.copy(
+						sftpListing = false,
+						sftpCurrentPath = listing.path,
+						sftpEntries = listing.entries,
+						sftpBrowseError = null
+					)
+				},
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(
+						sftpListing = false,
+						sftpBrowseError = sftpErrorKey(exception)
+					)
+				}
+			)
+		}
+	}
+
+	fun navigateSftpUp() {
+		val current = _uiState.value.sftpCurrentPath
+		if (current.isEmpty() || current == "/") return
+		loadSftpDirectory(parentRemotePath(current))
+	}
+
+	fun openSftpEntry(entry: SftpRemoteEntry) {
+		val full = joinRemotePath(_uiState.value.sftpCurrentPath, entry.name)
+		if (entry.isDirectory) {
+			loadSftpDirectory(full)
+			return
+		}
+		viewModelScope.launch {
+			if (sftpFileTransferService == null) {
+				_uiState.value = _uiState.value.copy(sftpBrowseError = "SFTP_SERVICE_NOT_AVAILABLE")
+				return@launch
+			}
+			_uiState.value = _uiState.value.copy(
+				sftpEditorLoading = true,
+				sftpEditorError = null,
+				sftpBrowseError = null
+			)
+			sftpFileTransferService.readTextFile(session, full).fold(
+				onSuccess = { text ->
+					_uiState.value = _uiState.value.copy(
+						sftpEditorLoading = false,
+						sftpEditorVisible = true,
+						sftpEditorPath = full,
+						sftpEditorContent = text,
+						sftpEditorBaseline = text,
+						sftpEditorError = null
+					)
+				},
+				onFailure = { exception ->
+					val key = sftpErrorKey(exception)
+					_uiState.value = _uiState.value.copy(
+						sftpEditorLoading = false,
+						sftpEditorVisible = false,
+						fileTransferError = key,
+						sftpBrowseError = if (key.startsWith("FILE_TOO_LARGE") || key.startsWith("FILE_BINARY")) {
+							key
+						} else {
+							key
+						}
+					)
+				}
+			)
+		}
+	}
+
+	fun updateSftpEditorContent(content: String) {
+		_uiState.value = _uiState.value.copy(sftpEditorContent = content)
+	}
+
+	fun saveSftpEditor() {
+		viewModelScope.launch {
+			if (sftpFileTransferService == null) {
+				_uiState.value = _uiState.value.copy(sftpEditorError = "SFTP_SERVICE_NOT_AVAILABLE")
+				return@launch
+			}
+			val path = _uiState.value.sftpEditorPath
+			val content = _uiState.value.sftpEditorContent
+			_uiState.value = _uiState.value.copy(sftpEditorSaving = true, sftpEditorError = null)
+			sftpFileTransferService.writeTextFile(session, path, content).fold(
+				onSuccess = {
+					_uiState.value = _uiState.value.copy(
+						sftpEditorSaving = false,
+						sftpEditorBaseline = content,
+						sftpEditorError = null,
+						fileTransferSuccess = true,
+						fileTransferType = "save"
+					)
+					loadSftpDirectory(_uiState.value.sftpCurrentPath)
+				},
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(
+						sftpEditorSaving = false,
+						sftpEditorError = sftpErrorKey(exception)
+					)
+				}
+			)
+		}
+	}
+
+	fun requestCloseSftpEditor() {
+		val state = _uiState.value
+		if (state.sftpEditorContent != state.sftpEditorBaseline) {
+			_uiState.value = state.copy(sftpShowDiscardConfirm = true)
+		} else {
+			closeSftpEditor()
+		}
+	}
+
+	fun createSftpDirectory(name: String) {
+		mutateSftpPath(name) { service, full ->
+			service.createDirectory(session, full)
+		}
+	}
+
+	fun createSftpFile(name: String) {
+		viewModelScope.launch {
+			val service = sftpFileTransferService ?: run {
+				_uiState.value = _uiState.value.copy(sftpBrowseError = "SFTP_SERVICE_NOT_AVAILABLE")
+				return@launch
+			}
+			val leaf = name.trim()
+			val full = joinRemotePath(_uiState.value.sftpCurrentPath, leaf)
+			service.createFile(session, full).fold(
+				onSuccess = {
+					loadSftpDirectory(_uiState.value.sftpCurrentPath)
+					openSftpEntry(SftpRemoteEntry(name = leaf, isDirectory = false, size = 0))
+				},
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(sftpBrowseError = sftpErrorKey(exception))
+				}
+			)
+		}
+	}
+
+	fun deleteSftpEntry(entry: SftpRemoteEntry) {
+		mutateSftpPath(entry.name) { service, full ->
+			service.deletePath(session, full, entry.isDirectory)
+		}
+	}
+
+	fun renameSftpEntry(entry: SftpRemoteEntry, newName: String) {
+		viewModelScope.launch {
+			val service = sftpFileTransferService ?: run {
+				_uiState.value = _uiState.value.copy(sftpBrowseError = "SFTP_SERVICE_NOT_AVAILABLE")
+				return@launch
+			}
+			val from = joinRemotePath(_uiState.value.sftpCurrentPath, entry.name)
+			service.renamePath(session, from, newName.trim()).fold(
+				onSuccess = { loadSftpDirectory(_uiState.value.sftpCurrentPath) },
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(sftpBrowseError = sftpErrorKey(exception))
+				}
+			)
+		}
+	}
+
+	private fun mutateSftpPath(
+		name: String,
+		action: suspend (SftpFileTransferService, String) -> Result<Unit>
+	) {
+		viewModelScope.launch {
+			val service = sftpFileTransferService ?: run {
+				_uiState.value = _uiState.value.copy(sftpBrowseError = "SFTP_SERVICE_NOT_AVAILABLE")
+				return@launch
+			}
+			val full = joinRemotePath(_uiState.value.sftpCurrentPath, name.trim())
+			action(service, full).fold(
+				onSuccess = {
+					loadSftpDirectory(_uiState.value.sftpCurrentPath)
+				},
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(sftpBrowseError = sftpErrorKey(exception))
+				}
+			)
+		}
+	}
+
+	fun dismissDiscardConfirm() {
+		_uiState.value = _uiState.value.copy(sftpShowDiscardConfirm = false)
+	}
+
+	fun confirmDiscardSftpEditor() {
+		_uiState.value = _uiState.value.copy(sftpShowDiscardConfirm = false)
+		closeSftpEditor()
+	}
+
+	private fun closeSftpEditor() {
+		_uiState.value = _uiState.value.copy(
+			sftpEditorVisible = false,
+			sftpEditorPath = "",
+			sftpEditorContent = "",
+			sftpEditorBaseline = "",
+			sftpEditorError = null,
+			sftpEditorLoading = false,
+			sftpEditorSaving = false
+		)
+	}
+
+	private fun sftpErrorKey(exception: Throwable): String {
+		val errorMessage = exception.message ?: "Unknown error"
+		val key = when {
+			errorMessage.startsWith("SESSION_NOT_CONNECTED") -> "SESSION_NOT_CONNECTED"
+			errorMessage.startsWith("UNABLE_TO_CREATE_SFTP_CHANNEL") -> "UNABLE_TO_CREATE_SFTP_CHANNEL"
+			errorMessage.startsWith("PERMISSION_DENIED") -> "PERMISSION_DENIED"
+			errorMessage.startsWith("FILE_NOT_EXISTS") -> "FILE_NOT_EXISTS"
+			errorMessage.startsWith("PARENT_DIR_NOT_EXISTS") -> "PARENT_DIR_NOT_EXISTS"
+			errorMessage.startsWith("FILE_TOO_LARGE") -> "FILE_TOO_LARGE"
+			errorMessage.startsWith("FILE_BINARY") -> "FILE_BINARY"
+			errorMessage.startsWith("NAME_EXISTS") -> "NAME_EXISTS"
+			errorMessage.startsWith("NAME_INVALID") -> "NAME_INVALID"
+			errorMessage.startsWith("SFTP_SERVICE_NOT_AVAILABLE") -> "SFTP_SERVICE_NOT_AVAILABLE"
+			else -> "SFTP_ERROR"
+		}
+		return "$key:$errorMessage"
+	}
+
+	private fun joinRemotePath(dir: String, name: String): String {
+		val base = dir.trimEnd('/')
+		return if (base.isEmpty() || base == "/") "/$name" else "$base/$name"
+	}
+
+	private fun parentRemotePath(path: String): String {
+		val trimmed = path.trimEnd('/')
+		val idx = trimmed.lastIndexOf('/')
+		return if (idx <= 0) "/" else trimmed.substring(0, idx)
+	}
+
 	override fun onCleared() {
 		super.onCleared()
 		// 仅停止刷新；返回列表不断开连接池，供再次进入时复用 Session
@@ -356,6 +616,19 @@ data class ServerMonitoringUiState(
 	val fileTransferTotal: Long = 0L,
 	val fileTransferSuccess: Boolean = false,
 	val fileTransferError: String? = null,
-	val fileTransferType: String? = null // "upload" 或 "download"
+	val fileTransferType: String? = null, // "upload" 或 "download"
+	val sftpBrowserVisible: Boolean = false,
+	val sftpCurrentPath: String = "",
+	val sftpEntries: List<SftpRemoteEntry> = emptyList(),
+	val sftpListing: Boolean = false,
+	val sftpBrowseError: String? = null,
+	val sftpEditorVisible: Boolean = false,
+	val sftpEditorPath: String = "",
+	val sftpEditorContent: String = "",
+	val sftpEditorBaseline: String = "",
+	val sftpEditorLoading: Boolean = false,
+	val sftpEditorSaving: Boolean = false,
+	val sftpEditorError: String? = null,
+	val sftpShowDiscardConfirm: Boolean = false
 )
 

@@ -197,6 +197,26 @@
 	<string name="error_sftp_upload_failed">Upload failed: %1$s</string>
 	<string name="error_sftp_download_failed">Download failed: %1$s</string>
 	<string name="error_sftp_service_not_available">SFTP service not available</string>
+	<string name="sftp_parent_dir">Parent directory</string>
+	<string name="sftp_save">Save</string>
+	<string name="sftp_retry">Retry</string>
+	<string name="sftp_discard_title">Discard changes?</string>
+	<string name="sftp_discard_message">Unsaved edits will be lost and will not be written to the remote file.</string>
+	<string name="sftp_discard_confirm">Discard</string>
+	<string name="error_sftp_file_too_large">File is larger than 1 MB. Download it instead.</string>
+	<string name="error_sftp_file_binary">This file is not text. Download it instead.</string>
+	<string name="error_sftp_generic">SFTP operation failed</string>
+	<string name="sftp_new_file">New file</string>
+	<string name="sftp_new_folder">New folder</string>
+	<string name="sftp_delete">Delete</string>
+	<string name="sftp_rename">Rename</string>
+	<string name="sftp_more">More actions</string>
+	<string name="sftp_name_hint">Name</string>
+	<string name="sftp_delete_title">Delete?</string>
+	<string name="sftp_delete_file_message">Permanently delete file: %1$s</string>
+	<string name="sftp_delete_folder_message">Permanently delete folder and all contents: %1$s</string>
+	<string name="error_sftp_name_exists">That name already exists</string>
+	<string name="error_sftp_name_invalid">Invalid name (not empty, no /, not . or ..)</string>
 	<!-- Server Groups -->
 	<string name="server_groups">Server Groups</string>
 	<string name="manage_groups">Manage Groups</string>

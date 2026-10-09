@@ -10,8 +10,23 @@ import com.jcraft.jsch.SftpException
 import com.jcraft.jsch.SftpProgressMonitor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+
+data class SftpRemoteEntry(
+	val name: String,
+	val isDirectory: Boolean,
+	val size: Long
+)
+
+data class SftpDirectoryListing(
+	val path: String,
+	val entries: List<SftpRemoteEntry>
+)
+
+private const val SFTP_TEXT_MAX_BYTES = 1024 * 1024L
 
 /**
  * SFTP 文件传输服务接口
@@ -58,6 +73,30 @@ interface SftpFileTransferService {
 		localUri: Uri,
 		progressCallback: FileTransferProgressCallback? = null
 	): Result<Unit>
+
+	suspend fun listDirectory(
+		session: Session,
+		path: String? = null
+	): Result<SftpDirectoryListing>
+
+	suspend fun readTextFile(
+		session: Session,
+		remotePath: String
+	): Result<String>
+
+	suspend fun writeTextFile(
+		session: Session,
+		remotePath: String,
+		content: String
+	): Result<Unit>
+
+	suspend fun createDirectory(session: Session, remotePath: String): Result<Unit>
+
+	suspend fun createFile(session: Session, remotePath: String): Result<Unit>
+
+	suspend fun deletePath(session: Session, remotePath: String, isDirectory: Boolean): Result<Unit>
+
+	suspend fun renamePath(session: Session, fromPath: String, newName: String): Result<Unit>
 }
 
 /**
@@ -369,6 +408,213 @@ class SftpFileTransferServiceImpl(
 			Log.e(tag, "下载文件错误: ${e.javaClass.simpleName}, message=${e.message}", e)
 			Result.failure(Exception("DOWNLOAD_ERROR: ${e.javaClass.simpleName} - ${e.message}"))
 		}
+	}
+
+	override suspend fun listDirectory(
+		session: Session,
+		path: String?
+	): Result<SftpDirectoryListing> {
+		return withSftp(session) { channel ->
+			val requested = path?.trim().orEmpty()
+			val listing = if (requested.isEmpty()) {
+				try {
+					listingOf(channel, channel.pwd())
+				} catch (e: Exception) {
+					Log.w(tag, "列出家目录失败，回退 /: ${e.message}")
+					listingOf(channel, "/")
+				}
+			} else {
+				listingOf(channel, requested)
+			}
+			Log.d(tag, "列出目录 ${listing.path} 共 ${listing.entries.size} 项")
+			listing
+		}
+	}
+
+	override suspend fun readTextFile(
+		session: Session,
+		remotePath: String
+	): Result<String> {
+		return withSftp(session) { channel ->
+			val stat = channel.stat(remotePath)
+			val size = stat.size.toLong()
+			if (size > SFTP_TEXT_MAX_BYTES) {
+				throw Exception("FILE_TOO_LARGE: $size")
+			}
+			val buffer = ByteArrayOutputStream()
+			channel.get(remotePath, buffer)
+			val bytes = buffer.toByteArray()
+			if (bytes.any { it == 0.toByte() }) {
+				throw Exception("FILE_BINARY: contains NUL")
+			}
+			String(bytes, Charsets.UTF_8)
+		}
+	}
+
+	override suspend fun writeTextFile(
+		session: Session,
+		remotePath: String,
+		content: String
+	): Result<Unit> {
+		return withSftp(session) { channel ->
+			val bytes = content.toByteArray(Charsets.UTF_8)
+			ByteArrayInputStream(bytes).use { input ->
+				channel.put(input, remotePath)
+			}
+			Unit
+		}
+	}
+
+	override suspend fun createDirectory(session: Session, remotePath: String): Result<Unit> {
+		return withSftp(session) { channel ->
+			ensureCreatable(channel, remotePath)
+			channel.mkdir(remotePath)
+		}
+	}
+
+	override suspend fun createFile(session: Session, remotePath: String): Result<Unit> {
+		return withSftp(session) { channel ->
+			ensureCreatable(channel, remotePath)
+			ByteArrayInputStream(ByteArray(0)).use { input ->
+				channel.put(input, remotePath)
+			}
+			Unit
+		}
+	}
+
+	override suspend fun renamePath(
+		session: Session,
+		fromPath: String,
+		newName: String
+	): Result<Unit> {
+		return withSftp(session) { channel ->
+			val from = fromPath.trim()
+			if (from.isEmpty() || from == "/") {
+				throw Exception("NAME_INVALID: cannot rename root")
+			}
+			val leaf = newName.trim()
+			validateLeafName(leaf)
+			val slash = from.lastIndexOf('/')
+			val dest = when {
+				slash < 0 -> leaf
+				slash == 0 -> "/$leaf"
+				else -> from.substring(0, slash + 1) + leaf
+			}
+			if (from == dest) return@withSftp Unit
+			ensureCreatable(channel, dest)
+			channel.rename(from, dest)
+		}
+	}
+
+	override suspend fun deletePath(
+		session: Session,
+		remotePath: String,
+		isDirectory: Boolean
+	): Result<Unit> {
+		return withSftp(session) { channel ->
+			val path = remotePath.trim()
+			if (path.isEmpty() || path == "/") {
+				throw Exception("NAME_INVALID: cannot delete root")
+			}
+			deleteRecursive(channel, path, isDirectory)
+		}
+	}
+
+	private fun ensureCreatable(channel: ChannelSftp, remotePath: String) {
+		validateLeafName(remotePath.substringAfterLast('/'))
+		try {
+			channel.stat(remotePath)
+			throw Exception("NAME_EXISTS: $remotePath")
+		} catch (e: SftpException) {
+			if (e.id != ChannelSftp.SSH_FX_NO_SUCH_FILE) throw e
+		}
+	}
+
+	private fun validateLeafName(name: String) {
+		val n = name.trim()
+		if (n.isEmpty() || n == "." || n == ".." || n.contains('/') || n.contains('\\')) {
+			throw Exception("NAME_INVALID: $name")
+		}
+	}
+
+	@Suppress("UNCHECKED_CAST")
+	private fun deleteRecursive(channel: ChannelSftp, path: String, isDirectory: Boolean) {
+		if (isDirectory) {
+			val vector = channel.ls(path)
+			vector.forEach { raw ->
+				val entry = raw as ChannelSftp.LsEntry
+				val name = entry.filename
+				if (name == "." || name == "..") return@forEach
+				val child = if (path == "/") "/$name" else "$path/$name"
+				deleteRecursive(channel, child, entry.attrs.isDir)
+			}
+			channel.rmdir(path)
+		} else {
+			channel.rm(path)
+		}
+	}
+
+	private suspend fun <T> withSftp(
+		session: Session,
+		block: (ChannelSftp) -> T
+	): Result<T> = withContext(Dispatchers.IO) {
+		if (!session.isConnected) {
+			return@withContext Result.failure(Exception("SESSION_NOT_CONNECTED: SSH session is not connected"))
+		}
+		val channel = try {
+			session.openChannel("sftp") as? ChannelSftp
+		} catch (e: Exception) {
+			return@withContext Result.failure(Exception("UNABLE_TO_CREATE_SFTP_CHANNEL: ${e.message}"))
+		} ?: return@withContext Result.failure(Exception("UNABLE_TO_CREATE_SFTP_CHANNEL: Channel is null"))
+		try {
+			channel.connect()
+			Result.success(block(channel))
+		} catch (e: SftpException) {
+			Log.e(tag, "SFTP 错误: id=${e.id}, message=${e.message}", e)
+			Result.failure(
+				Exception(
+					when (e.id) {
+						ChannelSftp.SSH_FX_PERMISSION_DENIED -> "PERMISSION_DENIED: ${e.message}"
+						ChannelSftp.SSH_FX_NO_SUCH_FILE -> "FILE_NOT_EXISTS: ${e.message}"
+						else -> "SFTP_ERROR_${e.id}: ${e.message}"
+					}
+				)
+			)
+		} catch (e: Exception) {
+			val message = e.message ?: e.javaClass.simpleName
+			if (message.startsWith("FILE_TOO_LARGE") ||
+				message.startsWith("FILE_BINARY") ||
+				message.startsWith("SESSION_NOT_CONNECTED") ||
+				message.startsWith("NAME_EXISTS") ||
+				message.startsWith("NAME_INVALID")
+			) {
+				Result.failure(e)
+			} else {
+				Result.failure(Exception("SFTP_ERROR: $message"))
+			}
+		} finally {
+			try {
+				channel.disconnect()
+			} catch (_: Exception) {
+			}
+		}
+	}
+
+	@Suppress("UNCHECKED_CAST")
+	private fun listingOf(channel: ChannelSftp, path: String): SftpDirectoryListing {
+		val vector = channel.ls(path)
+		val entries = vector.mapNotNull { raw ->
+			val entry = raw as ChannelSftp.LsEntry
+			val name = entry.filename
+			if (name == "." || name == "..") null
+			else SftpRemoteEntry(
+				name = name,
+				isDirectory = entry.attrs.isDir,
+				size = entry.attrs.size
+			)
+		}.sortedWith(compareByDescending<SftpRemoteEntry> { it.isDirectory }.thenBy { it.name.lowercase() })
+		val resolved = if (path == "." || path.isEmpty()) channel.pwd() else path
+		return SftpDirectoryListing(path = resolved, entries = entries)
 	}
 }
 

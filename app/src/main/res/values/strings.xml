@@ -197,6 +197,26 @@
 	<string name="error_sftp_upload_failed">上传失败: %1$s</string>
 	<string name="error_sftp_download_failed">下载失败: %1$s</string>
 	<string name="error_sftp_service_not_available">SFTP 服务不可用</string>
+	<string name="sftp_parent_dir">上级目录</string>
+	<string name="sftp_save">保存</string>
+	<string name="sftp_retry">重试</string>
+	<string name="sftp_discard_title">放弃修改？</string>
+	<string name="sftp_discard_message">未保存的修改将丢失，且不会写回远程文件。</string>
+	<string name="sftp_discard_confirm">放弃</string>
+	<string name="error_sftp_file_too_large">文件超过 1 MB，请改用下载</string>
+	<string name="error_sftp_file_binary">该文件不是文本，请改用下载</string>
+	<string name="error_sftp_generic">SFTP 操作失败</string>
+	<string name="sftp_new_file">新建文件</string>
+	<string name="sftp_new_folder">新建文件夹</string>
+	<string name="sftp_delete">删除</string>
+	<string name="sftp_rename">重命名</string>
+	<string name="sftp_more">更多操作</string>
+	<string name="sftp_name_hint">名称</string>
+	<string name="sftp_delete_title">确认删除？</string>
+	<string name="sftp_delete_file_message">将永久删除文件：%1$s</string>
+	<string name="sftp_delete_folder_message">将永久删除文件夹及其全部内容：%1$s</string>
+	<string name="error_sftp_name_exists">该名称已存在</string>
+	<string name="error_sftp_name_invalid">名称无效（不能为空、不能含 /，且不能是 . 或 ..）</string>
 	<!-- 服务器分组 -->
 	<string name="server_groups">服务器分组</string>
 	<string name="manage_groups">管理分组</string>

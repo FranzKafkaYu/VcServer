@@ -2,6 +2,7 @@ package com.franzkafkayu.vcserver.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -62,6 +63,7 @@ fun ServerMonitoringScreen(
 	var showFileTransferDialog by remember { mutableStateOf<FileTransferDialogType?>(null) }
 	var remotePath by remember { mutableStateOf("") }
 	var selectedLocalUri by remember { mutableStateOf<Uri?>(null) }
+	var pendingUploadDir by remember { mutableStateOf("") }
 
 	// 本地文件选择器（用于上传）
 	val uploadFileLauncher = rememberLauncherForActivityResult(
@@ -69,6 +71,9 @@ fun ServerMonitoringScreen(
 	) { uri: Uri? ->
 		uri?.let {
 			selectedLocalUri = it
+			if (remotePath.isBlank()) {
+				remotePath = joinRemotePath(pendingUploadDir, localDisplayName(context, it))
+			}
 			showFileTransferDialog = FileTransferDialogType.Upload
 		}
 	}
@@ -114,7 +119,7 @@ fun ServerMonitoringScreen(
 				},
 				actions = {
 					IconButton(
-						onClick = { showFileTransferDialog = FileTransferDialogType.Menu },
+						onClick = { viewModel.openSftpBrowser() },
 						enabled = !uiState.isLoading && !uiState.isFileTransferring
 					) {
 						Icon(Icons.Default.CloudUpload, contentDescription = stringResource(R.string.sftp_file_transfer))
@@ -541,55 +546,48 @@ fun ServerMonitoringScreen(
 		}
 	}
 
-	// 文件传输菜单对话框
-	if (showFileTransferDialog == FileTransferDialogType.Menu) {
-		AlertDialog(
-			onDismissRequest = { showFileTransferDialog = null },
-			title = { 
-				Text(
-					text = stringResource(R.string.sftp_file_transfer),
-					style = MaterialTheme.typography.titleMedium,
-					textAlign = TextAlign.Center,
-					modifier = Modifier.fillMaxWidth()
-				)
+	if (uiState.sftpBrowserVisible &&
+		!uiState.sftpEditorVisible &&
+		showFileTransferDialog == null
+	) {
+		SftpBrowserDialog(
+			uiState = uiState,
+			onDismiss = { viewModel.closeSftpBrowser() },
+			onNavigateUp = { viewModel.navigateSftpUp() },
+			onOpenEntry = { viewModel.openSftpEntry(it) },
+			onUpload = {
+				pendingUploadDir = uiState.sftpCurrentPath
+				remotePath = ""
+				uploadFileLauncher.launch("*/*")
 			},
-			text = {
-				Column(
-					verticalArrangement = Arrangement.spacedBy(8.dp)
-				) {
-					TextButton(
-						onClick = {
-							showFileTransferDialog = FileTransferDialogType.Upload
-							uploadFileLauncher.launch("*/*")
-						},
-						modifier = Modifier.fillMaxWidth()
-					) {
-						Text(
-							text = stringResource(R.string.sftp_upload),
-							style = MaterialTheme.typography.bodyLarge
-						)
-					}
-					TextButton(
-						onClick = {
-							showFileTransferDialog = FileTransferDialogType.Download
-						},
-						modifier = Modifier.fillMaxWidth()
-					) {
-						Text(
-							text = stringResource(R.string.sftp_download),
-							style = MaterialTheme.typography.bodyLarge
-						)
-					}
-				}
+			onDownload = { entry ->
+				remotePath = joinRemotePath(uiState.sftpCurrentPath, entry.name)
+				downloadFileLauncher.launch(entry.name)
 			},
-			confirmButton = {
-				TextButton(onClick = { showFileTransferDialog = null }) {
-					Text(
-						text = stringResource(R.string.cancel),
-						style = MaterialTheme.typography.bodyLarge
-					)
-				}
-			}
+			onRetry = {
+				val path = uiState.sftpCurrentPath.ifBlank { null }
+				viewModel.loadSftpDirectory(path)
+			},
+			onCreateFile = { viewModel.createSftpFile(it) },
+			onCreateFolder = { viewModel.createSftpDirectory(it) },
+			onDelete = { viewModel.deleteSftpEntry(it) },
+			onRename = { entry, name -> viewModel.renameSftpEntry(entry, name) }
+		)
+	}
+
+	if (uiState.sftpEditorVisible) {
+		SftpEditorDialog(
+			uiState = uiState,
+			onContentChange = { viewModel.updateSftpEditorContent(it) },
+			onSave = { viewModel.saveSftpEditor() },
+			onDismiss = { viewModel.requestCloseSftpEditor() }
+		)
+	}
+
+	if (uiState.sftpShowDiscardConfirm) {
+		SftpDiscardConfirmDialog(
+			onConfirm = { viewModel.confirmDiscardSftpEditor() },
+			onDismiss = { viewModel.dismissDiscardConfirm() }
 		)
 	}
 
@@ -645,9 +643,26 @@ fun ServerMonitoringScreen(
  * 文件传输对话框类型
  */
 private enum class FileTransferDialogType {
-	Menu,
 	Upload,
 	Download
+}
+
+private fun joinRemotePath(dir: String, name: String): String {
+	val base = dir.trimEnd('/')
+	return if (base.isEmpty() || base == "/") "/$name" else "$base/$name"
+}
+
+private fun localDisplayName(context: Context, uri: Uri): String {
+	context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+		if (cursor.moveToFirst()) {
+			val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+			if (idx >= 0) {
+				val name = cursor.getString(idx)
+				if (!name.isNullOrBlank()) return name
+			}
+		}
+	}
+	return uri.lastPathSegment?.substringAfterLast('/') ?: "file"
 }
 
 /**
@@ -886,11 +901,22 @@ private fun getSftpErrorMessage(context: Context, errorKey: String): String {
 		"UPLOAD_FAILED" -> context.getString(R.string.error_sftp_upload_failed, detail.ifEmpty { key })
 		"DOWNLOAD_FAILED" -> context.getString(R.string.error_sftp_download_failed, detail.ifEmpty { key })
 		"SFTP_SERVICE_NOT_AVAILABLE" -> context.getString(R.string.error_sftp_service_not_available)
+		"FILE_TOO_LARGE" -> context.getString(R.string.error_sftp_file_too_large)
+		"FILE_BINARY" -> context.getString(R.string.error_sftp_file_binary)
+		"SFTP_ERROR" -> context.getString(R.string.error_sftp_generic)
+		"NAME_EXISTS" -> context.getString(R.string.error_sftp_name_exists)
+		"NAME_INVALID" -> context.getString(R.string.error_sftp_name_invalid)
 		else -> key
 	}
 	
 	// 如果有详细错误信息，追加到基础消息后面
-	return if (detail.isNotEmpty() && key != "UPLOAD_FAILED" && key != "DOWNLOAD_FAILED") {
+	return if (detail.isNotEmpty() &&
+		key != "UPLOAD_FAILED" &&
+		key != "DOWNLOAD_FAILED" &&
+		key != "FILE_TOO_LARGE" &&
+		key != "FILE_BINARY" &&
+		key != "SFTP_ERROR"
+	) {
 		"$baseMessage\n$detail"
 	} else {
 		baseMessage
