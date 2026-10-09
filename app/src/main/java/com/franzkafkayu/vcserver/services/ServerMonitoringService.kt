@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * 服务器监控服务接口
@@ -258,31 +259,34 @@ class ServerMonitoringServiceImpl(
 	 */
 	private suspend fun getMemoryInfo(session: Session): Result<MemoryInfo> {
 		return try {
-			val result = sshCommandService.executeCommand(session, "free -h", timeout = 5000)
-			if (result.isFailure) {
-				return Result.failure(result.exceptionOrNull() ?: Exception("Failed to execute free command"))
-			}
+			val bytesResult = sshCommandService.executeCommand(session, "free -b", timeout = 5000)
+			val output = if (bytesResult.isSuccess) {
+				bytesResult.getOrNull()
+			} else {
+				null
+			} ?: sshCommandService.executeCommand(session, "free -h", timeout = 5000).getOrNull()
+				?: return Result.failure(Exception("Failed to execute free command"))
 
-			val output = result.getOrNull() ?: return Result.failure(Exception("Empty output"))
-			val lines = output.lines()
+			val lines = output.lines().filter { it.isNotBlank() }
 			if (lines.size < 2) {
 				return Result.failure(Exception("Invalid free command output"))
 			}
 
-			// 解析第二行（Mem 行）
-			val memLine = lines[1]
-			val parts = memLine.split(Regex("\\s+"))
+			val memLine = lines.firstOrNull { it.trim().startsWith("Mem", ignoreCase = true) }
+				?: lines[1]
+			val parts = memLine.trim().split(Regex("\\s+"))
 			if (parts.size < 4) {
 				return Result.failure(Exception("Invalid memory line format"))
 			}
 
-			val total = parts[1]
-			val used = parts[2]
-			val available = parts[6] // free 命令的 available 列
+			val totalBytes = parseMemFieldToBytes(parts[1])
+			val usedBytes = parseMemFieldToBytes(parts[2])
+			val availableBytes = if (parts.size > 6) {
+				parseMemFieldToBytes(parts[6])
+			} else {
+				parseMemFieldToBytes(parts[3])
+			}
 
-			// 计算使用率
-			val totalBytes = parseSizeToBytes(total)
-			val usedBytes = parseSizeToBytes(used)
 			val usagePercent = if (totalBytes > 0) {
 				(usedBytes.toDouble() / totalBytes.toDouble()) * 100.0
 			} else {
@@ -291,14 +295,34 @@ class ServerMonitoringServiceImpl(
 
 			Result.success(
 				MemoryInfo(
-					total = total,
-					used = used,
-					available = available,
+					total = formatBytesAsGbMb(totalBytes),
+					used = formatBytesAsGbMb(usedBytes),
+					available = formatBytesAsGbMb(availableBytes),
 					usagePercent = usagePercent
 				)
 			)
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to parse memory info: ${e.message}", e))
+		}
+	}
+
+	private fun parseMemFieldToBytes(raw: String): Long {
+		val trimmed = raw.trim()
+		if (trimmed.all { it.isDigit() }) {
+			return trimmed.toLongOrNull() ?: 0L
+		}
+		return parseSizeToBytes(trimmed)
+	}
+
+	private fun formatBytesAsGbMb(bytes: Long): String {
+		val value = bytes.coerceAtLeast(0)
+		val kb = 1024.0
+		val mb = kb * 1024
+		val gb = mb * 1024
+		return when {
+			value >= gb -> String.format(Locale.US, "%.1f GB", value / gb)
+			value >= mb -> String.format(Locale.US, "%.0f MB", value / mb)
+			else -> String.format(Locale.US, "%.0f KB", value / kb)
 		}
 	}
 
