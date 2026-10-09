@@ -24,6 +24,7 @@ data class Server(
 	val keyPassphrase: String? = null,       // 密钥密码（可选，如果私钥有密码保护）
 	val systemVersion: String? = null,       // 系统版本信息（例如"Ubuntu 22.04"），连接后自动更新
 	val orderIndex: Int = 0,                 // 排序索引，用于用户自定义排序
+	val isPinned: Boolean = false,           // 是否在所属分组/未分组区域内置顶
 	// 代理设置（服务器级别设置）
 	val proxyEnabled: Boolean = false,
 	val proxyType: ProxyType? = null,
@@ -34,7 +35,13 @@ data class Server(
 	val groupId: Long? = null,                  // 分组ID（可为空，表示未分组）
 	val createdAt: Long = System.currentTimeMillis(),
 	val updatedAt: Long = System.currentTimeMillis()
-)
+) {
+	companion object {
+		val listOrderComparator: Comparator<Server> = compareByDescending<Server> { it.isPinned }
+			.thenBy { it.orderIndex }
+			.thenByDescending { it.createdAt }
+	}
+}
 
 
 

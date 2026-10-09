@@ -99,6 +99,17 @@ interface ServerManagementService {
 	 * @param servers 按新顺序排列的服务器列表
 	 */
 	suspend fun updateServerOrder(servers: List<Server>): Result<Unit>
+
+	/**
+	 * 切换服务器置顶状态
+	 */
+	suspend fun toggleServerPinned(server: Server): Result<Unit>
+
+	/**
+	 * 复制服务器配置。密文文件会重新加密为独立文件。
+	 * @param copiedName 副本显示名称
+	 */
+	suspend fun duplicateServer(server: Server, copiedName: String): Result<Long>
 }
 
 

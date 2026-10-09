@@ -196,7 +196,8 @@ class DatabaseExportImportServiceImpl(
 
 						val serverToImport = server.copy(
 							id = 0,  // 重置ID，让数据库自动分配
-							groupId = mappedGroupId  // 使用映射后的分组ID
+							groupId = mappedGroupId,  // 使用映射后的分组ID
+							isPinned = server.isPinned  // 旧文件缺字段时 Gson 默认为 false
 						)
 
 						if (isDuplicate) {

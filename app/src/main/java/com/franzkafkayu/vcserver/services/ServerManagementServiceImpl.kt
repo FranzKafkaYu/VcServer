@@ -244,6 +244,56 @@ class ServerManagementServiceImpl(
 		)
 	}
 
+	override suspend fun toggleServerPinned(server: Server): Result<Unit> {
+		return try {
+			val updated = server.copy(
+				isPinned = !server.isPinned,
+				updatedAt = System.currentTimeMillis()
+			)
+			serverRepository.updateServer(updated)
+			Result.success(Unit)
+		} catch (e: Exception) {
+			Result.failure(e)
+		}
+	}
+
+	override suspend fun duplicateServer(server: Server, copiedName: String): Result<Long> {
+		var encryptedPassword: String? = null
+		var encryptedPrivateKey: String? = null
+		var encryptedProxyPassword: String? = null
+		return try {
+			encryptedPassword = server.encryptedPassword?.let { path ->
+				secureStorage.encryptPassword(secureStorage.decryptPassword(path))
+			}
+			encryptedPrivateKey = server.encryptedPrivateKey?.let { path ->
+				secureStorage.encryptPrivateKey(secureStorage.decryptPrivateKey(path))
+			}
+			encryptedProxyPassword = server.encryptedProxyPassword?.let { path ->
+				secureStorage.encryptPassword(secureStorage.decryptPassword(path))
+			}
+			val currentServers = serverRepository.getAllServers().first()
+			val now = System.currentTimeMillis()
+			val duplicate = server.copy(
+				id = 0,
+				name = copiedName,
+				encryptedPassword = encryptedPassword,
+				encryptedPrivateKey = encryptedPrivateKey,
+				encryptedProxyPassword = encryptedProxyPassword,
+				isPinned = false,
+				orderIndex = currentServers.size,
+				createdAt = now,
+				updatedAt = now
+			)
+			val id = serverRepository.insertServer(duplicate)
+			Result.success(id)
+		} catch (e: Exception) {
+			encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
+			encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
+			encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }
+			Result.failure(e)
+		}
+	}
+
 	override suspend fun updateServerOrder(servers: List<Server>): Result<Unit> {
 		return try {
 			// 更新每个服务器的 orderIndex

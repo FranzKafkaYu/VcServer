@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.utils.FilterQueryParser
 import com.franzkafkayu.vcserver.utils.ServerFilter
 
@@ -51,21 +52,19 @@ class ServerListViewModel(
 				serverGroupRepository.getAllGroups(),
 				_uiState.map { it.searchQuery }
 			) { servers: List<Server>, groups: List<ServerGroup>, query: String ->
-				// 应用筛选
 				val (filteredServers, syntaxError) = filterServers(servers, query)
+				val orderedServers = filteredServers.sortedWith(Server.listOrderComparator)
 				
 				// 按分组ID分组服务器
-				val groupedServersMap = filteredServers
+				val groupedServersMap = orderedServers
 					.filter { it.groupId != null }
 					.groupBy { it.groupId!! }
 
-				// 构建分组列表（只显示有服务器的分组）
 				val groupedList = groups.map { group ->
 					group to (groupedServersMap[group.id] ?: emptyList())
-				}.filter { it.second.isNotEmpty() } // 只显示有服务器的分组
+				}.filter { it.second.isNotEmpty() }
 
-				// 未分组的服务器
-				val ungroupedList = filteredServers.filter { it.groupId == null }
+				val ungroupedList = orderedServers.filter { it.groupId == null }
 
 				_uiState.value = _uiState.value.copy(
 					servers = servers, // 保留完整列表用于选择模式
@@ -167,6 +166,42 @@ class ServerListViewModel(
 	/**
 	 * 确认删除服务�?
 	 */
+	fun toggleServerPinned(server: Server) {
+		viewModelScope.launch {
+			val result = serverManagementService.toggleServerPinned(server)
+			result.fold(
+				onSuccess = { },
+				onFailure = { exception ->
+					_uiState.value = _uiState.value.copy(
+						error = exception.toAppError()
+					)
+				}
+			)
+		}
+	}
+
+	fun duplicateServer(server: Server, copiedName: String) {
+		viewModelScope.launch {
+			val result = serverManagementService.duplicateServer(server, copiedName)
+			result.fold(
+				onSuccess = {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.server_copied
+					)
+				},
+				onFailure = {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.server_copy_failed
+					)
+				}
+			)
+		}
+	}
+
+	fun clearNotice() {
+		_uiState.value = _uiState.value.copy(noticeMessageRes = null)
+	}
+
 	fun confirmDeleteServer() {
 		val server = _uiState.value.serverToDelete ?: return
 		viewModelScope.launch {
@@ -427,5 +462,6 @@ data class ServerListUiState(
 	val showBatchDeleteConfirm: Boolean = false, // 是否显示批量删除确认对话框
 	val searchQuery: String = "", // 筛选关键词
 	val isSearchActive: Boolean = false, // 搜索栏是否展开
-	val searchSyntaxError: String? = null // 查询语法错误提示
+	val searchSyntaxError: String? = null, // 查询语法错误提示
+	val noticeMessageRes: Int? = null
 )

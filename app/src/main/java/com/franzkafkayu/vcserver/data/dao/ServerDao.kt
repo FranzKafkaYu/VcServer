@@ -12,19 +12,19 @@ interface ServerDao {
 	/**
 	 * 获取所有服务器列表
 	 */
-	@Query("SELECT * FROM servers ORDER BY orderIndex ASC, createdAt DESC")
+	@Query("SELECT * FROM servers ORDER BY isPinned DESC, orderIndex ASC, createdAt DESC")
 	fun getAllServers(): Flow<List<Server>>
 
 	/**
 	 * 根据分组ID获取服务器列表
 	 */
-	@Query("SELECT * FROM servers WHERE groupId = :groupId ORDER BY orderIndex ASC, createdAt DESC")
+	@Query("SELECT * FROM servers WHERE groupId = :groupId ORDER BY isPinned DESC, orderIndex ASC, createdAt DESC")
 	suspend fun getServersByGroupId(groupId: Long): List<Server>
 
 	/**
 	 * 获取未分组的服务器列表
 	 */
-	@Query("SELECT * FROM servers WHERE groupId IS NULL ORDER BY orderIndex ASC, createdAt DESC")
+	@Query("SELECT * FROM servers WHERE groupId IS NULL ORDER BY isPinned DESC, orderIndex ASC, createdAt DESC")
 	suspend fun getServersWithoutGroup(): List<Server>
 
 	/**

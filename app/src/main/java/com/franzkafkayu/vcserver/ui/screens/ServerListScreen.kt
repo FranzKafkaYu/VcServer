@@ -19,8 +19,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -32,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
@@ -64,6 +67,17 @@ fun ServerListScreen(
 				duration = SnackbarDuration.Short
 			)
 			viewModel.clearError()
+		}
+	}
+
+	val noticeText = uiState.noticeMessageRes?.let { stringResource(it) }
+	LaunchedEffect(noticeText) {
+		noticeText?.let { message ->
+			snackbarHostState.showSnackbar(
+				message = message,
+				duration = SnackbarDuration.Short
+			)
+			viewModel.clearNotice()
 		}
 	}
 
@@ -359,6 +373,7 @@ fun ServerListScreen(
 									items = servers,
 									key = { it.id }
 								) { server ->
+									val copiedName = stringResource(R.string.server_copy_name, server.name)
 									ServerItem(
 										server = server,
 										isSelected = uiState.selectedServerIds.contains(server.id),
@@ -390,6 +405,8 @@ fun ServerListScreen(
 											}
 										},
 										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
+										onPinClick = { viewModel.toggleServerPinned(server) },
+										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
 										isConnecting = uiState.connectingServerId == server.id
 									)
 								}
@@ -413,6 +430,7 @@ fun ServerListScreen(
 									items = uiState.ungroupedServers,
 									key = { it.id }
 								) { server ->
+									val copiedName = stringResource(R.string.server_copy_name, server.name)
 									ServerItem(
 										server = server,
 										isSelected = uiState.selectedServerIds.contains(server.id),
@@ -444,6 +462,8 @@ fun ServerListScreen(
 											}
 										},
 										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
+										onPinClick = { viewModel.toggleServerPinned(server) },
+										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
 										isConnecting = uiState.connectingServerId == server.id
 									)
 								}
@@ -493,137 +513,175 @@ fun ServerItem(
 	onEditClick: () -> Unit,
 	onConnectClick: () -> Unit,
 	onDeleteClick: () -> Unit,
+	onPinClick: () -> Unit = {},
+	onCopyClick: () -> Unit = {},
 	isConnecting: Boolean = false
 ) {
-	if (isSelectionMode) {
-		// 选择模式下，显示复选框，不使用 SwipeToDismiss
-		Card(
+	Card(
+		modifier = Modifier
+			.fillMaxWidth()
+			.clickable(onClick = onClick, enabled = isSelectionMode || !isConnecting)
+	) {
+		Row(
 			modifier = Modifier
 				.fillMaxWidth()
-				.clickable(onClick = onClick)
+				.padding(horizontal = 16.dp, vertical = 12.dp),
+			horizontalArrangement = Arrangement.spacedBy(4.dp),
+			verticalAlignment = Alignment.CenterVertically
 		) {
-			Row(
-				modifier = Modifier
-					.fillMaxWidth()
-					.padding(16.dp),
-				horizontalArrangement = Arrangement.SpaceBetween,
-				verticalAlignment = Alignment.CenterVertically
+			if (isSelectionMode) {
+				Icon(
+					if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+					contentDescription = null,
+					tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+				)
+			}
+			ServerItemDetails(
+				server = server,
+				modifier = Modifier.weight(1f)
+			)
+			if (!isSelectionMode) {
+				ServerItemActions(
+					isPinned = server.isPinned,
+					isConnecting = isConnecting,
+					onConnectClick = onConnectClick,
+					onEditClick = onEditClick,
+					onDeleteClick = onDeleteClick,
+					onPinClick = onPinClick,
+					onCopyClick = onCopyClick
+				)
+			}
+		}
+	}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServerItemActions(
+	isPinned: Boolean,
+	isConnecting: Boolean,
+	onConnectClick: () -> Unit,
+	onEditClick: () -> Unit,
+	onDeleteClick: () -> Unit,
+	onPinClick: () -> Unit,
+	onCopyClick: () -> Unit
+) {
+	var showMoreMenu by remember { mutableStateOf(false) }
+	CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+		Row(
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			IconButton(
+				onClick = onConnectClick,
+				enabled = !isConnecting,
+				modifier = Modifier.size(36.dp)
 			) {
-				Row(
-					horizontalArrangement = Arrangement.spacedBy(12.dp),
-					verticalAlignment = Alignment.CenterVertically,
-					modifier = Modifier.weight(1f)
-				) {
-					Icon(
-						if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-						contentDescription = null,
-						tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+				if (isConnecting) {
+					CircularProgressIndicator(
+						modifier = Modifier.size(20.dp),
+						color = MaterialTheme.colorScheme.primary,
+						strokeWidth = 3.dp,
+						trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
 					)
-					Column(
-						verticalArrangement = Arrangement.spacedBy(4.dp)
-					) {
-						Text(
-							text = server.name,
-							style = MaterialTheme.typography.titleMedium
-						)
-						Text(
-							text = "${server.host}:${server.port}",
-							style = MaterialTheme.typography.bodyMedium
-						)
-						Text(
-							text = server.username,
-							style = MaterialTheme.typography.bodySmall
-						)
-						server.systemVersion?.let { systemVersion ->
+				} else {
+					Icon(
+						Icons.Default.PlayArrow,
+						contentDescription = stringResource(R.string.connect),
+						modifier = Modifier.size(22.dp)
+					)
+				}
+			}
+			IconButton(onClick = onEditClick, modifier = Modifier.size(36.dp)) {
+				Icon(
+					Icons.Default.Edit,
+					contentDescription = stringResource(R.string.edit),
+					modifier = Modifier.size(22.dp)
+				)
+			}
+			IconButton(onClick = onDeleteClick, modifier = Modifier.size(36.dp)) {
+				Icon(
+					Icons.Default.Delete,
+					contentDescription = stringResource(R.string.delete),
+					modifier = Modifier.size(22.dp)
+				)
+			}
+			Box {
+				IconButton(onClick = { showMoreMenu = true }, modifier = Modifier.size(36.dp)) {
+					Icon(
+						Icons.Default.MoreVert,
+						contentDescription = stringResource(R.string.more_actions),
+						modifier = Modifier.size(22.dp)
+					)
+				}
+				DropdownMenu(
+					expanded = showMoreMenu,
+					onDismissRequest = { showMoreMenu = false }
+				) {
+					DropdownMenuItem(
+						text = {
 							Text(
-								text = systemVersion,
-								style = MaterialTheme.typography.bodySmall,
-								color = MaterialTheme.colorScheme.primary
+								stringResource(
+									if (isPinned) R.string.unpin_server else R.string.pin_server
+								)
 							)
+						},
+						onClick = {
+							showMoreMenu = false
+							onPinClick()
 						}
-					}
+					)
+					DropdownMenuItem(
+						text = { Text(stringResource(R.string.copy_server)) },
+						onClick = {
+							showMoreMenu = false
+							onCopyClick()
+						}
+					)
 				}
 			}
 		}
-	} else {
-		// 正常模式下，显示卡片（左滑删除功能暂时简化，后续可以添加）
-		Card(
-			modifier = Modifier
-				.fillMaxWidth()
-				.clickable(onClick = onClick, enabled = !isConnecting)
-		) {
-			Row(
-				modifier = Modifier
-					.fillMaxWidth()
-					.padding(16.dp),
-				horizontalArrangement = Arrangement.SpaceBetween,
-				verticalAlignment = Alignment.CenterVertically
-			) {
-				Column(
-					modifier = Modifier.weight(1f),
-					verticalArrangement = Arrangement.spacedBy(4.dp)
-				) {
-					Text(
-						text = server.name,
-						style = MaterialTheme.typography.titleMedium
-					)
-					Text(
-						text = "${server.host}:${server.port}",
-						style = MaterialTheme.typography.bodyMedium
-					)
-					Text(
-						text = server.username,
-						style = MaterialTheme.typography.bodySmall
-					)
-					// 显示系统版本信息（如果有）
-					server.systemVersion?.let { systemVersion ->
-						Text(
-							text = systemVersion,
-							style = MaterialTheme.typography.bodySmall,
-							color = MaterialTheme.colorScheme.primary
-						)
-					}
-				}
-				Row(
-					horizontalArrangement = Arrangement.spacedBy(8.dp),
-					verticalAlignment = Alignment.CenterVertically
-				) {
-					IconButton(
-						onClick = onConnectClick,
-						enabled = !isConnecting
-					) {
-						if (isConnecting) {
-							CircularProgressIndicator(
-								modifier = Modifier.size(28.dp),
-								color = MaterialTheme.colorScheme.primary,
-								strokeWidth = 4.dp,
-								trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-							)
-						} else {
-							Icon(
-								Icons.Default.PlayArrow,
-								contentDescription = stringResource(R.string.connect)
-							)
-						}
-					}
-					IconButton(
-						onClick = onEditClick
-					) {
-						Icon(
-							Icons.Default.Edit,
-							contentDescription = stringResource(R.string.edit)
-						)
-					}
-					IconButton(
-						onClick = onDeleteClick
-					) {
-						Icon(
-							Icons.Default.Delete,
-							contentDescription = stringResource(R.string.delete)
-						)
-					}
-				}
-			}
+	}
+}
+
+@Composable
+private fun ServerItemDetails(
+	server: Server,
+	modifier: Modifier = Modifier
+) {
+	Column(
+		modifier = modifier.fillMaxWidth(),
+		verticalArrangement = Arrangement.spacedBy(4.dp)
+	) {
+		Text(
+			text = server.name,
+			style = MaterialTheme.typography.titleMedium,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+			modifier = Modifier.fillMaxWidth()
+		)
+		Text(
+			text = "${server.host}:${server.port}",
+			style = MaterialTheme.typography.bodyMedium,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+			modifier = Modifier.fillMaxWidth()
+		)
+		Text(
+			text = server.username,
+			style = MaterialTheme.typography.bodySmall,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+			modifier = Modifier.fillMaxWidth()
+		)
+		server.systemVersion?.let { systemVersion ->
+			Text(
+				text = systemVersion,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.primary,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+				modifier = Modifier.fillMaxWidth()
+			)
 		}
 	}
 }

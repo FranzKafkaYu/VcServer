@@ -26,6 +26,13 @@
 	<string name="invalid_input">输入无效</string>
 	<string name="empty_server_list">暂无服务器，点击添加按钮添加服务器</string>
 	<string name="connect">连接</string>
+	<string name="more_actions">更多操作</string>
+	<string name="pin_server">置顶</string>
+	<string name="unpin_server">取消置顶</string>
+	<string name="copy_server">复制</string>
+	<string name="server_copy_name">%1$s（副本）</string>
+	<string name="server_copied">已复制服务器</string>
+	<string name="server_copy_failed">复制失败</string>
 	<string name="server_monitoring">服务器监控</string>
 	<string name="disconnect">断开连接</string>
 	<string name="refresh">刷新</string>
