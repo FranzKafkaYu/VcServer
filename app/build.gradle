@@ -25,7 +25,7 @@ def getBuildDate = { ->
 
 def majorVersion = 1
 def minorVersion = 0
-def patchVersion = 0
+def patchVersion = 1
 def buildDate = getBuildDate()
 def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
 def artifactStem = { String buildType ->
