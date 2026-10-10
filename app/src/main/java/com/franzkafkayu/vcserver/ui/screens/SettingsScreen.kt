@@ -40,7 +40,7 @@ import com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel
 /**
  * 设置界面
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
 	viewModel: SettingsViewModel,
@@ -117,6 +117,8 @@ fun SettingsScreen(
 			modifier = Modifier
 				.fillMaxSize()
 				.padding(paddingValues)
+				.consumeWindowInsets(paddingValues)
+				.imePadding()
 				.verticalScroll(rememberScrollState())
 				.padding(16.dp),
 			verticalArrangement = Arrangement.spacedBy(24.dp)

@@ -50,7 +50,7 @@ import com.franzkafkayu.vcserver.utils.CharCell
 /**
  * 终端界面
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TerminalScreen(
 	viewModel: TerminalViewModel,
@@ -95,6 +95,8 @@ fun TerminalScreen(
 			modifier = Modifier
 				.fillMaxSize()
 				.padding(paddingValues)
+				.consumeWindowInsets(paddingValues)
+				.imePadding()
 				.background(Color(0xFF1E1E1E)) // 深色背景
 		) {
 			// 连接状态提�?

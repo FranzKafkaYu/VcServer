@@ -34,7 +34,7 @@ import com.franzkafkayu.vcserver.utils.AppError
 /**
  * 添加服务器界�?
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddServerScreen(
 	viewModel: AddServerViewModel,
@@ -74,6 +74,8 @@ fun AddServerScreen(
 			modifier = Modifier
 				.fillMaxSize()
 				.padding(paddingValues)
+				.consumeWindowInsets(paddingValues)
+				.imePadding()
 				.verticalScroll(rememberScrollState())
 				.padding(16.dp),
 			verticalArrangement = Arrangement.spacedBy(16.dp)
