@@ -149,6 +149,7 @@ class ServerListViewModel(
 	 * 显示删除确认对话�?
 	 */
 	fun showDeleteConfirmDialog(server: Server) {
+		if (_uiState.value.serverToDelete != null) return
 		_uiState.value = _uiState.value.copy(
 			serverToDelete = server
 		)
@@ -211,7 +212,8 @@ class ServerListViewModel(
 				onSuccess = {
 					_uiState.value = _uiState.value.copy(
 						isLoading = false,
-						error = null
+						error = null,
+						noticeMessageRes = R.string.server_deleted
 					)
 				},
 				onFailure = { exception ->

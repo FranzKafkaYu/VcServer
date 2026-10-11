@@ -1,5 +1,6 @@
 package com.franzkafkayu.vcserver.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,10 +29,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -374,6 +377,11 @@ fun ServerListScreen(
 									key = { it.id }
 								) { server ->
 									val copiedName = stringResource(R.string.server_copy_name, server.name)
+									ServerListRow(
+										isSelectionMode = uiState.isSelectionMode,
+										deleteDialogVisible = uiState.serverToDelete != null,
+										onSwipeDelete = { viewModel.showDeleteConfirmDialog(server) }
+									) {
 									ServerItem(
 										server = server,
 										isSelected = uiState.selectedServerIds.contains(server.id),
@@ -409,6 +417,7 @@ fun ServerListScreen(
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
 										isConnecting = uiState.connectingServerId == server.id
 									)
+									}
 								}
 							}
 						}
@@ -431,6 +440,11 @@ fun ServerListScreen(
 									key = { it.id }
 								) { server ->
 									val copiedName = stringResource(R.string.server_copy_name, server.name)
+									ServerListRow(
+										isSelectionMode = uiState.isSelectionMode,
+										deleteDialogVisible = uiState.serverToDelete != null,
+										onSwipeDelete = { viewModel.showDeleteConfirmDialog(server) }
+									) {
 									ServerItem(
 										server = server,
 										isSelected = uiState.selectedServerIds.contains(server.id),
@@ -466,6 +480,7 @@ fun ServerListScreen(
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
 										isConnecting = uiState.connectingServerId == server.id
 									)
+									}
 								}
 							}
 						}
@@ -474,6 +489,55 @@ fun ServerListScreen(
 			}
 		}
 	}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServerListRow(
+	isSelectionMode: Boolean,
+	deleteDialogVisible: Boolean,
+	onSwipeDelete: () -> Unit,
+	content: @Composable () -> Unit
+) {
+	if (isSelectionMode) {
+		content()
+		return
+	}
+	val dialogVisible = rememberUpdatedState(deleteDialogVisible)
+	val swipeDelete = rememberUpdatedState(onSwipeDelete)
+	val dismissState = rememberDismissState(
+		confirmValueChange = { value ->
+			if (value == DismissValue.DismissedToStart) {
+				if (!dialogVisible.value) {
+					swipeDelete.value()
+				}
+				false
+			} else {
+				true
+			}
+		}
+	)
+	SwipeToDismiss(
+		state = dismissState,
+		modifier = Modifier.clip(CardDefaults.shape),
+		directions = setOf(DismissDirection.EndToStart),
+		background = {
+			Box(
+				modifier = Modifier
+					.fillMaxSize()
+					.background(MaterialTheme.colorScheme.error),
+				contentAlignment = Alignment.CenterEnd
+			) {
+				Icon(
+					Icons.Default.Delete,
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.onError,
+					modifier = Modifier.padding(horizontal = 20.dp)
+				)
+			}
+		},
+		dismissContent = { content() }
+	)
 }
 
 /**
