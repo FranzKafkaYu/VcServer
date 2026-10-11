@@ -266,21 +266,16 @@ class ServerListViewModel(
 	 */
 	private suspend fun updateServerSystemInfo(server: Server, session: com.jcraft.jsch.Session) {
 		try {
-			// 获取服务器状态（包含系统信息�?
-			val statusResult = serverMonitoringService.getServerStatus(session)
-			statusResult.fold(
-				onSuccess = { status ->
-					status.systemInfo?.let { systemInfo ->
-						// 构建系统版本字符串（例如 "Ubuntu 22.04"�?
-						val systemVersion = "${systemInfo.osName} ${systemInfo.osVersion}".trim()
-						if (systemVersion.isNotEmpty() && systemVersion != "Unknown Unknown") {
-							// 更新服务器的系统版本信息
-							val updatedServer = server.copy(
-								systemVersion = systemVersion,
-								updatedAt = System.currentTimeMillis()
-							)
-							serverManagementService.updateServer(updatedServer)
-						}
+			val osResult = serverMonitoringService.getOperatingSystem(session)
+			osResult.fold(
+				onSuccess = { systemInfo ->
+					val systemVersion = "${systemInfo.osName} ${systemInfo.osVersion}".trim()
+					if (systemVersion.isNotEmpty() && systemVersion != "Unknown Unknown") {
+						val updatedServer = server.copy(
+							systemVersion = systemVersion,
+							updatedAt = System.currentTimeMillis()
+						)
+						serverManagementService.updateServer(updatedServer)
 					}
 				},
 				onFailure = {

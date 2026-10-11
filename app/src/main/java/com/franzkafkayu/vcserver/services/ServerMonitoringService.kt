@@ -29,9 +29,19 @@ interface ServerMonitoringService {
 	suspend fun connectToServer(server: Server): Result<Session>
 
 	/**
-	 * 获取服务器状态
+	 * 获取服务器状态。CPU、内存、磁盘与网络信息在同一次结果中返回。
 	 */
 	suspend fun getServerStatus(session: Session): Result<ServerStatus>
+
+	/**
+	 * 只读取操作系统标识，供列表后台更新系统版本。
+	 */
+	suspend fun getOperatingSystem(session: Session): Result<SystemInfo>
+
+	/**
+	 * 获取网络连接数与速率。包含约 1 秒的流量采样，不得放在首次状态展示的关键路径上。
+	 */
+	suspend fun getNetworkInfo(session: Session): Result<NetworkInfo>
 
 	/**
 	 * 断开连接
@@ -53,8 +63,34 @@ class ServerMonitoringServiceImpl(
 	private val sshCommandService: SshCommandService,
 	private val secureStorage: SecureStorage
 ) : ServerMonitoringService {
-   companion object {
+	companion object {
 	  private const val TAG = "ServerMonitoringService"
+		private val CORE_SNAPSHOT_COMMAND = """
+			echo '---VC_CPU_CORES---'
+			nproc 2>/dev/null || echo 1
+			echo '---VC_CPU_ARCH---'
+			uname -m 2>/dev/null
+			echo '---VC_CPU_MODEL---'
+			grep -i 'model name' /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs
+			echo '---VC_MEM---'
+			free -b 2>/dev/null || free -h 2>/dev/null
+			echo '---VC_DISK---'
+			df -h 2>/dev/null
+			echo '---VC_UPTIME---'
+			uptime -p 2>/dev/null || uptime 2>/dev/null
+			echo '---VC_KERNEL---'
+			uname -r 2>/dev/null
+			echo '---VC_OS---'
+			cat /etc/os-release 2>/dev/null
+			echo '---VC_END---'
+		""".trimIndent()
+		private val OS_ONLY_COMMAND = """
+			echo '---VC_KERNEL---'
+			uname -r 2>/dev/null
+			echo '---VC_OS---'
+			cat /etc/os-release 2>/dev/null
+			echo '---VC_END---'
+		""".trimIndent()
    }
 	
 
@@ -116,69 +152,120 @@ class ServerMonitoringServiceImpl(
 		try {
 			val startTime = System.currentTimeMillis()
 			coroutineScope {
-				// 并行执行所有信息获取操作
-				val cpuDeferred = async { 
-					val t = System.currentTimeMillis()
-					val r = getCpuInfo(session)
-					Log.d(TAG, "getCpuInfo time cost: ${System.currentTimeMillis() - t}ms")
-					r
+				val coreDeferred = async { loadCoreStatus(session) }
+				val networkDeferred = async { getNetworkInfo(session).getOrNull() }
+				val core = coreDeferred.await()
+				if (core.isFailure) {
+					return@coroutineScope Result.failure(
+						core.exceptionOrNull() ?: Exception("Failed to get server status")
+					)
 				}
-				val memoryDeferred = async { 
-					val t = System.currentTimeMillis()
-					val r = getMemoryInfo(session)
-					Log.d(TAG, "getMemoryInfo time cost: ${System.currentTimeMillis() - t}ms")
-					r
-				}
-				val diskDeferred = async { 
-					val t = System.currentTimeMillis()
-					val r = getDiskInfo(session)
-					Log.d(TAG, "getDiskInfo time cost: ${System.currentTimeMillis() - t}ms")
-					r
-				}
-				val uptimeDeferred = async { 
-					val t = System.currentTimeMillis()
-					val r = getUptime(session)
-					Log.d(TAG, "getUptime time cost: ${System.currentTimeMillis() - t}ms")
-					r
-				}
-				val systemInfoDeferred = async { 
-					val t = System.currentTimeMillis()
-					val r = getSystemInfo(session)
-					Log.d(TAG, "getSystemInfo time cost: ${System.currentTimeMillis() - t}ms")
-					r
-				}
-
-				// 等待必需的信息完成（CPU 和内存）
-				val cpuResult = cpuDeferred.await()
-				if (cpuResult.isFailure) {
-					return@coroutineScope Result.failure(cpuResult.exceptionOrNull() ?: Exception("Failed to get CPU info"))
-				}
-				val cpu = cpuResult.getOrNull() ?: return@coroutineScope Result.failure(Exception("CPU info is null"))
-
-				val memoryResult = memoryDeferred.await()
-				if (memoryResult.isFailure) {
-					return@coroutineScope Result.failure(memoryResult.exceptionOrNull() ?: Exception("Failed to get memory info"))
-				}
-				val memory = memoryResult.getOrNull() ?: return@coroutineScope Result.failure(Exception("Memory info is null"))
-
-				// 等待磁盘信息（必需，但可为 null）
-				val diskResult = diskDeferred.await()
-				if (diskResult.isFailure) {
-					return@coroutineScope Result.failure(diskResult.exceptionOrNull() ?: Exception("Failed to get disk info"))
-				}
-				val disk = diskResult.getOrNull()
-
-				// 等待可选信息（如果失败则使用 null）
-				val uptime = uptimeDeferred.await().getOrNull()
-				val systemInfo = systemInfoDeferred.await().getOrNull()
-				val network = async { getNetworkInfo(session) }.await().getOrNull()
-				val duration = System.currentTimeMillis() - startTime
-				Log.i(TAG, "getServerStatus total time cost: ${duration}ms")
-				Result.success(ServerStatus(cpu = cpu, memory = memory, disk = disk, uptime = uptime, systemInfo = systemInfo, network = network))
+				val status = core.getOrThrow().copy(network = networkDeferred.await())
+				Log.i(TAG, "getServerStatus total time cost: ${System.currentTimeMillis() - startTime}ms")
+				Result.success(status)
 			}
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to get server status: ${e.message}", e))
 		}
+	}
+
+	private suspend fun loadCoreStatus(session: Session): Result<ServerStatus> {
+		val scriptOutput = sshCommandService.executeCommand(
+			session,
+			CORE_SNAPSHOT_COMMAND,
+			timeout = 8000
+		).getOrNull()
+		val snapshot = scriptOutput?.let { parseCoreSnapshot(it) }
+		if (snapshot != null) {
+			Log.d(TAG, "getServerStatus core via single exec")
+			return Result.success(snapshot)
+		}
+		Log.d(TAG, "getServerStatus core via fallback commands")
+		return loadCoreStatusFallback(session)
+	}
+
+	override suspend fun getOperatingSystem(session: Session): Result<SystemInfo> = withContext(Dispatchers.IO) {
+		try {
+			val output = sshCommandService.executeCommand(session, OS_ONLY_COMMAND, timeout = 5000).getOrNull()
+			if (output != null && output.contains("---VC_END---")) {
+				return@withContext Result.success(
+					parseSystemInfo(snapshotSection(output, "KERNEL"), snapshotSection(output, "OS"))
+				)
+			}
+			getSystemInfo(session)
+		} catch (e: Exception) {
+			Result.failure(Exception("Failed to get operating system: ${e.message}", e))
+		}
+	}
+
+	private suspend fun loadCoreStatusFallback(session: Session): Result<ServerStatus> = coroutineScope {
+		val cpuDeferred = async { getCpuInfo(session) }
+		val memoryDeferred = async { getMemoryInfo(session) }
+		val diskDeferred = async { getDiskInfo(session) }
+		val uptimeDeferred = async { getUptime(session) }
+		val systemInfoDeferred = async { getSystemInfo(session) }
+
+		val cpuResult = cpuDeferred.await()
+		if (cpuResult.isFailure) {
+			return@coroutineScope Result.failure(cpuResult.exceptionOrNull() ?: Exception("Failed to get CPU info"))
+		}
+		val cpu = cpuResult.getOrNull() ?: return@coroutineScope Result.failure(Exception("CPU info is null"))
+
+		val memoryResult = memoryDeferred.await()
+		if (memoryResult.isFailure) {
+			return@coroutineScope Result.failure(memoryResult.exceptionOrNull() ?: Exception("Failed to get memory info"))
+		}
+		val memory = memoryResult.getOrNull() ?: return@coroutineScope Result.failure(Exception("Memory info is null"))
+
+		val disk = diskDeferred.await().getOrNull()
+		val uptime = uptimeDeferred.await().getOrNull()
+		val systemInfo = systemInfoDeferred.await().getOrNull()
+		Result.success(
+			ServerStatus(
+				cpu = cpu,
+				memory = memory,
+				disk = disk,
+				uptime = uptime,
+				systemInfo = systemInfo,
+				network = null
+			)
+		)
+	}
+
+	private fun parseCoreSnapshot(output: String): ServerStatus? {
+		if (!output.contains("---VC_END---") || !output.contains("---VC_CPU_CORES---")) {
+			return null
+		}
+		val cores = snapshotSection(output, "CPU_CORES")
+			.lineSequence()
+			.mapNotNull { it.trim().toIntOrNull() }
+			.firstOrNull() ?: return null
+		val arch = snapshotSection(output, "CPU_ARCH").lineSequence().firstOrNull { it.isNotBlank() }?.trim()
+		val model = snapshotSection(output, "CPU_MODEL").lineSequence().firstOrNull { it.isNotBlank() }?.trim()
+			?.takeIf { it.isNotEmpty() }
+		val memory = parseMemoryOutput(snapshotSection(output, "MEM")).getOrNull() ?: return null
+		val disk = parseDiskOutput(snapshotSection(output, "DISK")).getOrNull()
+		val uptimeText = snapshotSection(output, "UPTIME")
+		val uptime = formatUptime(uptimeText).takeIf { it.isNotEmpty() && uptimeText.isNotBlank() }
+		val systemInfo = parseSystemInfo(snapshotSection(output, "KERNEL"), snapshotSection(output, "OS"))
+		return ServerStatus(
+			cpu = CpuInfo(architecture = arch, model = model, cores = cores, usagePercent = 0.0),
+			memory = memory,
+			disk = disk,
+			uptime = uptime,
+			systemInfo = systemInfo,
+			network = null
+		)
+	}
+
+	private fun snapshotSection(output: String, name: String): String {
+		val marker = "---VC_$name---"
+		val start = output.indexOf(marker)
+		if (start < 0) return ""
+		val rest = output.substring(start + marker.length)
+		val next = Regex("\n---VC_[A-Z_]+---").find(rest)
+		val body = if (next == null) rest else rest.substring(0, next.range.first)
+		return body.trim()
 	}
 
 	override fun disconnect(session: Session) {
@@ -266,7 +353,14 @@ class ServerMonitoringServiceImpl(
 				null
 			} ?: sshCommandService.executeCommand(session, "free -h", timeout = 5000).getOrNull()
 				?: return Result.failure(Exception("Failed to execute free command"))
+			parseMemoryOutput(output)
+		} catch (e: Exception) {
+			Result.failure(Exception("Failed to parse memory info: ${e.message}", e))
+		}
+	}
 
+	private fun parseMemoryOutput(output: String): Result<MemoryInfo> {
+		return try {
 			val lines = output.lines().filter { it.isNotBlank() }
 			if (lines.size < 2) {
 				return Result.failure(Exception("Invalid free command output"))
@@ -337,6 +431,14 @@ class ServerMonitoringServiceImpl(
 			}
 
 			val output = result.getOrNull() ?: return Result.failure(Exception("Empty output"))
+			parseDiskOutput(output)
+		} catch (e: Exception) {
+			Result.failure(Exception("Failed to parse disk info: ${e.message}", e))
+		}
+	}
+
+	private fun parseDiskOutput(output: String): Result<DiskInfo> {
+		return try {
 			val lines = output.lines()
 			if (lines.size < 2) {
 				return Result.failure(Exception("Invalid df command output"))
@@ -554,17 +656,18 @@ class ServerMonitoringServiceImpl(
 	 */
 	private suspend fun getSystemInfo(session: Session): Result<SystemInfo> = coroutineScope {
 		try {
-			// 并行执行命令，使用较短的超时时间
 			val kernelDeferred = async { sshCommandService.executeCommand(session, "uname -r", timeout = 5000) }
 			val osReleaseDeferred = async { sshCommandService.executeCommand(session, "cat /etc/os-release", timeout = 5000) }
+			val kernelVersion = kernelDeferred.await().getOrNull()?.trim() ?: "Unknown"
+			val osRelease = osReleaseDeferred.await().getOrNull() ?: ""
+			Result.success(parseSystemInfo(kernelVersion, osRelease))
+		} catch (e: Exception) {
+			Result.failure(Exception("Failed to get system info: ${e.message}", e))
+		}
+	}
 
-			// 等待结果
-			val kernelResult = kernelDeferred.await()
-			val kernelVersion = kernelResult.getOrNull()?.trim() ?: "Unknown"
-
-			val osResult = osReleaseDeferred.await()
-			val osRelease = osResult.getOrNull() ?: ""
-
+	private fun parseSystemInfo(kernelVersionRaw: String, osRelease: String): SystemInfo {
+			val kernelVersion = kernelVersionRaw.trim().ifBlank { "Unknown" }
 			var osName = "Unknown"
 			var osVersion = "Unknown"
 
@@ -599,35 +702,19 @@ class ServerMonitoringServiceImpl(
 						}
 					}
 				}
-			} else {
-				// 备用方法：使用 uname -a（如果需要）
-				val unameResult = sshCommandService.executeCommand(session, "uname -a", timeout = 5000)
-				val unameOutput = unameResult.getOrNull() ?: ""
-				if (unameOutput.isNotEmpty()) {
-					// 从 uname -a 输出中提取信息
-					// 格式通常为: Linux hostname kernel-version #version date time arch
-					val parts = unameOutput.split(" ")
-					if (parts.size >= 3) {
-						osName = parts[0] // "Linux"
-						// 尝试从其他部分提取更多信息
-					}
-				}
 			}
 
-			Result.success(SystemInfo(
+			return SystemInfo(
 				osName = osName,
 				osVersion = osVersion,
 				kernelVersion = kernelVersion
-			))
-		} catch (e: Exception) {
-			Result.failure(Exception("Failed to get system info: ${e.message}", e))
-		}
+			)
 	}
 
 	/**
 	 * 获取网络信息
 	 */
-	private suspend fun getNetworkInfo(session: Session): Result<NetworkInfo> = coroutineScope {
+	override suspend fun getNetworkInfo(session: Session): Result<NetworkInfo> = coroutineScope {
 		try {
 			// 并行获取连接数
 			val tcpDeferred = async { getTcpConnections(session) }
