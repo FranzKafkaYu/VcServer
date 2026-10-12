@@ -43,7 +43,7 @@ interface TerminalService {
 	 * @param channel Shell通道
 	 * @return 输出流（Flow<String>�?
 	 */
-	fun getOutputFlow(channel: ChannelShell): Flow<String>
+	fun getOutputFlow(channel: ChannelShell): Flow<ByteArray>
 
 	/**
 	 * 断开Shell通道

@@ -7,10 +7,10 @@ import androidx.compose.ui.graphics.Color
  * 支持 CSI SGR（含 256 色）、OSC 丢弃
  */
 object AnsiParser {
-	private const val ESC = '\u001B'
-	private const val BEL = '\u0007'
-	private const val CSI = "$ESC["
-	private const val OSC = "$ESC]"
+	internal const val ESC = '\u001B'
+	internal const val BEL = '\u0007'
+	internal const val CSI = "$ESC["
+	internal const val OSC = "$ESC]"
 
 	val DefaultForeground = Color(0xFFE6E6E6)
 
@@ -152,7 +152,7 @@ object AnsiParser {
 		return result.toString()
 	}
 
-	private fun skipOsc(data: String, start: Int): Int {
+	internal fun skipOsc(data: String, start: Int): Int {
 		var j = start + OSC.length
 		while (j < data.length) {
 			when {
@@ -233,7 +233,7 @@ object AnsiParser {
 		)
 	}
 
-	private fun ansiColorToColor(index: Int): Color {
+	internal fun ansiColorToColor(index: Int): Color {
 		return when (index) {
 			0 -> Color(0xFF1E1E1E)
 			1 -> Color(0xFFCD3131)
@@ -247,7 +247,7 @@ object AnsiParser {
 		}
 	}
 
-	private fun ansiBrightColorToColor(index: Int): Color {
+	internal fun ansiBrightColorToColor(index: Int): Color {
 		return when (index) {
 			0 -> Color(0xFF666666)
 			1 -> Color(0xFFF14C4C)
@@ -280,3 +280,214 @@ private data class AnsiCommandResult(
 	var clearLine: Boolean = false,
 	var cursorHome: Boolean = false
 )
+
+internal sealed class AnsiAction {
+	data class Print(val text: String) : AnsiAction()
+	data class Style(val fg: Color?, val bg: Color?, val bold: Boolean) : AnsiAction()
+	data class Cup(val row: Int, val col: Int) : AnsiAction()
+	data class Move(val command: Char, val count: Int) : AnsiAction()
+	data class EraseDisplay(val mode: Int) : AnsiAction()
+	data class EraseLine(val mode: Int) : AnsiAction()
+	data class EraseChars(val count: Int) : AnsiAction()
+	data class ScrollRegion(val top: Int, val bottom: Int) : AnsiAction()
+	data class InsertLines(val count: Int) : AnsiAction()
+	data class DeleteLines(val count: Int) : AnsiAction()
+	data class CursorMark(val restore: Boolean) : AnsiAction()
+	data class AltScreen(val enter: Boolean) : AnsiAction()
+	data class DecCkm(val application: Boolean) : AnsiAction()
+	data object Index : AnsiAction()
+	data object ReverseIndex : AnsiAction()
+}
+
+/**
+ * 按到达顺序产出文本和屏幕操作。不完整的 ESC 留到下一次 [feed]。
+ */
+internal class AnsiStream {
+	private var pending = ""
+	private var fg: Color? = null
+	private var bg: Color? = null
+	private var bold = false
+
+	fun feed(chunk: String): List<AnsiAction> {
+		val data = pending + chunk
+		pending = ""
+		val actions = mutableListOf<AnsiAction>()
+		val text = StringBuilder()
+		var i = 0
+
+		fun flush() {
+			if (text.isNotEmpty()) {
+				actions.add(AnsiAction.Print(text.toString()))
+				text.clear()
+			}
+		}
+
+		while (i < data.length) {
+			val ch = data[i]
+			if (ch == AnsiParser.BEL) {
+				i++
+				continue
+			}
+			if (ch == AnsiParser.ESC) {
+				if (i + 1 >= data.length) {
+					pending = data.substring(i)
+					break
+				}
+				flush()
+				when {
+					data.startsWith(AnsiParser.CSI, i) -> {
+						var j = i + AnsiParser.CSI.length
+						while (j < data.length && (data[j] in '0'..'9' || data[j] == ';' || data[j] == '?')) {
+							j++
+						}
+						if (j >= data.length) {
+							pending = data.substring(i)
+							break
+						}
+						val command = data[j]
+						val params = data.substring(i + AnsiParser.CSI.length, j)
+						actions.addAll(csi(command, params))
+						i = j + 1
+					}
+					data.startsWith(AnsiParser.OSC, i) -> {
+						val end = AnsiParser.skipOsc(data, i)
+						if (end < 0) {
+							pending = data.substring(i)
+							break
+						}
+						i = end
+					}
+					else -> {
+						val next = data[i + 1]
+						when (next) {
+							'7' -> {
+								actions.add(AnsiAction.CursorMark(restore = false))
+								i += 2
+							}
+							'8' -> {
+								actions.add(AnsiAction.CursorMark(restore = true))
+								i += 2
+							}
+							'D' -> {
+								actions.add(AnsiAction.Index)
+								i += 2
+							}
+							'M' -> {
+								actions.add(AnsiAction.ReverseIndex)
+								i += 2
+							}
+							in "()*+" -> {
+								if (i + 2 >= data.length) {
+									pending = data.substring(i)
+									break
+								}
+								i += 3
+							}
+							else -> i += 2
+						}
+					}
+				}
+				continue
+			}
+			text.append(ch)
+			i++
+		}
+		flush()
+		return actions
+	}
+
+	private fun csi(command: Char, params: String): List<AnsiAction> {
+		fun count(default: Int = 1): Int {
+			val n = params.substringBefore(';').removePrefix("?").toIntOrNull()
+			return if (n == null || n == 0) default else n
+		}
+		fun cupPart(index: Int): Int {
+			if (params.isEmpty()) return 1
+			val raw = params.split(';').getOrNull(index)?.removePrefix("?")?.toIntOrNull()
+			return if (raw == null || raw == 0) 1 else raw
+		}
+		return when (command) {
+			'm' -> {
+				applySgr(params)
+				listOf(AnsiAction.Style(fg, bg, bold))
+			}
+			'H', 'f' -> listOf(AnsiAction.Cup(cupPart(0), cupPart(1)))
+			'A', 'B', 'C', 'D' -> listOf(AnsiAction.Move(command, count()))
+			'G' -> listOf(AnsiAction.Cup(0, cupPart(0)))
+			'd' -> listOf(AnsiAction.Cup(cupPart(0), 0))
+			'J' -> listOf(AnsiAction.EraseDisplay(params.toIntOrNull() ?: 0))
+			'K' -> listOf(AnsiAction.EraseLine(params.toIntOrNull() ?: 0))
+			'X' -> listOf(AnsiAction.EraseChars(count()))
+			'r' -> {
+				if (params.isEmpty()) {
+					listOf(AnsiAction.ScrollRegion(0, 0))
+				} else {
+					listOf(AnsiAction.ScrollRegion(cupPart(0), cupPart(1)))
+				}
+			}
+			'L' -> listOf(AnsiAction.InsertLines(count()))
+			'M' -> listOf(AnsiAction.DeleteLines(count()))
+			's' -> listOf(AnsiAction.CursorMark(restore = false))
+			'u' -> listOf(AnsiAction.CursorMark(restore = true))
+			'h', 'l' -> mode(command == 'h', params)
+			else -> emptyList()
+		}
+	}
+
+	private fun mode(on: Boolean, params: String): List<AnsiAction> {
+		val actions = mutableListOf<AnsiAction>()
+		for (part in params.split(';')) {
+			when (part.removePrefix("?")) {
+				"1049", "47", "1047" -> if (part.startsWith("?")) {
+					actions.add(AnsiAction.AltScreen(on))
+				}
+				"1" -> if (part.startsWith("?")) {
+					actions.add(AnsiAction.DecCkm(on))
+				}
+			}
+		}
+		return actions
+	}
+
+	private fun applySgr(params: String) {
+		if (params.isEmpty()) {
+			fg = null
+			bg = null
+			bold = false
+			return
+		}
+		val codes = params.split(';').map { it.toIntOrNull() ?: 0 }
+		var idx = 0
+		while (idx < codes.size) {
+			when (val code = codes[idx]) {
+				0 -> {
+					fg = null
+					bg = null
+					bold = false
+				}
+				1 -> bold = true
+				22 -> bold = false
+				in 30..37 -> fg = AnsiParser.ansiColorToColor(code - 30)
+				38, 48 -> {
+					val foreground = code == 38
+					if (idx + 2 < codes.size && codes[idx + 1] == 5) {
+						val color = AnsiParser.xterm256ToColor(codes[idx + 2])
+						if (foreground) fg = color else bg = color
+						idx += 3
+						continue
+					}
+					if (idx + 4 < codes.size && codes[idx + 1] == 2) {
+						idx += 5
+						continue
+					}
+				}
+				39 -> fg = null
+				in 40..47 -> bg = AnsiParser.ansiColorToColor(code - 40)
+				49 -> bg = null
+				in 90..97 -> fg = AnsiParser.ansiBrightColorToColor(code - 90)
+				in 100..107 -> bg = AnsiParser.ansiBrightColorToColor(code - 100)
+			}
+			idx++
+		}
+	}
+}

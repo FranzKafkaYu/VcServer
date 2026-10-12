@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -35,11 +37,12 @@ class TerminalViewModel(
 
 	private var shellChannel: ChannelShell? = null
 	private val commandHistory = CommandHistory()
-	private val terminalBuffer = TerminalBuffer(rows = 2000, cols = 80)
 	private var ptyCols = 80
 	private var ptyRows = 24
+	private val terminalBuffer = TerminalBuffer(screenRows = ptyRows, cols = ptyCols)
 	private var isReconnecting = false
 	private var isReconnectingSession = false
+	private val inputMutex = Mutex()
 
 	init {
 		// 检查SSH session 是否连接
@@ -87,14 +90,8 @@ class TerminalViewModel(
 	private fun collectOutput(channel: ChannelShell) {
 		viewModelScope.launch {
 			terminalService.getOutputFlow(channel).collect { output ->
-				// 处理 ANSI 转义序列并更新缓冲区
-				processAnsiOutput(output)
-				
-				// 更新 UI 状态
-				_uiState.value = _uiState.value.copy(
-					terminalBuffer = terminalBuffer,
-					output = terminalBuffer.getPlainText() // 保留纯文本用于兼容
-				)
+				terminalBuffer.writeBytes(output)
+				publishBuffer()
 			}
 			// 输出流结束，连接断开
 			// 检查SSH session 是否还连接，如果连接则尝试重置Shell channel
@@ -154,7 +151,8 @@ class TerminalViewModel(
 		if (c == ptyCols && r == ptyRows) return
 		ptyCols = c
 		ptyRows = r
-		terminalBuffer.setCols(c)
+		terminalBuffer.setSize(c, r)
+		publishBuffer()
 		val channel = shellChannel ?: return
 		viewModelScope.launch {
 			withContext(Dispatchers.IO) {
@@ -169,8 +167,22 @@ class TerminalViewModel(
 	/**
 	 * 处理 ANSI 输出
 	 */
-	private fun processAnsiOutput(output: String) {
-		terminalBuffer.write(output)
+	private fun publishBuffer() {
+		_uiState.value = _uiState.value.copy(
+			terminalBuffer = terminalBuffer,
+			output = terminalBuffer.getPlainText(),
+			alternateScreen = terminalBuffer.isAlternateScreen(),
+			frame = terminalBuffer.frame
+		)
+	}
+
+	fun sendArrow(letter: Char) {
+		val sequence = if (terminalBuffer.applicationCursorKeys()) {
+			"\u001BO$letter"
+		} else {
+			"\u001B[$letter"
+		}
+		sendRawInput(sequence.toByteArray(Charsets.UTF_8))
 	}
 
 	/**
@@ -208,7 +220,9 @@ class TerminalViewModel(
 				commandHistory.resetIndex()
 
 				// 发送命令
-				terminalService.sendCommand(channel, trimmed)
+				inputMutex.withLock {
+					terminalService.sendCommand(channel, trimmed)
+				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
@@ -228,7 +242,9 @@ class TerminalViewModel(
 
 		viewModelScope.launch {
 			try {
-				terminalService.sendRawBytes(channel, bytes)
+				inputMutex.withLock {
+					terminalService.sendRawBytes(channel, bytes)
+				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
@@ -256,7 +272,9 @@ class TerminalViewModel(
 		}
 		viewModelScope.launch {
 			try {
-				terminalService.sendControlChar(channel, code)
+				inputMutex.withLock {
+					terminalService.sendControlChar(channel, code)
+				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
@@ -276,7 +294,9 @@ class TerminalViewModel(
 
 		viewModelScope.launch {
 			try {
-				terminalService.sendRawBytes(channel, sequence.toByteArray(Charsets.UTF_8))
+				inputMutex.withLock {
+					terminalService.sendRawBytes(channel, sequence.toByteArray(Charsets.UTF_8))
+				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
@@ -376,10 +396,7 @@ class TerminalViewModel(
 	 */
 	fun clearOutput() {
 		terminalBuffer.clearScreen()
-		_uiState.value = _uiState.value.copy(
-			output = "",
-			terminalBuffer = terminalBuffer
-		)
+		publishBuffer()
 	}
 
 	override fun onCleared() {
@@ -394,6 +411,8 @@ class TerminalViewModel(
 data class TerminalUiState(
 	val output: String = "",
 	val terminalBuffer: TerminalBuffer? = null,
+	val alternateScreen: Boolean = false,
+	val frame: Int = 0,
 	val isConnecting: Boolean = false,
 	val isConnected: Boolean = false,
 	val error: AppError? = null

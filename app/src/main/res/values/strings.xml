@@ -76,6 +76,7 @@
 	<string name="terminal_clear_screen">清屏</string>
 	<string name="terminal_tab">Tab</string>
 	<string name="terminal_esc">Esc</string>
+	<string name="terminal_ctrl">Ctrl</string>
 	<string name="cursor_left">光标左移</string>
 	<string name="cursor_right">光标右移</string>
 	<string name="arrow_up">上箭头</string>

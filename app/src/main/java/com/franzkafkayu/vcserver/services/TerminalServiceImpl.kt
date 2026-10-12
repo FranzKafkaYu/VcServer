@@ -85,7 +85,7 @@ class TerminalServiceImpl : TerminalService {
 		}
 	}
 
-	override fun getOutputFlow(channel: ChannelShell): Flow<String> = callbackFlow {
+	override fun getOutputFlow(channel: ChannelShell): Flow<ByteArray> = callbackFlow {
 		val inputStream: InputStream = channel.inputStream
 		val buffer = ByteArray(1024)
 		var readerJob: Job? = null
@@ -96,9 +96,7 @@ class TerminalServiceImpl : TerminalService {
 					if (inputStream.available() > 0) {
 						val len = inputStream.read(buffer, 0, buffer.size)
 						if (len > 0) {
-							// �?UTF-8 解码，避免中文等多字节字符乱�?
-							val output = String(buffer, 0, len, Charsets.UTF_8)
-							trySend(output)
+							trySend(buffer.copyOf(len))
 						} else if (len < 0) {
 							break
 						}

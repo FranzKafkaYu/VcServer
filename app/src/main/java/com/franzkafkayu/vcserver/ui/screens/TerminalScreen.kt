@@ -59,6 +59,7 @@ fun TerminalScreen(
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 	var commandInput by remember { mutableStateOf("") }
 	var realtimeInputMode by remember { mutableStateOf(false) } // 实时输入模式
+	var ctrlArmed by remember { mutableStateOf(false) }
 	val keyboardController = LocalSoftwareKeyboardController.current
 
 	Scaffold(
@@ -168,9 +169,13 @@ fun TerminalScreen(
 				)
 			) {
 				val scrollState = rememberScrollState()
-				LaunchedEffect(uiState.output) {
+				LaunchedEffect(uiState.frame, uiState.alternateScreen) {
 					withFrameNanos { }
-					scrollState.scrollTo(scrollState.maxValue)
+					if (uiState.alternateScreen) {
+						scrollState.scrollTo(0)
+					} else {
+						scrollState.scrollTo(scrollState.maxValue)
+					}
 				}
 
 				BoxWithConstraints(
@@ -279,9 +284,26 @@ fun TerminalScreen(
 						) {
 							Text(stringResource(R.string.terminal_esc))
 						}
+						if (uiState.alternateScreen) {
+							TextButton(
+								onClick = { ctrlArmed = !ctrlArmed },
+								enabled = uiState.isConnected,
+								colors = ButtonDefaults.textButtonColors(
+									containerColor = if (ctrlArmed) {
+										MaterialTheme.colorScheme.primaryContainer
+									} else {
+										Color.Transparent
+									}
+								)
+							) {
+								Text(stringResource(R.string.terminal_ctrl))
+							}
+						}
 						IconButton(
 							onClick = {
-								if (realtimeInputMode) {
+								if (uiState.alternateScreen) {
+									viewModel.sendArrow('A')
+								} else if (realtimeInputMode) {
 									viewModel.sendAnsiSequence("\u001B[A")
 								} else {
 									val prevCommand = viewModel.getPreviousCommand()
@@ -299,7 +321,9 @@ fun TerminalScreen(
 						}
 						IconButton(
 							onClick = {
-								if (realtimeInputMode) {
+								if (uiState.alternateScreen) {
+									viewModel.sendArrow('B')
+								} else if (realtimeInputMode) {
 									viewModel.sendAnsiSequence("\u001B[B")
 								} else {
 									commandInput = viewModel.getNextCommand()
@@ -312,9 +336,15 @@ fun TerminalScreen(
 								contentDescription = stringResource(R.string.next_command)
 							)
 						}
-						if (realtimeInputMode) {
+						if (uiState.alternateScreen || realtimeInputMode) {
 							IconButton(
-								onClick = { viewModel.sendAnsiSequence("\u001B[D") },
+								onClick = {
+									if (uiState.alternateScreen) {
+										viewModel.sendArrow('D')
+									} else {
+										viewModel.sendAnsiSequence("\u001B[D")
+									}
+								},
 								enabled = uiState.isConnected
 							) {
 								Icon(
@@ -323,7 +353,13 @@ fun TerminalScreen(
 								)
 							}
 							IconButton(
-								onClick = { viewModel.sendAnsiSequence("\u001B[C") },
+								onClick = {
+									if (uiState.alternateScreen) {
+										viewModel.sendArrow('C')
+									} else {
+										viewModel.sendAnsiSequence("\u001B[C")
+									}
+								},
 								enabled = uiState.isConnected
 							) {
 								Icon(
@@ -339,28 +375,30 @@ fun TerminalScreen(
 									commandInput = completed
 								}
 							},
-							enabled = uiState.isConnected && !realtimeInputMode && commandInput.isNotEmpty()
+							enabled = uiState.isConnected && !uiState.alternateScreen && !realtimeInputMode && commandInput.isNotEmpty()
 						) {
 							Text(stringResource(R.string.auto_complete))
 						}
 					}
 
 					// 实时输入模式切换
-					Row(
-						modifier = Modifier.fillMaxWidth(),
-						horizontalArrangement = Arrangement.SpaceBetween,
-						verticalAlignment = Alignment.CenterVertically
-					) {
-						Text(
-							text = if (realtimeInputMode) "实时输入模式" else "命令模式",
-							style = MaterialTheme.typography.bodySmall,
-							color = MaterialTheme.colorScheme.onSurfaceVariant
-						)
-						Switch(
-							checked = realtimeInputMode,
-							onCheckedChange = { realtimeInputMode = it },
-							enabled = uiState.isConnected
-						)
+					if (!uiState.alternateScreen) {
+						Row(
+							modifier = Modifier.fillMaxWidth(),
+							horizontalArrangement = Arrangement.SpaceBetween,
+							verticalAlignment = Alignment.CenterVertically
+						) {
+							Text(
+								text = if (realtimeInputMode) "实时输入模式" else "命令模式",
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.onSurfaceVariant
+							)
+							Switch(
+								checked = realtimeInputMode,
+								onCheckedChange = { realtimeInputMode = it },
+								enabled = uiState.isConnected
+							)
+						}
 					}
 
 					// 输入�?
@@ -372,46 +410,65 @@ fun TerminalScreen(
 						TextField(
 							value = commandInput,
 							onValueChange = { newValue ->
-								if (realtimeInputMode && uiState.isConnected) {
-									// 实时输入模式：每次输入一个字符就发�?
-									val oldLength = commandInput.length
-									val newLength = newValue.length
-									
-									if (newLength > oldLength) {
-										// 新增字符，发送新字符
-										val newChar = newValue.substring(oldLength)
-										viewModel.sendRawInput(newChar.toByteArray(Charsets.UTF_8))
-									} else if (newLength < oldLength) {
-										// 删除字符，发�?Backspace
-										viewModel.sendRawInput(byteArrayOf(0x08)) // Backspace
+								val direct = uiState.alternateScreen || realtimeInputMode
+								if (direct && uiState.isConnected) {
+									val old = commandInput
+									var next = newValue
+									if (newValue.length > old.length) {
+										var added = newValue.substring(old.length)
+										if (uiState.alternateScreen && ctrlArmed && added.isNotEmpty()) {
+											val code = controlCode(added[0])
+											if (code != null) {
+												viewModel.sendRawInput(byteArrayOf(code.toByte()))
+												ctrlArmed = false
+												added = added.drop(1)
+												next = old + added
+											}
+										}
+										if (added.isNotEmpty()) {
+											viewModel.sendRawInput(added.toByteArray(Charsets.UTF_8))
+										}
+									} else if (newValue.length < old.length) {
+										val backspace = if (uiState.alternateScreen) 0x7F.toByte() else 0x08.toByte()
+										val count = old.length - newValue.length
+										viewModel.sendRawInput(ByteArray(count) { backspace })
 									}
+									commandInput = next
+								} else {
+									commandInput = newValue
 								}
-								commandInput = newValue
 							},
 							modifier = Modifier.weight(1f),
 							enabled = uiState.isConnected,
 							placeholder = { 
 								Text(
-									if (realtimeInputMode) "实时输入模式（字符将实时发送）" 
-									else stringResource(R.string.command_input)
-								) 
+									when {
+										uiState.alternateScreen -> "按键发送到全屏程序"
+										realtimeInputMode -> "实时输入模式（字符将实时发送）"
+										else -> stringResource(R.string.command_input)
+									}
+								)
 							},
 							keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
 							keyboardActions = KeyboardActions(
 								onSend = {
 									if (uiState.isConnected) {
-										if (realtimeInputMode) {
-											// 实时模式：发�?Enter
-											viewModel.sendRawInput(byteArrayOf(0x0A)) // Line feed (Enter)
-											commandInput = ""
-										} else {
-											// 命令模式：发送整行命�?
-											if (commandInput.isNotEmpty()) {
-												viewModel.sendCommand(commandInput)
+										when {
+											uiState.alternateScreen -> {
+												viewModel.sendRawInput(byteArrayOf(0x0D))
 												commandInput = ""
 											}
+											realtimeInputMode -> {
+												viewModel.sendRawInput(byteArrayOf(0x0A))
+												commandInput = ""
+												keyboardController?.hide()
+											}
+											commandInput.isNotEmpty() -> {
+												viewModel.sendCommand(commandInput)
+												commandInput = ""
+												keyboardController?.hide()
+											}
 										}
-										keyboardController?.hide()
 									}
 								}
 							),
@@ -424,21 +481,25 @@ fun TerminalScreen(
 						IconButton(
 							onClick = {
 								if (uiState.isConnected) {
-									if (realtimeInputMode) {
-										// 实时模式：发�?Enter
-										viewModel.sendRawInput(byteArrayOf(0x0A))
-										commandInput = ""
-									} else {
-										// 命令模式：发送整行命�?
-										if (commandInput.isNotEmpty()) {
-											viewModel.sendCommand(commandInput)
+									when {
+										uiState.alternateScreen -> {
+											viewModel.sendRawInput(byteArrayOf(0x0D))
 											commandInput = ""
 										}
+										realtimeInputMode -> {
+											viewModel.sendRawInput(byteArrayOf(0x0A))
+											commandInput = ""
+											keyboardController?.hide()
+										}
+										commandInput.isNotEmpty() -> {
+											viewModel.sendCommand(commandInput)
+											commandInput = ""
+											keyboardController?.hide()
+										}
 									}
-									keyboardController?.hide()
 								}
 							},
-							enabled = uiState.isConnected && (realtimeInputMode || commandInput.isNotEmpty())
+							enabled = uiState.isConnected && (uiState.alternateScreen || realtimeInputMode || commandInput.isNotEmpty())
 						) {
 							Icon(
 								Icons.Default.Send,
@@ -461,14 +522,15 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 	
 	Column {
 		content.forEach { row ->
-			if (row.isNotEmpty()) {
+			val cells = if (row.isEmpty()) listOf(CharCell(' ', null, null, false)) else row
+			run {
 				Text(
 					text = buildAnnotatedString {
 						var currentFg: Color? = null
 						var currentBg: Color? = null
 						var currentBold = false
 						
-						row.forEach { cell ->
+						cells.forEach { cell ->
 							// 如果格式改变，切换样�?
 							if (cell.fgColor != currentFg || 
 								cell.bgColor != currentBg || 
@@ -508,5 +570,11 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 			}
 		}
 	}
+}
+
+private fun controlCode(ch: Char): Int? = when (ch) {
+	in 'a'..'z' -> ch.code - 'a'.code + 1
+	in 'A'..'Z' -> ch.code - 'A'.code + 1
+	else -> null
 }
 

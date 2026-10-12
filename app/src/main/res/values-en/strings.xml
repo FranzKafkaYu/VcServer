@@ -76,6 +76,7 @@
 	<string name="terminal_clear_screen">Clear screen</string>
 	<string name="terminal_tab">Tab</string>
 	<string name="terminal_esc">Esc</string>
+	<string name="terminal_ctrl">Ctrl</string>
 	<string name="cursor_left">Move left</string>
 	<string name="cursor_right">Move right</string>
 	<string name="arrow_up">Up</string>
