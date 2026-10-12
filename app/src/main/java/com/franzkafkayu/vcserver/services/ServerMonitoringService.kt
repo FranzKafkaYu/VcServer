@@ -64,34 +64,41 @@ class ServerMonitoringServiceImpl(
 	private val secureStorage: SecureStorage
 ) : ServerMonitoringService {
 	companion object {
-	  private const val TAG = "ServerMonitoringService"
-		private val CORE_SNAPSHOT_COMMAND = """
-			echo '---VC_CPU_CORES---'
-			nproc 2>/dev/null || echo 1
-			echo '---VC_CPU_ARCH---'
-			uname -m 2>/dev/null
-			echo '---VC_CPU_MODEL---'
-			grep -i 'model name' /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs
-			echo '---VC_MEM---'
-			free -b 2>/dev/null || free -h 2>/dev/null
-			echo '---VC_DISK---'
-			df -h 2>/dev/null
-			echo '---VC_UPTIME---'
-			uptime -p 2>/dev/null || uptime 2>/dev/null
+		private const val TAG = "ServerMonitoringService"
+		internal val CPU_STAT_SAMPLE_COMMAND = """
+			head -1 /proc/stat 2>/dev/null || true
+			sleep 1
+			head -1 /proc/stat 2>/dev/null || true
+		""".trimIndent()
+		internal val CORE_SNAPSHOT_COMMAND = buildString {
+			appendLine("echo '---VC_CPU_STAT---'")
+			appendLine(CPU_STAT_SAMPLE_COMMAND)
+			appendLine("echo '---VC_CPU_CORES---'")
+			appendLine("nproc 2>/dev/null || echo 1")
+			appendLine("echo '---VC_CPU_ARCH---'")
+			appendLine("uname -m 2>/dev/null")
+			appendLine("echo '---VC_CPU_MODEL---'")
+			appendLine("grep -i 'model name' /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs")
+			appendLine("echo '---VC_MEM---'")
+			appendLine("free -b 2>/dev/null || free -h 2>/dev/null")
+			appendLine("echo '---VC_DISK---'")
+			appendLine("df -h 2>/dev/null")
+			appendLine("echo '---VC_UPTIME---'")
+			appendLine("uptime -p 2>/dev/null || uptime 2>/dev/null")
+			appendLine("echo '---VC_KERNEL---'")
+			appendLine("uname -r 2>/dev/null")
+			appendLine("echo '---VC_OS---'")
+			appendLine("cat /etc/os-release 2>/dev/null")
+			appendLine("echo '---VC_END---'")
+		}.trimEnd()
+		internal val OS_ONLY_COMMAND = """
 			echo '---VC_KERNEL---'
 			uname -r 2>/dev/null
 			echo '---VC_OS---'
 			cat /etc/os-release 2>/dev/null
 			echo '---VC_END---'
 		""".trimIndent()
-		private val OS_ONLY_COMMAND = """
-			echo '---VC_KERNEL---'
-			uname -r 2>/dev/null
-			echo '---VC_OS---'
-			cat /etc/os-release 2>/dev/null
-			echo '---VC_END---'
-		""".trimIndent()
-   }
+	}
 	
 
 	override suspend fun connectToServer(server: Server): Result<Session> = withContext(Dispatchers.IO) {
@@ -173,7 +180,7 @@ class ServerMonitoringServiceImpl(
 		val scriptOutput = sshCommandService.executeCommand(
 			session,
 			CORE_SNAPSHOT_COMMAND,
-			timeout = 8000
+			timeout = 12000
 		).getOrNull()
 		val snapshot = scriptOutput?.let { parseCoreSnapshot(it) }
 		if (snapshot != null) {
@@ -232,14 +239,11 @@ class ServerMonitoringServiceImpl(
 		)
 	}
 
-	private fun parseCoreSnapshot(output: String): ServerStatus? {
+	internal fun parseCoreSnapshot(output: String): ServerStatus? {
 		if (!output.contains("---VC_END---") || !output.contains("---VC_CPU_CORES---")) {
 			return null
 		}
-		val cores = snapshotSection(output, "CPU_CORES")
-			.lineSequence()
-			.mapNotNull { it.trim().toIntOrNull() }
-			.firstOrNull() ?: return null
+		val coreCpu = coreCpuFromSnapshot(output) ?: return null
 		val arch = snapshotSection(output, "CPU_ARCH").lineSequence().firstOrNull { it.isNotBlank() }?.trim()
 		val model = snapshotSection(output, "CPU_MODEL").lineSequence().firstOrNull { it.isNotBlank() }?.trim()
 			?.takeIf { it.isNotEmpty() }
@@ -249,7 +253,12 @@ class ServerMonitoringServiceImpl(
 		val uptime = formatUptime(uptimeText).takeIf { it.isNotEmpty() && uptimeText.isNotBlank() }
 		val systemInfo = parseSystemInfo(snapshotSection(output, "KERNEL"), snapshotSection(output, "OS"))
 		return ServerStatus(
-			cpu = CpuInfo(architecture = arch, model = model, cores = cores, usagePercent = 0.0),
+			cpu = CpuInfo(
+				architecture = arch,
+				model = model,
+				cores = coreCpu.first,
+				usagePercent = coreCpu.second
+			),
 			memory = memory,
 			disk = disk,
 			uptime = uptime,
@@ -258,15 +267,7 @@ class ServerMonitoringServiceImpl(
 		)
 	}
 
-	private fun snapshotSection(output: String, name: String): String {
-		val marker = "---VC_$name---"
-		val start = output.indexOf(marker)
-		if (start < 0) return ""
-		val rest = output.substring(start + marker.length)
-		val next = Regex("\n---VC_[A-Z_]+---").find(rest)
-		val body = if (next == null) rest else rest.substring(0, next.range.first)
-		return body.trim()
-	}
+	private fun snapshotSection(output: String, name: String): String = snapshotSectionOf(output, name)
 
 	override fun disconnect(session: Session) {
 		// 注意：这里只断开 Session，但不从连接池移除
@@ -280,19 +281,21 @@ class ServerMonitoringServiceImpl(
 	}
 
 	/**
-	 * 获取 CPU 信息（优化：简化命令，移除慢命令）
+	 * 获取 CPU 信息。使用率与快照共用两次 /proc/stat 采样。
 	 */
 	private suspend fun getCpuInfo(session: Session): Result<CpuInfo> = coroutineScope {
 		try {
-			// 并行执行快速命令，移除慢命令（top 命令很慢，暂时跳过 CPU 使用率）
 			val coresDeferred = async { sshCommandService.executeCommand(session, "nproc", timeout = 5000) }
 			val archDeferred = async { sshCommandService.executeCommand(session, "uname -m", timeout = 5000) }
-			val modelDeferred = async { 
+			val modelDeferred = async {
 				sshCommandService.executeCommand(
 					session,
 					"cat /proc/cpuinfo 2>/dev/null | grep -i 'model name' | head -1 | cut -d: -f2 | xargs",
 					timeout = 5000
 				)
+			}
+			val usageDeferred = async {
+				sshCommandService.executeCommand(session, CPU_STAT_SAMPLE_COMMAND, timeout = 8000)
 			}
 
 			// 等待必需的结果（CPU 核心数）
@@ -317,9 +320,7 @@ class ServerMonitoringServiceImpl(
 				null
 			}
 
-			// CPU 使用率：暂时返回 0.0，因为 top 命令很慢且需要两次采样才能准确计算
-			// 如果需要，可以在后台异步更新
-			val usagePercent = 0.0
+			val usagePercent = cpuUsagePercent(usageDeferred.await().getOrNull().orEmpty())
 
 			Result.success(CpuInfo(
 				architecture = architecture,
@@ -330,15 +331,6 @@ class ServerMonitoringServiceImpl(
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to parse CPU info: ${e.message}", e))
 		}
-	}
-
-	/**
-	 * 从 /proc/stat 解析 CPU 使用率
-	 */
-	private fun parseCpuUsageFromStat(statLine: String): Double {
-		// 简化实现，返回 0.0
-		// 实际实现需要计算两次采样之间的差值
-		return 0.0
 	}
 
 	/**
@@ -912,5 +904,52 @@ class ServerMonitoringServiceImpl(
 			}
 		}
 	}
+}
+
+internal fun snapshotSectionOf(output: String, name: String): String {
+	val marker = "---VC_$name---"
+	val start = output.indexOf(marker)
+	if (start < 0) return ""
+	val rest = output.substring(start + marker.length)
+	val next = Regex("\n---VC_[A-Z_]+---").find(rest)
+	val body = if (next == null) rest else rest.substring(0, next.range.first)
+	return body.trim()
+}
+
+internal fun coreCpuFromSnapshot(output: String): Pair<Int, Double>? {
+	if (!output.contains("---VC_END---") || !output.contains("---VC_CPU_CORES---")) return null
+	val cores = snapshotSectionOf(output, "CPU_CORES")
+		.lineSequence()
+		.mapNotNull { it.trim().toIntOrNull() }
+		.firstOrNull() ?: return null
+	return cores to cpuUsagePercent(snapshotSectionOf(output, "CPU_STAT"))
+}
+
+internal fun cpuUsagePercent(statText: String): Double {
+	val samples = statText.lineSequence()
+		.map { it.trim() }
+		.filter { it.isNotEmpty() }
+		.mapNotNull { cpuCountersOf(it) }
+		.take(2)
+		.toList()
+	if (samples.size < 2) return 0.0
+	val totalDelta = samples[1].total - samples[0].total
+	if (totalDelta <= 0L) return 0.0
+	val idleDelta = samples[1].idle - samples[0].idle
+	val busy = totalDelta - idleDelta
+	return (busy.toDouble() / totalDelta.toDouble() * 100.0).coerceIn(0.0, 100.0)
+}
+
+private data class CpuCounters(val total: Long, val idle: Long)
+
+private fun cpuCountersOf(line: String): CpuCounters? {
+	val parts = line.split(Regex("\\s+"))
+	if (parts.isEmpty() || parts[0] != "cpu") return null
+	if (parts.size < 9) return null
+	val values = LongArray(8)
+	for (index in 0 until 8) {
+		values[index] = parts[index + 1].toLongOrNull() ?: return null
+	}
+	return CpuCounters(total = values.sum(), idle = values[3] + values[4])
 }
 
