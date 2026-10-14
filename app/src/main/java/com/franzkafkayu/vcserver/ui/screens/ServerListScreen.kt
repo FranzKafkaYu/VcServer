@@ -505,9 +505,9 @@ private fun ServerListRow(
 	}
 	val dialogVisible = rememberUpdatedState(deleteDialogVisible)
 	val swipeDelete = rememberUpdatedState(onSwipeDelete)
-	val dismissState = rememberDismissState(
+	val dismissState = rememberSwipeToDismissBoxState(
 		confirmValueChange = { value ->
-			if (value == DismissValue.DismissedToStart) {
+			if (value == SwipeToDismissBoxValue.EndToStart) {
 				if (!dialogVisible.value) {
 					swipeDelete.value()
 				}
@@ -517,11 +517,12 @@ private fun ServerListRow(
 			}
 		}
 	)
-	SwipeToDismiss(
+	SwipeToDismissBox(
 		state = dismissState,
 		modifier = Modifier.clip(CardDefaults.shape),
-		directions = setOf(DismissDirection.EndToStart),
-		background = {
+		enableDismissFromStartToEnd = false,
+		enableDismissFromEndToStart = true,
+		backgroundContent = {
 			Box(
 				modifier = Modifier
 					.fillMaxSize()
@@ -536,7 +537,7 @@ private fun ServerListRow(
 				)
 			}
 		},
-		dismissContent = { content() }
+		content = { content() }
 	)
 }
 

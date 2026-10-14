@@ -64,6 +64,7 @@ fun NavGraph(
     serverManagementService: com.franzkafkayu.vcserver.services.ServerManagementService,
     serverMonitoringService: com.franzkafkayu.vcserver.services.ServerMonitoringService,
     terminalService: TerminalService,
+    terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences,
     settingsService: com.franzkafkayu.vcserver.services.SettingsService,
     exportImportService: com.franzkafkayu.vcserver.services.DatabaseExportImportService,
     sftpFileTransferService: com.franzkafkayu.vcserver.services.SftpFileTransferService
@@ -197,7 +198,8 @@ fun NavGraph(
                             serverMonitoringService = serverMonitoringService,
                             server = server,
                             session = session,
-                            sessionKey = sessionKey
+                            sessionKey = sessionKey,
+                            terminalPreferences = terminalPreferences
                         )
                     )
                     TerminalScreen(
@@ -264,7 +266,8 @@ class TerminalViewModelFactory(
     private val serverMonitoringService: com.franzkafkayu.vcserver.services.ServerMonitoringService,
     private val server: com.franzkafkayu.vcserver.models.Server,
     private val session: Session,
-    private val sessionKey: String
+    private val sessionKey: String,
+    private val terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TerminalViewModel::class.java)) {
@@ -274,7 +277,8 @@ class TerminalViewModelFactory(
                 serverMonitoringService,
                 server,
                 session,
-                sessionKey
+                sessionKey,
+                terminalPreferences
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")

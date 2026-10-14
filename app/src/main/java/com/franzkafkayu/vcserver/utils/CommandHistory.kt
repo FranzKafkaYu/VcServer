@@ -68,7 +68,29 @@ class CommandHistory(private val maxSize: Int = 100) {
 	}
 
 	/**
+	 * 用已保存的命令替换当前历史，光标停在最新一条之后。
+	 */
+	fun restore(commands: List<String>) {
+		history.clear()
+		commands.forEach { command ->
+			val trimmed = command.trim()
+			if (trimmed.isNotEmpty()) {
+				history.add(trimmed)
+			}
+		}
+		while (history.size > maxSize) {
+			history.removeAt(0)
+		}
+		currentIndex = history.size
+	}
+
+	/**
+	 * 当前历史的副本，按从旧到新排列。
+	 */
+	fun snapshot(): List<String> = history.toList()
+
+	/**
 	 * 获取所有历史记录（用于调试）
 	 */
-	fun getAllHistory(): List<String> = history.toList()
+	fun getAllHistory(): List<String> = snapshot()
 }

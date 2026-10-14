@@ -12,6 +12,8 @@ import com.franzkafkayu.vcserver.utils.CommandAutoComplete
 import com.franzkafkayu.vcserver.utils.CommandHistory
 import com.franzkafkayu.vcserver.utils.SessionManager
 import com.franzkafkayu.vcserver.utils.TerminalBuffer
+import com.franzkafkayu.vcserver.utils.TerminalFont
+import com.franzkafkayu.vcserver.utils.TerminalPreferences
 import com.franzkafkayu.vcserver.utils.toAppError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +32,8 @@ class TerminalViewModel(
 	private val serverMonitoringService: ServerMonitoringService,
 	val server: Server,
 	var session: Session, // 改为 var，支持重连后更新
-	private val sessionKey: String // 用于更新 SessionManager
+	private val sessionKey: String, // 用于更新 SessionManager
+	private val terminalPreferences: TerminalPreferences
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(TerminalUiState())
 	val uiState: StateFlow<TerminalUiState> = _uiState.asStateFlow()
@@ -45,12 +48,18 @@ class TerminalViewModel(
 	private val inputMutex = Mutex()
 
 	init {
-		// 检查SSH session 是否连接
-		if (!session.isConnected) {
-			// 自动尝试重连 SSH session
-			reconnectSession()
-		} else {
-			connectShell()
+		viewModelScope.launch {
+			try {
+				val savedFont = terminalPreferences.fontSizeSp()
+				commandHistory.restore(terminalPreferences.history(server.id))
+				_uiState.value = _uiState.value.copy(fontSizeSp = savedFont)
+			} catch (_: Exception) {
+			}
+			if (!session.isConnected) {
+				reconnectSession()
+			} else {
+				connectShell()
+			}
 		}
 	}
 
@@ -145,6 +154,21 @@ class TerminalViewModel(
 		}
 	}
 
+	fun increaseFont() = changeFont(TerminalFont.larger(_uiState.value.fontSizeSp))
+
+	fun decreaseFont() = changeFont(TerminalFont.smaller(_uiState.value.fontSizeSp))
+
+	private fun changeFont(next: Int) {
+		if (next == _uiState.value.fontSizeSp) return
+		_uiState.value = _uiState.value.copy(fontSizeSp = next)
+		viewModelScope.launch {
+			try {
+				terminalPreferences.setFontSizeSp(next)
+			} catch (_: Exception) {
+			}
+		}
+	}
+
 	fun updateTerminalSize(cols: Int, rows: Int) {
 		val c = cols.coerceAtLeast(40)
 		val r = rows.coerceAtLeast(10)
@@ -215,11 +239,13 @@ class TerminalViewModel(
 
 		viewModelScope.launch {
 			try {
-				// 添加到历史记录
 				commandHistory.addCommand(trimmed)
 				commandHistory.resetIndex()
+				try {
+					terminalPreferences.saveHistory(server.id, commandHistory.snapshot())
+				} catch (_: Exception) {
+				}
 
-				// 发送命令
 				inputMutex.withLock {
 					terminalService.sendCommand(channel, trimmed)
 				}
@@ -415,6 +441,7 @@ data class TerminalUiState(
 	val frame: Int = 0,
 	val isConnecting: Boolean = false,
 	val isConnected: Boolean = false,
-	val error: AppError? = null
+	val error: AppError? = null,
+	val fontSizeSp: Int = TerminalFont.DEFAULT_SP
 )
 

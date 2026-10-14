@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
 			secureStorage
 		)
 		val terminalService = TerminalServiceImpl()
+		val terminalPreferences = com.franzkafkayu.vcserver.utils.TerminalPreferences(applicationContext)
 
 		// 初始化设置服务
 		val settingsRepository = SettingsRepositoryImpl(applicationContext)
@@ -138,6 +139,7 @@ class MainActivity : ComponentActivity() {
 						serverManagementService = serverManagementService,
 						serverMonitoringService = serverMonitoringService,
 						terminalService = terminalService,
+						terminalPreferences = terminalPreferences,
 						settingsService = settingsService,
 						exportImportService = exportImportService,
 						sftpFileTransferService = sftpFileTransferService

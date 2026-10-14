@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,7 +68,32 @@ fun SftpBrowserDialog(
 	var createMode by remember { mutableStateOf<SftpCreateMode?>(null) }
 	var pendingDelete by remember { mutableStateOf<SftpRemoteEntry?>(null) }
 	var pendingRename by remember { mutableStateOf<SftpRemoteEntry?>(null) }
-	var showPageMenu by remember { mutableStateOf(false) }
+	var overlayMenu by remember { mutableStateOf<String?>(null) }
+	var queuedCreate by remember { mutableStateOf<SftpCreateMode?>(null) }
+	var queuedRename by remember { mutableStateOf<SftpRemoteEntry?>(null) }
+	var queuedDelete by remember { mutableStateOf<SftpRemoteEntry?>(null) }
+	var queuedUpload by remember { mutableStateOf(false) }
+	val overlayDialogOpen = createMode != null || pendingRename != null || pendingDelete != null
+
+	LaunchedEffect(overlayMenu) {
+		if (overlayMenu != null) return@LaunchedEffect
+		queuedCreate?.let {
+			createMode = it
+			queuedCreate = null
+		}
+		queuedRename?.let {
+			pendingRename = it
+			queuedRename = null
+		}
+		queuedDelete?.let {
+			pendingDelete = it
+			queuedDelete = null
+		}
+		if (queuedUpload) {
+			queuedUpload = false
+			onUpload()
+		}
+	}
 
 	AlertDialog(
 		onDismissRequest = onDismiss,
@@ -94,35 +120,38 @@ fun SftpBrowserDialog(
 						modifier = Modifier.weight(1f)
 					)
 					Box {
-						IconButton(onClick = { showPageMenu = true }) {
+						IconButton(
+							onClick = { overlayMenu = "page" },
+							enabled = !overlayDialogOpen
+						) {
 							Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.sftp_more))
 						}
 						DropdownMenu(
-							expanded = showPageMenu,
-							onDismissRequest = { showPageMenu = false }
+							expanded = overlayMenu == "page" && !overlayDialogOpen,
+							onDismissRequest = { overlayMenu = null }
 						) {
 							DropdownMenuItem(
 								text = { Text(stringResource(R.string.sftp_new_file)) },
 								leadingIcon = { Icon(Icons.Default.NoteAdd, contentDescription = null) },
 								onClick = {
-									showPageMenu = false
-									createMode = SftpCreateMode.File
+									queuedCreate = SftpCreateMode.File
+									overlayMenu = null
 								}
 							)
 							DropdownMenuItem(
 								text = { Text(stringResource(R.string.sftp_new_folder)) },
 								leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
 								onClick = {
-									showPageMenu = false
-									createMode = SftpCreateMode.Folder
+									queuedCreate = SftpCreateMode.Folder
+									overlayMenu = null
 								}
 							)
 							DropdownMenuItem(
 								text = { Text(stringResource(R.string.sftp_upload)) },
 								leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
 								onClick = {
-									showPageMenu = false
-									onUpload()
+									queuedUpload = true
+									overlayMenu = null
 								}
 							)
 						}
@@ -147,11 +176,26 @@ fun SftpBrowserDialog(
 							items(uiState.sftpEntries, key = { it.name }) { entry ->
 								SftpEntryRow(
 									entry = entry,
+									menuExpanded = overlayMenu == entry.name && !overlayDialogOpen,
+									onMenuExpand = { overlayMenu = entry.name },
+									onMenuDismiss = { overlayMenu = null },
 									onOpen = { onOpenEntry(entry) },
-									onEdit = { onOpenEntry(entry) },
-									onDownload = { onDownload(entry) },
-									onRename = { pendingRename = entry },
-									onDelete = { pendingDelete = entry }
+									onEdit = {
+										overlayMenu = null
+										onOpenEntry(entry)
+									},
+									onDownload = {
+										overlayMenu = null
+										onDownload(entry)
+									},
+									onRename = {
+										queuedRename = entry
+										overlayMenu = null
+									},
+									onDelete = {
+										queuedDelete = entry
+										overlayMenu = null
+									}
 								)
 							}
 						}
@@ -167,7 +211,7 @@ fun SftpBrowserDialog(
 		}
 	)
 
-	createMode?.let { mode ->
+	if (overlayMenu == null) createMode?.let { mode ->
 		SftpNameInputDialog(
 			title = stringResource(
 				if (mode == SftpCreateMode.File) R.string.sftp_new_file else R.string.sftp_new_folder
@@ -180,7 +224,7 @@ fun SftpBrowserDialog(
 		)
 	}
 
-	pendingRename?.let { entry ->
+	if (overlayMenu == null) pendingRename?.let { entry ->
 		SftpNameInputDialog(
 			title = stringResource(R.string.sftp_rename),
 			initialName = entry.name,
@@ -192,7 +236,7 @@ fun SftpBrowserDialog(
 		)
 	}
 
-	pendingDelete?.let { entry ->
+	if (overlayMenu == null) pendingDelete?.let { entry ->
 		val full = joinBrowserPath(uiState.sftpCurrentPath, entry.name)
 		AlertDialog(
 			onDismissRequest = { pendingDelete = null },
@@ -232,19 +276,21 @@ private enum class SftpCreateMode { File, Folder }
 @Composable
 private fun SftpEntryRow(
 	entry: SftpRemoteEntry,
+	menuExpanded: Boolean,
+	onMenuExpand: () -> Unit,
+	onMenuDismiss: () -> Unit,
 	onOpen: () -> Unit,
 	onEdit: () -> Unit,
 	onDownload: () -> Unit,
 	onRename: () -> Unit,
 	onDelete: () -> Unit
 ) {
-	var showMenu by remember { mutableStateOf(false) }
 	Row(
 		modifier = Modifier
 			.fillMaxWidth()
 			.combinedClickable(
 				onClick = onOpen,
-				onLongClick = { showMenu = true }
+				onLongClick = onMenuExpand
 			)
 			.padding(vertical = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
@@ -266,38 +312,29 @@ private fun SftpEntryRow(
 			}
 		}
 		Box {
-			IconButton(onClick = { showMenu = true }) {
+			IconButton(onClick = onMenuExpand) {
 				Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.sftp_more))
 			}
 			DropdownMenu(
-				expanded = showMenu,
-				onDismissRequest = { showMenu = false }
+				expanded = menuExpanded,
+				onDismissRequest = onMenuDismiss
 			) {
 				if (!entry.isDirectory) {
 					DropdownMenuItem(
 						text = { Text(stringResource(R.string.edit)) },
 						leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-						onClick = {
-							showMenu = false
-							onEdit()
-						}
+						onClick = onEdit
 					)
 					DropdownMenuItem(
 						text = { Text(stringResource(R.string.sftp_download)) },
 						leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
-						onClick = {
-							showMenu = false
-							onDownload()
-						}
+						onClick = onDownload
 					)
 				}
 				DropdownMenuItem(
 					text = { Text(stringResource(R.string.sftp_rename)) },
 					leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
-					onClick = {
-						showMenu = false
-						onRename()
-					}
+					onClick = onRename
 				)
 				Divider()
 				DropdownMenuItem(
@@ -314,10 +351,7 @@ private fun SftpEntryRow(
 							tint = MaterialTheme.colorScheme.error
 						)
 					},
-					onClick = {
-						showMenu = false
-						onDelete()
-					}
+					onClick = onDelete
 				)
 			}
 		}

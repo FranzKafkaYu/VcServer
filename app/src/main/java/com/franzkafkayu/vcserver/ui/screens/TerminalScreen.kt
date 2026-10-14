@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -17,7 +18,10 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardTab
+import androidx.compose.material.icons.filled.TextDecrease
+import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Refresh
@@ -28,14 +32,18 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,6 +54,7 @@ import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel
 import com.franzkafkayu.vcserver.utils.AnsiParser
 import com.franzkafkayu.vcserver.utils.CharCell
+import com.franzkafkayu.vcserver.utils.TerminalFont
 
 /**
  * 终端界面
@@ -57,10 +66,12 @@ fun TerminalScreen(
 	onBackClick: () -> Unit
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
-	var commandInput by remember { mutableStateOf("") }
+	var commandInput by remember { mutableStateOf(TextFieldValue("")) }
 	var realtimeInputMode by remember { mutableStateOf(false) } // 实时输入模式
 	var ctrlArmed by remember { mutableStateOf(false) }
 	val keyboardController = LocalSoftwareKeyboardController.current
+	val clipboardManager = LocalClipboardManager.current
+	val fontSize = uiState.fontSizeSp.sp
 
 	Scaffold(
 		topBar = {
@@ -72,7 +83,28 @@ fun TerminalScreen(
 					}
 				},
 				actions = {
-					// 重连按钮（当未连接时显示�?
+					IconButton(
+						onClick = { viewModel.decreaseFont() },
+						enabled = TerminalFont.smaller(uiState.fontSizeSp) != uiState.fontSizeSp
+					) {
+						Icon(Icons.Default.TextDecrease, contentDescription = stringResource(R.string.terminal_font_smaller))
+					}
+					IconButton(
+						onClick = { viewModel.increaseFont() },
+						enabled = TerminalFont.larger(uiState.fontSizeSp) != uiState.fontSizeSp
+					) {
+						Icon(Icons.Default.TextIncrease, contentDescription = stringResource(R.string.terminal_font_larger))
+					}
+					IconButton(
+						onClick = {
+							if (uiState.output.isNotEmpty()) {
+								clipboardManager.setText(AnnotatedString(uiState.output))
+							}
+						},
+						enabled = uiState.output.isNotEmpty()
+					) {
+						Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.terminal_copy))
+					}
 					if (!uiState.isConnected && !uiState.isConnecting) {
 						IconButton(
 							onClick = { viewModel.reconnect() }
@@ -185,32 +217,41 @@ fun TerminalScreen(
 				) {
 					val density = LocalDensity.current
 					val cols = with(density) {
-						((maxWidth.toPx()) / (12.sp.toPx() * 0.6f)).toInt().coerceAtLeast(40)
+						((maxWidth.toPx()) / (fontSize.toPx() * 0.6f)).toInt().coerceAtLeast(40)
 					}
 					val rows = with(density) {
-						((maxHeight.toPx()) / (12.sp.toPx() * 1.2f)).toInt().coerceAtLeast(10)
+						((maxHeight.toPx()) / (fontSize.toPx() * 1.2f)).toInt().coerceAtLeast(10)
 					}
 					LaunchedEffect(cols, rows) {
 						viewModel.updateTerminalSize(cols, rows)
 					}
-				Column(
-					modifier = Modifier
-						.fillMaxSize()
-						.verticalScroll(scrollState)
-				) {
-					if (uiState.terminalBuffer != null) {
-						TerminalTextContent(uiState.terminalBuffer)
-					} else {
-						Text(
-							text = uiState.output,
-							color = AnsiParser.DefaultForeground,
-							fontFamily = FontFamily.Monospace,
-							fontSize = 12.sp,
-							softWrap = false,
-							modifier = Modifier.fillMaxWidth()
-						)
+					val outputColumn: @Composable () -> Unit = {
+						Column(
+							modifier = Modifier
+								.fillMaxSize()
+								.verticalScroll(scrollState)
+						) {
+							if (uiState.terminalBuffer != null) {
+								TerminalTextContent(uiState.terminalBuffer, fontSize)
+							} else {
+								Text(
+									text = uiState.output,
+									color = AnsiParser.DefaultForeground,
+									fontFamily = FontFamily.Monospace,
+									fontSize = fontSize,
+									softWrap = false,
+									modifier = Modifier.fillMaxWidth()
+								)
+							}
+						}
 					}
-				}
+					if (uiState.alternateScreen) {
+						outputColumn()
+					} else {
+						SelectionContainer {
+							outputColumn()
+						}
+					}
 				}
 			}
 
@@ -284,20 +325,18 @@ fun TerminalScreen(
 						) {
 							Text(stringResource(R.string.terminal_esc))
 						}
-						if (uiState.alternateScreen) {
-							TextButton(
-								onClick = { ctrlArmed = !ctrlArmed },
-								enabled = uiState.isConnected,
-								colors = ButtonDefaults.textButtonColors(
-									containerColor = if (ctrlArmed) {
-										MaterialTheme.colorScheme.primaryContainer
-									} else {
-										Color.Transparent
-									}
-								)
-							) {
-								Text(stringResource(R.string.terminal_ctrl))
-							}
+						TextButton(
+							onClick = { ctrlArmed = !ctrlArmed },
+							enabled = uiState.isConnected,
+							colors = ButtonDefaults.textButtonColors(
+								containerColor = if (ctrlArmed) {
+									MaterialTheme.colorScheme.primaryContainer
+								} else {
+									Color.Transparent
+								}
+							)
+						) {
+							Text(stringResource(R.string.terminal_ctrl))
 						}
 						IconButton(
 							onClick = {
@@ -308,7 +347,7 @@ fun TerminalScreen(
 								} else {
 									val prevCommand = viewModel.getPreviousCommand()
 									if (prevCommand != null) {
-										commandInput = prevCommand
+										commandInput = TextFieldValue(prevCommand, TextRange(prevCommand.length))
 									}
 								}
 							},
@@ -326,7 +365,8 @@ fun TerminalScreen(
 								} else if (realtimeInputMode) {
 									viewModel.sendAnsiSequence("\u001B[B")
 								} else {
-									commandInput = viewModel.getNextCommand()
+									val nextCommand = viewModel.getNextCommand()
+									commandInput = TextFieldValue(nextCommand, TextRange(nextCommand.length))
 								}
 							},
 							enabled = uiState.isConnected
@@ -336,46 +376,44 @@ fun TerminalScreen(
 								contentDescription = stringResource(R.string.next_command)
 							)
 						}
-						if (uiState.alternateScreen || realtimeInputMode) {
-							IconButton(
-								onClick = {
-									if (uiState.alternateScreen) {
-										viewModel.sendArrow('D')
-									} else {
-										viewModel.sendAnsiSequence("\u001B[D")
-									}
-								},
-								enabled = uiState.isConnected
-							) {
-								Icon(
-									Icons.Default.ArrowLeft,
-									contentDescription = stringResource(R.string.cursor_left)
-								)
-							}
-							IconButton(
-								onClick = {
-									if (uiState.alternateScreen) {
-										viewModel.sendArrow('C')
-									} else {
-										viewModel.sendAnsiSequence("\u001B[C")
-									}
-								},
-								enabled = uiState.isConnected
-							) {
-								Icon(
-									Icons.Default.ArrowRight,
-									contentDescription = stringResource(R.string.cursor_right)
-								)
-							}
+						IconButton(
+							onClick = {
+								when {
+									uiState.alternateScreen -> viewModel.sendArrow('D')
+									realtimeInputMode -> viewModel.sendAnsiSequence("\u001B[D")
+									else -> commandInput = commandInput.moveCursor(-1)
+								}
+							},
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.ArrowLeft,
+								contentDescription = stringResource(R.string.cursor_left)
+							)
+						}
+						IconButton(
+							onClick = {
+								when {
+									uiState.alternateScreen -> viewModel.sendArrow('C')
+									realtimeInputMode -> viewModel.sendAnsiSequence("\u001B[C")
+									else -> commandInput = commandInput.moveCursor(1)
+								}
+							},
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.ArrowRight,
+								contentDescription = stringResource(R.string.cursor_right)
+							)
 						}
 						TextButton(
 							onClick = {
-								val completed = viewModel.triggerAutoComplete(commandInput)
-								if (completed != commandInput) {
-									commandInput = completed
+								val completed = viewModel.triggerAutoComplete(commandInput.text)
+								if (completed != commandInput.text) {
+									commandInput = TextFieldValue(completed, TextRange(completed.length))
 								}
 							},
-							enabled = uiState.isConnected && !uiState.alternateScreen && !realtimeInputMode && commandInput.isNotEmpty()
+							enabled = uiState.isConnected && !uiState.alternateScreen && !realtimeInputMode && commandInput.text.isNotEmpty()
 						) {
 							Text(stringResource(R.string.auto_complete))
 						}
@@ -412,11 +450,11 @@ fun TerminalScreen(
 							onValueChange = { newValue ->
 								val direct = uiState.alternateScreen || realtimeInputMode
 								if (direct && uiState.isConnected) {
-									val old = commandInput
-									var next = newValue
-									if (newValue.length > old.length) {
-										var added = newValue.substring(old.length)
-										if (uiState.alternateScreen && ctrlArmed && added.isNotEmpty()) {
+									val old = commandInput.text
+									var next = newValue.text
+									if (newValue.text.length > old.length) {
+										var added = newValue.text.substring(old.length)
+										if (ctrlArmed && added.isNotEmpty()) {
 											val code = controlCode(added[0])
 											if (code != null) {
 												viewModel.sendRawInput(byteArrayOf(code.toByte()))
@@ -428,12 +466,21 @@ fun TerminalScreen(
 										if (added.isNotEmpty()) {
 											viewModel.sendRawInput(added.toByteArray(Charsets.UTF_8))
 										}
-									} else if (newValue.length < old.length) {
+									} else if (newValue.text.length < old.length) {
 										val backspace = if (uiState.alternateScreen) 0x7F.toByte() else 0x08.toByte()
-										val count = old.length - newValue.length
+										val count = old.length - newValue.text.length
 										viewModel.sendRawInput(ByteArray(count) { backspace })
 									}
-									commandInput = next
+									commandInput = TextFieldValue(next, TextRange(next.length))
+								} else if (ctrlArmed && uiState.isConnected && newValue.text.length > commandInput.text.length) {
+									val added = newValue.text.substring(commandInput.text.length)
+									val code = if (added.isNotEmpty()) controlCode(added[0]) else null
+									if (code != null) {
+										viewModel.sendRawInput(byteArrayOf(code.toByte()))
+										ctrlArmed = false
+									} else {
+										commandInput = newValue
+									}
 								} else {
 									commandInput = newValue
 								}
@@ -456,16 +503,16 @@ fun TerminalScreen(
 										when {
 											uiState.alternateScreen -> {
 												viewModel.sendRawInput(byteArrayOf(0x0D))
-												commandInput = ""
+												commandInput = TextFieldValue("")
 											}
 											realtimeInputMode -> {
 												viewModel.sendRawInput(byteArrayOf(0x0A))
-												commandInput = ""
+												commandInput = TextFieldValue("")
 												keyboardController?.hide()
 											}
-											commandInput.isNotEmpty() -> {
-												viewModel.sendCommand(commandInput)
-												commandInput = ""
+											commandInput.text.isNotEmpty() -> {
+												viewModel.sendCommand(commandInput.text)
+												commandInput = TextFieldValue("")
 												keyboardController?.hide()
 											}
 										}
@@ -484,22 +531,22 @@ fun TerminalScreen(
 									when {
 										uiState.alternateScreen -> {
 											viewModel.sendRawInput(byteArrayOf(0x0D))
-											commandInput = ""
+											commandInput = TextFieldValue("")
 										}
 										realtimeInputMode -> {
 											viewModel.sendRawInput(byteArrayOf(0x0A))
-											commandInput = ""
+											commandInput = TextFieldValue("")
 											keyboardController?.hide()
 										}
-										commandInput.isNotEmpty() -> {
-											viewModel.sendCommand(commandInput)
-											commandInput = ""
+										commandInput.text.isNotEmpty() -> {
+											viewModel.sendCommand(commandInput.text)
+											commandInput = TextFieldValue("")
 											keyboardController?.hide()
 										}
 									}
 								}
 							},
-							enabled = uiState.isConnected && (uiState.alternateScreen || realtimeInputMode || commandInput.isNotEmpty())
+							enabled = uiState.isConnected && (uiState.alternateScreen || realtimeInputMode || commandInput.text.isNotEmpty())
 						) {
 							Icon(
 								Icons.Default.Send,
@@ -517,7 +564,10 @@ fun TerminalScreen(
  * 渲染终端文本内容（支�?ANSI 颜色和格式）
  */
 @Composable
-private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.TerminalBuffer) {
+private fun TerminalTextContent(
+	buffer: com.franzkafkayu.vcserver.utils.TerminalBuffer,
+	fontSize: androidx.compose.ui.unit.TextUnit
+) {
 	val content = buffer.getAllContent()
 	
 	Column {
@@ -562,7 +612,7 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 						}
 					},
 					fontFamily = FontFamily.Monospace,
-					fontSize = 12.sp,
+					fontSize = fontSize,
 					softWrap = false,
 					overflow = TextOverflow.Visible,
 					modifier = Modifier.fillMaxWidth()
@@ -570,6 +620,11 @@ private fun TerminalTextContent(buffer: com.franzkafkayu.vcserver.utils.Terminal
 			}
 		}
 	}
+}
+
+private fun TextFieldValue.moveCursor(delta: Int): TextFieldValue {
+	val pos = (selection.start + delta).coerceIn(0, text.length)
+	return copy(selection = TextRange(pos))
 }
 
 private fun controlCode(ch: Char): Int? = when (ch) {
