@@ -39,6 +39,9 @@ interface ServerDao {
 	@Query("SELECT * FROM servers WHERE id = :id")
 	suspend fun getServerById(id: Long): Server?
 
+	@Query("SELECT * FROM servers WHERE jumpHostId = :jumpHostId")
+	suspend fun getServersByJumpHostId(jumpHostId: Long): List<Server>
+
 	/**
 	 * 插入服务器
 	 */

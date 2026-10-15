@@ -8,6 +8,8 @@ import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerGroup
 import com.franzkafkayu.vcserver.repositories.ServerRepository
 import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
+import com.franzkafkayu.vcserver.utils.JumpImportRow
+import com.franzkafkayu.vcserver.utils.resolveImportedJumpHostId
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
@@ -177,49 +179,73 @@ class DatabaseExportImportServiceImpl(
 					// 获取所有分组（包括新导入的）用于映射 groupId
 					val allGroups = serverGroupRepository?.getAllGroups()?.first() ?: emptyList()
 
-					// 导入每个服务器
+					val jumpRows = mutableListOf<JumpImportRow>()
 					for (server in exportData.servers) {
-						// 检查是否已存在（通过主机和端口判断）
-						val isDuplicate = existingServers.any { existing ->
+						val importedEarlier = jumpRows.find { row ->
+							row.host == server.host && row.port == server.port
+						}
+						val existingServer = existingServers.find { existing ->
 							existing.host == server.host && existing.port == server.port
 						}
+						val duplicateLocalId = importedEarlier?.localId ?: existingServer?.id
 
-						// 映射分组ID（如果服务器有分组）
 						val mappedGroupId = if (server.groupId != null && !exportData.groups.isNullOrEmpty()) {
-							// 查找原始分组名称
 							val originalGroup = exportData.groups.find { it.id == server.groupId }
-							// 在当前系统中查找同名分组
 							originalGroup?.let { allGroups.find { it.name == originalGroup.name }?.id }
 						} else {
 							server.groupId
 						}
 
 						val serverToImport = server.copy(
-							id = 0,  // 重置ID，让数据库自动分配
-							groupId = mappedGroupId,  // 使用映射后的分组ID
-							isPinned = server.isPinned  // 旧文件缺字段时 Gson 默认为 false
+							id = 0,
+							groupId = mappedGroupId,
+							jumpHostId = null,
+							isPinned = server.isPinned
 						)
 
-						if (isDuplicate) {
+						if (duplicateLocalId != null) {
 							if (importStrategy) {
-								// 覆盖：更新现有服务器
-								val existingServer = existingServers.first { existing ->
-									existing.host == server.host && existing.port == server.port
-								}
-								val updatedServer = serverToImport.copy(id = existingServer.id)
-								serverRepository.updateServer(updatedServer)
+								serverRepository.updateServer(serverToImport.copy(id = duplicateLocalId))
+								jumpRows += JumpImportRow(
+									exportId = server.id,
+									host = server.host,
+									port = server.port,
+									localId = duplicateLocalId,
+									jumpExportId = server.jumpHostId,
+									written = true
+								)
 								importedCount++
 								Log.d(tag, "覆盖服务器: ${server.name}")
 							} else {
-								// 跳过：不导入重复项
+								jumpRows += JumpImportRow(
+									exportId = server.id,
+									host = server.host,
+									port = server.port,
+									localId = duplicateLocalId,
+									jumpExportId = server.jumpHostId,
+									written = false
+								)
 								Log.d(tag, "跳过重复服务器: ${server.name}")
 							}
 						} else {
-							// 导入新服务器
-							serverRepository.insertServer(serverToImport)
+							val localId = serverRepository.insertServer(serverToImport)
+							jumpRows += JumpImportRow(
+								exportId = server.id,
+								host = server.host,
+								port = server.port,
+								localId = localId,
+								jumpExportId = server.jumpHostId,
+								written = true
+							)
 							importedCount++
 							Log.d(tag, "导入服务器: ${server.name}")
 						}
+					}
+					for (row in jumpRows) {
+						if (!row.written) continue
+						val resolved = resolveImportedJumpHostId(jumpRows, row.jumpExportId)
+						val current = serverRepository.getServerById(row.localId) ?: continue
+						serverRepository.updateServer(current.copy(jumpHostId = resolved))
 					}
 				}
 

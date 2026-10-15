@@ -3,7 +3,10 @@ package com.franzkafkayu.vcserver.services
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.repositories.ServerRepository
+import com.franzkafkayu.vcserver.utils.JumpConnectFailure
+import com.franzkafkayu.vcserver.utils.JumpHostProxy
 import com.franzkafkayu.vcserver.utils.SecureStorage
+import com.franzkafkayu.vcserver.utils.SshConnectionPool
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
@@ -39,6 +42,7 @@ class ServerManagementServiceImpl(
 		proxyPort: Int?,
 		proxyUsername: String?,
 		proxyPassword: String?,
+		jumpHostId: Long?,
 		testConnection: Boolean
 	): Result<Long> {
 		// 输入验证
@@ -49,16 +53,29 @@ class ServerManagementServiceImpl(
 
 		// 如果是“仅测试连接”模式，不进行加密和入库，只做一次连接测试
 		if (testConnection) {
-			val testResult = sshAuthenticationService.testConnection(
-				host = host,
-				port = port,
-				username = username,
-				authType = authType,
-				password = password,
-				privateKey = privateKey,
-				passphrase = keyPassphrase
-			)
-			return testResult.map { -1L } // 返回一个占位 ID，调用方并不关心具体值
+			val testResult = if (jumpHostId != null) {
+				testThroughJump(
+					jumpHostId = jumpHostId,
+					host = host,
+					port = port,
+					username = username,
+					authType = authType,
+					password = password,
+					privateKey = privateKey,
+					keyPassphrase = keyPassphrase
+				)
+			} else {
+				sshAuthenticationService.testConnection(
+					host = host,
+					port = port,
+					username = username,
+					authType = authType,
+					password = password,
+					privateKey = privateKey,
+					passphrase = keyPassphrase
+				)
+			}
+			return testResult.map { -1L }
 		}
 
 		// 下面是“真正保存服务器”逻辑：加密敏感信息 + 入库
@@ -104,6 +121,7 @@ class ServerManagementServiceImpl(
 			proxyPort = proxyPort,
 			proxyUsername = proxyUsername,
 			encryptedProxyPassword = encryptedProxyPassword,
+			jumpHostId = jumpHostId,
 			orderIndex = serverCount // 新服务器默认排在最后
 		)
 
@@ -146,11 +164,15 @@ class ServerManagementServiceImpl(
 		proxyHost: String?,
 		proxyPort: Int?,
 		proxyUsername: String?,
-		proxyPassword: String?
+		proxyPassword: String?,
+		jumpHostId: Long?
 	): Result<Unit> {
 		return try {
 			val existingServer = serverRepository.getServerById(serverId)
 				?: return Result.failure(Exception("服务器不存在"))
+			if (jumpHostId != null && jumpHostId == serverId) {
+				return Result.failure(ValidationException("JUMP_HOST_SELF"))
+			}
 
 			// 如果密码或私钥为空，保留原有的加密方式
 			val encryptedPassword = when {
@@ -203,6 +225,7 @@ class ServerManagementServiceImpl(
 				proxyPort = proxyPort,
 				proxyUsername = proxyUsername,
 				encryptedProxyPassword = encryptedProxyPassword,
+				jumpHostId = jumpHostId,
 				updatedAt = System.currentTimeMillis()
 			)
 
@@ -215,6 +238,9 @@ class ServerManagementServiceImpl(
 
 	override suspend fun deleteServer(server: Server): Result<Unit> {
 		return try {
+			if (serverRepository.getServersUsingJumpHost(server.id).isNotEmpty()) {
+				return Result.failure(ValidationException("JUMP_HOST_IN_USE"))
+			}
 			// 删除加密文件
 			server.encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			server.encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
@@ -229,10 +255,21 @@ class ServerManagementServiceImpl(
 	}
 
 	override suspend fun testServerConnection(server: Server): Result<Unit> {
-		// 解密敏感信息
 		val password = server.encryptedPassword?.let { secureStorage.decryptPassword(it) }
 		val privateKey = server.encryptedPrivateKey?.let { secureStorage.decryptPrivateKey(it) }
-
+		val jumpHostId = server.jumpHostId
+		if (jumpHostId != null) {
+			return testThroughJump(
+				jumpHostId = jumpHostId,
+				host = server.host,
+				port = server.port,
+				username = server.username,
+				authType = server.authType,
+				password = password,
+				privateKey = privateKey,
+				keyPassphrase = server.keyPassphrase
+			)
+		}
 		return sshAuthenticationService.testConnection(
 			host = server.host,
 			port = server.port,
@@ -304,6 +341,94 @@ class ServerManagementServiceImpl(
 			Result.success(Unit)
 		} catch (e: Exception) {
 			Result.failure(e)
+		}
+	}
+
+	/**
+	 * 验证服务器输入
+	 */
+	private suspend fun testThroughJump(
+		jumpHostId: Long,
+		host: String,
+		port: Int,
+		username: String,
+		authType: AuthType,
+		password: String?,
+		privateKey: String?,
+		keyPassphrase: String?
+	): Result<Unit> {
+		val jump = serverRepository.getServerById(jumpHostId)
+			?: return Result.failure(SshConnectionException(JumpConnectFailure.MISSING))
+		val pooledJump = if (jump.id > 0L) SshConnectionPool.getConnection(jump.id) else null
+		val jumpSession = pooledJump ?: run {
+			val jumpPassword = jump.encryptedPassword?.let { secureStorage.decryptPassword(it) }
+			val jumpKey = jump.encryptedPrivateKey?.let { secureStorage.decryptPrivateKey(it) }
+			val opened = when (jump.authType) {
+				AuthType.PASSWORD -> {
+					if (jumpPassword == null) {
+						return Result.failure(SshConnectionException(JumpConnectFailure.JUMP_FAILED))
+					}
+					sshAuthenticationService.connectWithPassword(
+						host = jump.host,
+						port = jump.port,
+						username = jump.username,
+						password = jumpPassword
+					)
+				}
+				AuthType.KEY -> {
+					if (jumpKey == null) {
+						return Result.failure(SshConnectionException(JumpConnectFailure.JUMP_FAILED))
+					}
+					sshAuthenticationService.connectWithKey(
+						host = jump.host,
+						port = jump.port,
+						username = jump.username,
+						privateKey = jumpKey,
+						passphrase = jump.keyPassphrase
+					)
+				}
+			}
+			opened.getOrElse { error ->
+				return Result.failure(SshConnectionException(JumpConnectFailure.code(jumpSide = true, error), error))
+			}
+		}
+		val proxy = JumpHostProxy(jumpSession)
+		val target = when (authType) {
+			AuthType.PASSWORD -> {
+				if (password == null) {
+					closeNewJump(pooledJump, jumpSession)
+					return Result.failure(Exception("Password is required"))
+				}
+				sshAuthenticationService.connectWithPassword(host, port, username, password, proxy)
+			}
+			AuthType.KEY -> {
+				if (privateKey == null) {
+					closeNewJump(pooledJump, jumpSession)
+					return Result.failure(Exception("Private key is required"))
+				}
+				sshAuthenticationService.connectWithKey(host, port, username, privateKey, keyPassphrase, proxy)
+			}
+		}
+		if (target.isFailure) {
+			proxy.close()
+		}
+		target.onSuccess { sshAuthenticationService.closeSession(it) }
+		if (pooledJump == null) {
+			sshAuthenticationService.closeSession(jumpSession)
+		} else if (jump.id > 0L) {
+			SshConnectionPool.touch(jump.id)
+		}
+		return target.fold(
+			onSuccess = { Result.success(Unit) },
+			onFailure = { error ->
+				Result.failure(SshConnectionException(JumpConnectFailure.code(jumpSide = false, error), error))
+			}
+		)
+	}
+
+	private fun closeNewJump(pooledJump: com.jcraft.jsch.Session?, jumpSession: com.jcraft.jsch.Session) {
+		if (pooledJump == null) {
+			sshAuthenticationService.closeSession(jumpSession)
 		}
 	}
 

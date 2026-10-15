@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
+import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
 import com.franzkafkayu.vcserver.ui.screens.GroupHeader
@@ -62,11 +63,11 @@ fun ServerListScreen(
 	val snackbarHostState = remember { SnackbarHostState() }
 	var showGroupManagementDialog by remember { mutableStateOf(false) }
 
-	// 显示错误提示
-	LaunchedEffect(uiState.error) {
-		uiState.error?.let { error ->
+	val errorMessage = uiState.error?.let { listErrorMessage(it) }
+	LaunchedEffect(errorMessage) {
+		errorMessage?.let { message ->
 			snackbarHostState.showSnackbar(
-				message = error.message,
+				message = message,
 				duration = SnackbarDuration.Short
 			)
 			viewModel.clearError()
@@ -748,5 +749,19 @@ private fun ServerItemDetails(
 				modifier = Modifier.fillMaxWidth()
 			)
 		}
+	}
+}
+
+@Composable
+private fun listErrorMessage(error: AppError): String {
+	return when (error.message) {
+		"JUMP_HOST_IN_USE" -> stringResource(R.string.error_jump_host_in_use)
+		"JUMP_HOST_MISSING" -> stringResource(R.string.error_jump_host_missing)
+		"JUMP_HOST_FAILED" -> stringResource(R.string.error_jump_host_failed)
+		"JUMP_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_jump_algorithm_negotiation)
+		"TARGET_CONNECT_FAILED" -> stringResource(R.string.error_target_connect_failed)
+		"SSH_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_ssh_algorithm_negotiation)
+		"CONNECTION_FAILED" -> stringResource(R.string.connection_failed)
+		else -> error.message
 	}
 }

@@ -23,6 +23,15 @@
 	<string name="connection_success">Connection Successful</string>
 	<string name="connection_failed">Connection Failed</string>
 	<string name="error_ssh_algorithm_negotiation">SSH algorithm negotiation failed (no matching host key type). The client must support ed25519 / rsa-sha2.</string>
+	<string name="jump_host">Jump host</string>
+	<string name="select_jump_host">Select jump host</string>
+	<string name="jump_host_direct">Direct connection</string>
+	<string name="error_jump_host_self">A server cannot use itself as the jump host</string>
+	<string name="error_jump_host_in_use">Other servers still use this one as a jump host</string>
+	<string name="error_jump_host_missing">Jump host was not found</string>
+	<string name="error_jump_host_failed">Failed to connect to the jump host</string>
+	<string name="error_jump_algorithm_negotiation">Jump host SSH algorithm negotiation failed</string>
+	<string name="error_target_connect_failed">Failed to connect to the target server</string>
 	<string name="invalid_input">Invalid Input</string>
 	<string name="empty_server_list">No servers yet, click the add button to add a server</string>
 	<string name="connect">Connect</string>

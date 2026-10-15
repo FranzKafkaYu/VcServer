@@ -71,33 +71,37 @@ fun NavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.ServerList.route
+        startDestination = com.franzkafkayu.vcserver.ui.navigation.Screen.ServerList.route
     ) {
-        composable(Screen.ServerList.route) {
-            ServerListScreen(
+        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.ServerList.route) {
+            com.franzkafkayu.vcserver.ui.screens.ServerListScreen(
                 viewModel = serverListViewModel,
                 groupManagementViewModel = serverGroupManagementViewModel,
                 onAddServerClick = {
-                    navController.navigate(Screen.AddServer.route)
+                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.AddServer.route)
                 },
                 onEditServerClick = { serverId ->
-                    navController.navigate(Screen.EditServer.createRoute(serverId))
+                    navController.navigate(
+                        com.franzkafkayu.vcserver.ui.navigation.Screen.EditServer.createRoute(
+                            serverId
+                        )
+                    )
                 },
                 onConnectClick = { server, sessionKey ->
                     navController.navigate(
-                        Screen.ServerMonitoring.createRoute(
+                        com.franzkafkayu.vcserver.ui.navigation.Screen.ServerMonitoring.createRoute(
                             server.id,
                             sessionKey
                         )
                     )
                 },
                 onSettingsClick = {
-                    navController.navigate(Screen.Settings.route)
+                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.Settings.route)
                 }
             )
         }
-        composable(Screen.AddServer.route) {
-            AddServerScreen(
+        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.AddServer.route) {
+            com.franzkafkayu.vcserver.ui.screens.AddServerScreen(
                 viewModel = addServerViewModel,
                 onBackClick = {
                     navController.popBackStack()
@@ -116,14 +120,14 @@ fun NavGraph(
             val serverId = backStackEntry.arguments?.getLong("serverId") ?: 0L
             val editServerViewModel =
                 viewModel<com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel>(
-                    factory = EditServerViewModelFactory(
+                    factory = com.franzkafkayu.vcserver.ui.navigation.EditServerViewModelFactory(
                         serverManagementService = serverManagementService,
                         settingsService = settingsService,
                         serverGroupRepository = serverGroupRepository,
                         serverId = serverId
                     )
                 )
-            AddServerScreen(
+            com.franzkafkayu.vcserver.ui.screens.AddServerScreen(
                 viewModel = editServerViewModel,
                 onBackClick = {
                     navController.popBackStack()
@@ -149,15 +153,15 @@ fun NavGraph(
                 val server =
                     serverListViewModel.uiState.value.servers.find { server -> server.id == serverId }
                 if (server != null) {
-                    val viewModel = viewModel<ServerMonitoringViewModel>(
-                        factory = ServerMonitoringViewModelFactory(
+                    val viewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.ServerMonitoringViewModel>(
+                        factory = com.franzkafkayu.vcserver.ui.navigation.ServerMonitoringViewModelFactory(
                             serverMonitoringService = serverMonitoringService,
                             sftpFileTransferService = sftpFileTransferService,
                             server = server,
                             session = session
                         )
                     )
-                    ServerMonitoringScreen(
+                    com.franzkafkayu.vcserver.ui.screens.ServerMonitoringScreen(
                         viewModel = viewModel,
                         onBackClick = {
                             // 只从导航态移除 Session 引用，不断开连接池
@@ -166,7 +170,7 @@ fun NavGraph(
                         },
                         onEnterTerminal = {
                             navController.navigate(
-                                Screen.Terminal.createRoute(
+                                com.franzkafkayu.vcserver.ui.navigation.Screen.Terminal.createRoute(
                                     serverId,
                                     sessionKey
                                 )
@@ -192,8 +196,8 @@ fun NavGraph(
                 val server =
                     serverListViewModel.uiState.value.servers.find { server -> server.id == serverId }
                 if (server != null) {
-                    val viewModel = viewModel<TerminalViewModel>(
-                        factory = TerminalViewModelFactory(
+                    val viewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel>(
+                        factory = com.franzkafkayu.vcserver.ui.navigation.TerminalViewModelFactory(
                             terminalService = terminalService,
                             serverMonitoringService = serverMonitoringService,
                             server = server,
@@ -202,7 +206,7 @@ fun NavGraph(
                             terminalPreferences = terminalPreferences
                         )
                     )
-                    TerminalScreen(
+                    com.franzkafkayu.vcserver.ui.screens.TerminalScreen(
                         viewModel = viewModel,
                         onBackClick = {
                             navController.popBackStack()
@@ -211,22 +215,25 @@ fun NavGraph(
                 }
             }
         }
-        composable(Screen.Settings.route) {
-            val settingsViewModel = viewModel<SettingsViewModel>(
-                factory = SettingsViewModelFactory(settingsService, exportImportService)
+        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.Settings.route) {
+            val settingsViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel>(
+                factory = com.franzkafkayu.vcserver.ui.navigation.SettingsViewModelFactory(
+                    settingsService,
+                    exportImportService
+                )
             )
-            SettingsScreen(
+            com.franzkafkayu.vcserver.ui.screens.SettingsScreen(
                 viewModel = settingsViewModel,
                 onBackClick = {
                     navController.popBackStack()
                 },
                 onAboutClick = {
-                    navController.navigate(Screen.About.route)
+                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.About.route)
                 }
             )
         }
-        composable(Screen.About.route) {
-            AboutScreen(
+        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.About.route) {
+            com.franzkafkayu.vcserver.ui.screens.AboutScreen(
                 onBackClick = {
                     navController.popBackStack()
                 }
@@ -245,9 +252,9 @@ class ServerMonitoringViewModelFactory(
     private val session: Session
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ServerMonitoringViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.ServerMonitoringViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ServerMonitoringViewModel(
+            return com.franzkafkayu.vcserver.ui.viewmodels.ServerMonitoringViewModel(
                 serverMonitoringService,
                 sftpFileTransferService,
                 server,
@@ -270,9 +277,9 @@ class TerminalViewModelFactory(
     private val terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(TerminalViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return TerminalViewModel(
+            return com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel(
                 terminalService,
                 serverMonitoringService,
                 server,
@@ -316,9 +323,12 @@ class SettingsViewModelFactory(
     private val exportImportService: com.franzkafkayu.vcserver.services.DatabaseExportImportService
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(settingsService, exportImportService) as T
+            return com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel(
+                settingsService,
+                exportImportService
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

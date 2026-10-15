@@ -17,6 +17,8 @@ interface ServerRepository {
 	 */
 	suspend fun getServerById(id: Long): Server?
 
+	suspend fun getServersUsingJumpHost(jumpHostId: Long): List<Server>
+
 	/**
 	 * 添加服务器
 	 */

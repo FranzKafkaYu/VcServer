@@ -24,7 +24,9 @@ class AddServerViewModel(
 	private val serverGroupRepository: ServerGroupRepository? = null,
 	private val serverId: Long? = null // 如果�?null，则为新增模式；否则为编辑模�?
 ) : ViewModel() {
-	private val _uiState = MutableStateFlow(AddServerUiState(isEditMode = serverId != null))
+	private val _uiState = MutableStateFlow(
+		AddServerUiState(isEditMode = serverId != null, editingServerId = serverId)
+	)
 	val uiState: StateFlow<AddServerUiState> = _uiState.asStateFlow()
 
 	init {
@@ -38,8 +40,8 @@ class AddServerViewModel(
 			}
 		}
 		serverId?.let { loadServerInfo(it) }
-		// 加载分组列表
 		loadGroups()
+		loadServers()
 	}
 
 	/**
@@ -52,6 +54,14 @@ class AddServerViewModel(
 		viewModelScope.launch {
 			serverGroupRepository.getAllGroups().collect { groups ->
 				_uiState.value = _uiState.value.copy(groups = groups.sortedBy { it.name })
+			}
+		}
+	}
+
+	private fun loadServers() {
+		viewModelScope.launch {
+			serverManagementService.getAllServers().collect { servers ->
+				_uiState.value = _uiState.value.copy(servers = servers)
 			}
 		}
 	}
@@ -81,6 +91,7 @@ class AddServerViewModel(
 					proxyPort = server.proxyPort?.toString() ?: "8080",
 					proxyUsername = server.proxyUsername ?: "",
 					proxyPassword = "", // 代理密码不显示，需要重新输入
+					jumpHostId = server.jumpHostId,
 					isLoading = false,
 					error = null
 				)
@@ -212,6 +223,10 @@ class AddServerViewModel(
 		_uiState.value = _uiState.value.copy(selectedGroupId = groupId)
 	}
 
+	fun updateJumpHost(jumpHostId: Long?) {
+		_uiState.value = _uiState.value.copy(jumpHostId = jumpHostId)
+	}
+
 	/**
 	 * 切换代理密码可见性
 	 */
@@ -239,6 +254,7 @@ class AddServerViewModel(
 				privateKey = if (state.authType == AuthType.KEY) state.privateKey else null,
 				keyPassphrase = if (state.authType == AuthType.KEY) state.keyPassphrase else null,
 				groupId = state.selectedGroupId,
+				jumpHostId = state.jumpHostId,
 				testConnection = true
 			)
 
@@ -293,7 +309,8 @@ class AddServerViewModel(
 					proxyHost = if (proxyEnabled) state.proxyHost else null,
 					proxyPort = if (proxyEnabled) proxyPort else null,
 					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
-					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null
+					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
+					jumpHostId = state.jumpHostId
 				)
 			} else {
 				// 新增模式：添加服务器
@@ -313,6 +330,7 @@ class AddServerViewModel(
 					proxyPort = if (proxyEnabled) proxyPort else null,
 					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
 					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
+					jumpHostId = state.jumpHostId,
 					testConnection = false
 				).map { Unit }
 			}
@@ -356,7 +374,9 @@ class AddServerViewModel(
 		_uiState.value = AddServerUiState(
 			saveSuccess = false,
 			isEditMode = current.isEditMode,
-			groups = current.groups
+			groups = current.groups,
+			servers = current.servers,
+			editingServerId = current.editingServerId
 		)
 		viewModelScope.launch {
 			settingsService?.getSettings()?.first()?.let { settings ->
@@ -383,6 +403,9 @@ class AddServerViewModel(
 	// 分组设置
 	val groups: List<com.franzkafkayu.vcserver.models.ServerGroup> = emptyList(),
 	val selectedGroupId: Long? = null,
+	val servers: List<com.franzkafkayu.vcserver.models.Server> = emptyList(),
+	val jumpHostId: Long? = null,
+	val editingServerId: Long? = null,
 	// 代理设置
 	val proxyEnabled: Boolean = false,
 	val proxyType: ProxyType = ProxyType.HTTP,

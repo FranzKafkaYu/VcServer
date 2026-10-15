@@ -11,6 +11,9 @@ import com.franzkafkayu.vcserver.models.CpuInfo
 import com.franzkafkayu.vcserver.models.SystemInfo
 import com.franzkafkayu.vcserver.models.NetworkInfo
 import com.franzkafkayu.vcserver.models.NetworkInterfaceInfo
+import com.franzkafkayu.vcserver.repositories.ServerRepository
+import com.franzkafkayu.vcserver.utils.JumpConnectFailure
+import com.franzkafkayu.vcserver.utils.JumpHostProxy
 import com.franzkafkayu.vcserver.utils.SecureStorage
 import com.franzkafkayu.vcserver.utils.SshConnectionPool
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +64,8 @@ interface ServerMonitoringService {
 class ServerMonitoringServiceImpl(
 	private val sshAuthService: SshAuthenticationService,
 	private val sshCommandService: SshCommandService,
-	private val secureStorage: SecureStorage
+	private val secureStorage: SecureStorage,
+	private val serverRepository: ServerRepository
 ) : ServerMonitoringService {
 	companion object {
 		private const val TAG = "ServerMonitoringService"
@@ -103,56 +107,96 @@ class ServerMonitoringServiceImpl(
 
 	override suspend fun connectToServer(server: Server): Result<Session> = withContext(Dispatchers.IO) {
 		try {
-			// 优先从连接池获取连接
-			val pooledSession = SshConnectionPool.getConnection(server.id)
-			if (pooledSession != null) {
-				return@withContext Result.success(pooledSession)
-			}
-
-			// 连接池中没有有效连接，创建新连接
-			// 解密敏感信息
-			val password = server.encryptedPassword?.let { secureStorage.decryptPassword(it) }
-			val privateKey = server.encryptedPrivateKey?.let { secureStorage.decryptPrivateKey(it) }
-
-			val result = when (server.authType) {
-				AuthType.PASSWORD -> {
-					if (password == null) {
-						return@withContext Result.failure(Exception("Password is required"))
-					}
-					sshAuthService.connectWithPassword(
-						host = server.host,
-						port = server.port,
-						username = server.username,
-						password = password
-					)
-				}
-				AuthType.KEY -> {
-					if (privateKey == null) {
-						return@withContext Result.failure(Exception("Private key is required"))
-					}
-					sshAuthService.connectWithKey(
-						host = server.host,
-						port = server.port,
-						username = server.username,
-						privateKey = privateKey,
-						passphrase = server.keyPassphrase
-					)
+			if (server.id > 0L) {
+				val pooledSession = SshConnectionPool.getConnection(server.id)
+				if (pooledSession != null) {
+					server.jumpHostId?.let { SshConnectionPool.touch(it) }
+					return@withContext Result.success(pooledSession)
 				}
 			}
 
-			// 如果连接成功，将连接加入连接池
-			result.fold(
-				onSuccess = { session ->
-					SshConnectionPool.putConnection(server.id, session)
-					Result.success(session)
-				},
-				onFailure = { exception ->
-					Result.failure(exception)
+			val jumpId = server.jumpHostId
+			if (jumpId == null) {
+				return@withContext openAndPool(server, proxy = null)
+			}
+			if (jumpId == server.id) {
+				return@withContext Result.failure(SshConnectionException(JumpConnectFailure.MISSING))
+			}
+
+			val jumpServer = serverRepository.getServerById(jumpId)
+				?: return@withContext Result.failure(SshConnectionException(JumpConnectFailure.MISSING))
+			val directJump = jumpServer.copy(jumpHostId = null)
+			val pooledJump = if (directJump.id > 0L) SshConnectionPool.getConnection(directJump.id) else null
+			val jumpSession = if (pooledJump != null) {
+				pooledJump
+			} else {
+				openAndPool(directJump, proxy = null).getOrElse { error ->
+					return@withContext Result.failure(
+						SshConnectionException(JumpConnectFailure.code(jumpSide = true, error), error)
+					)
 				}
-			)
+			}
+			val targetResult = openAndPool(server, proxy = JumpHostProxy(jumpSession))
+			if (targetResult.isFailure) {
+				if (pooledJump == null && directJump.id > 0L) {
+					SshConnectionPool.removeConnection(directJump.id)
+				}
+				val error = targetResult.exceptionOrNull() ?: Exception(JumpConnectFailure.TARGET_FAILED)
+				return@withContext Result.failure(
+					SshConnectionException(JumpConnectFailure.code(jumpSide = false, error), error)
+				)
+			}
+			if (directJump.id > 0L) {
+				SshConnectionPool.touch(directJump.id)
+			}
+			targetResult
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to connect to server: ${e.message}", e))
 		}
+	}
+
+	private suspend fun openAndPool(server: Server, proxy: com.jcraft.jsch.Proxy?): Result<Session> {
+		val password = server.encryptedPassword?.let { secureStorage.decryptPassword(it) }
+		val privateKey = server.encryptedPrivateKey?.let { secureStorage.decryptPrivateKey(it) }
+		val result = when (server.authType) {
+			AuthType.PASSWORD -> {
+				if (password == null) {
+					return Result.failure(Exception("Password is required"))
+				}
+				sshAuthService.connectWithPassword(
+					host = server.host,
+					port = server.port,
+					username = server.username,
+					password = password,
+					proxy = proxy
+				)
+			}
+			AuthType.KEY -> {
+				if (privateKey == null) {
+					return Result.failure(Exception("Private key is required"))
+				}
+				sshAuthService.connectWithKey(
+					host = server.host,
+					port = server.port,
+					username = server.username,
+					privateKey = privateKey,
+					passphrase = server.keyPassphrase,
+					proxy = proxy
+				)
+			}
+		}
+		return result.fold(
+			onSuccess = { session ->
+				if (server.id > 0L) {
+					SshConnectionPool.putConnection(server.id, session)
+				}
+				Result.success(session)
+			},
+			onFailure = { exception ->
+				proxy?.close()
+				Result.failure(exception)
+			}
+		)
 	}
 
 	override suspend fun getServerStatus(session: Session): Result<ServerStatus> = withContext(Dispatchers.IO) {

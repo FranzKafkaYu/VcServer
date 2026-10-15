@@ -86,7 +86,8 @@ class SshAuthenticationServiceImpl(
 		host: String,
 		port: Int,
 		username: String,
-		password: String
+		password: String,
+		proxy: com.jcraft.jsch.Proxy?
 	): Result<Session> = withContext(Dispatchers.IO) {
 		val startTime = System.currentTimeMillis()
 		try {
@@ -96,6 +97,9 @@ class SshAuthenticationServiceImpl(
 			
 			// 使用优化的 SSH 配置
 			session.setConfig(getOptimizedConfig())
+			if (proxy != null) {
+				session.setProxy(proxy)
+			}
 			
 			session.connect(CONNECTION_TIMEOUT)
 			val duration = System.currentTimeMillis() - startTime
@@ -113,7 +117,8 @@ class SshAuthenticationServiceImpl(
 		port: Int,
 		username: String,
 		privateKey: String,
-		passphrase: String?
+		passphrase: String?,
+		proxy: com.jcraft.jsch.Proxy?
 	): Result<Session> = withContext(Dispatchers.IO) {
 		try {
 			val jsch = JSch()
@@ -129,6 +134,9 @@ class SshAuthenticationServiceImpl(
 			
 			// 使用优化的 SSH 配置
 			session.setConfig(getOptimizedConfig())
+			if (proxy != null) {
+				session.setProxy(proxy)
+			}
 			
 			session.connect(CONNECTION_TIMEOUT)
 			Result.success(session)

@@ -83,6 +83,10 @@ object SshConnectionPool {
 		connectionPool[serverId] = PooledConnection(session)
 		Log.d(TAG, "添加连接到连接池: serverId=$serverId")
 	}
+
+	fun touch(serverId: Long) {
+		connectionPool[serverId]?.updateLastUsedTime()
+	}
 	
 	/**
 	 * 从连接池移除连接并断开

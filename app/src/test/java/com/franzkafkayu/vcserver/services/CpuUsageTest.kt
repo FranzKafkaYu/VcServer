@@ -1,5 +1,6 @@
 package com.franzkafkayu.vcserver.services
 
+import com.franzkafkayu.vcserver.repositories.ServerRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -11,7 +12,8 @@ class CpuUsageTest {
 	private val service = ServerMonitoringServiceImpl(
 		mock<SshAuthenticationService>(),
 		mock<SshCommandService>(),
-		mock()
+		mock(),
+		mock<ServerRepository>()
 	)
 
 	private val first = "cpu 100 0 50 800 50 0 0 0 10 0"

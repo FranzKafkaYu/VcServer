@@ -18,6 +18,10 @@ class ServerRepositoryImpl(
         return serverDao.getServerById(id)
     }
 
+    override suspend fun getServersUsingJumpHost(jumpHostId: Long): List<Server> {
+        return serverDao.getServersByJumpHostId(jumpHostId)
+    }
+
     override suspend fun insertServer(server: Server): Long {
         return serverDao.insertServer(server)
     }

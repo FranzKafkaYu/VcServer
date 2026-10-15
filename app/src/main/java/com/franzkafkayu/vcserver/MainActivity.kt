@@ -81,7 +81,8 @@ class MainActivity : ComponentActivity() {
 				migration2To3,
 				AppDatabase.MIGRATION_3_4,
 				AppDatabase.MIGRATION_4_5,
-				AppDatabase.MIGRATION_5_6
+				AppDatabase.MIGRATION_5_6,
+				AppDatabase.MIGRATION_6_7
 			)
 			.build()
 
@@ -101,7 +102,8 @@ class MainActivity : ComponentActivity() {
 		val serverMonitoringService = ServerMonitoringServiceImpl(
 			sshAuthService,
 			sshCommandService,
-			secureStorage
+			secureStorage,
+			serverRepository
 		)
 		val terminalService = TerminalServiceImpl()
 		val terminalPreferences = com.franzkafkayu.vcserver.utils.TerminalPreferences(applicationContext)

@@ -38,6 +38,7 @@ interface ServerManagementService {
 		proxyPort: Int? = null,
 		proxyUsername: String? = null,
 		proxyPassword: String? = null,
+		jumpHostId: Long? = null,
 		testConnection: Boolean = false
 	): Result<Long>
 
@@ -81,7 +82,8 @@ interface ServerManagementService {
 		proxyHost: String? = null,
 		proxyPort: Int? = null,
 		proxyUsername: String? = null,
-		proxyPassword: String? = null
+		proxyPassword: String? = null,
+		jumpHostId: Long? = null
 	): Result<Unit>
 
 	/**

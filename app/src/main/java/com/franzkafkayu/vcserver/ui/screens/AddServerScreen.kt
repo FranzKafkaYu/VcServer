@@ -151,6 +151,78 @@ fun AddServerScreen(
 				}
 			}
 
+			var showJumpPicker by remember { mutableStateOf(false) }
+			val jumpCandidates = uiState.servers.filter { it.id != uiState.editingServerId }
+			val selectedJump = jumpCandidates.find { it.id == uiState.jumpHostId }
+			val selectedJumpLabel = selectedJump?.let { "${it.name} (${it.host})" }
+				?: stringResource(R.string.jump_host_direct)
+
+			Column {
+				Text(
+					text = stringResource(R.string.jump_host),
+					style = MaterialTheme.typography.labelLarge
+				)
+				Box(modifier = Modifier.clickable { showJumpPicker = true }) {
+					OutlinedTextField(
+						value = selectedJumpLabel,
+						onValueChange = { },
+						readOnly = true,
+						enabled = false,
+						modifier = Modifier.fillMaxWidth(),
+						trailingIcon = {
+							Icon(
+								Icons.Default.ArrowDropDown,
+								contentDescription = stringResource(R.string.select_jump_host)
+							)
+						},
+						label = { Text(stringResource(R.string.select_jump_host)) },
+						colors = OutlinedTextFieldDefaults.colors(
+							disabledTextColor = MaterialTheme.colorScheme.onSurface,
+							disabledBorderColor = MaterialTheme.colorScheme.outline,
+							disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+							disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+					)
+				}
+			}
+
+			if (showJumpPicker) {
+				AlertDialog(
+					onDismissRequest = { showJumpPicker = false },
+					title = { Text(stringResource(R.string.select_jump_host)) },
+					text = {
+						Column(
+							modifier = Modifier
+								.fillMaxWidth()
+								.heightIn(max = 360.dp)
+								.verticalScroll(rememberScrollState())
+						) {
+							DropdownMenuItem(
+								text = { Text(stringResource(R.string.jump_host_direct)) },
+								onClick = {
+									viewModel.updateJumpHost(null)
+									showJumpPicker = false
+								}
+							)
+							jumpCandidates.forEach { server ->
+								DropdownMenuItem(
+									text = { Text("${server.name} (${server.host})") },
+									onClick = {
+										viewModel.updateJumpHost(server.id)
+										showJumpPicker = false
+									}
+								)
+							}
+						}
+					},
+					confirmButton = {
+						TextButton(onClick = { showJumpPicker = false }) {
+							Text(stringResource(R.string.cancel))
+						}
+					}
+				)
+			}
+
 			if (showGroupPicker) {
 				AlertDialog(
 					onDismissRequest = { showGroupPicker = false },
@@ -467,6 +539,7 @@ private fun getErrorLocalizedMessage(error: AppError): String {
 				"USERNAME_EMPTY" -> stringResource(R.string.error_username_empty)
 				"PASSWORD_EMPTY" -> stringResource(R.string.error_password_empty)
 				"PRIVATE_KEY_EMPTY" -> stringResource(R.string.error_private_key_empty)
+				"JUMP_HOST_SELF" -> stringResource(R.string.error_jump_host_self)
 				else -> error.message
 			}
 		}
@@ -474,6 +547,10 @@ private fun getErrorLocalizedMessage(error: AppError): String {
 			when (error.message) {
 				"CONNECTION_FAILED" -> stringResource(R.string.connection_failed)
 				"SSH_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_ssh_algorithm_negotiation)
+				"JUMP_HOST_MISSING" -> stringResource(R.string.error_jump_host_missing)
+				"JUMP_HOST_FAILED" -> stringResource(R.string.error_jump_host_failed)
+				"JUMP_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_jump_algorithm_negotiation)
+				"TARGET_CONNECT_FAILED" -> stringResource(R.string.error_target_connect_failed)
 				else -> error.message
 			}
 		}

@@ -17,7 +17,7 @@ import com.franzkafkayu.vcserver.models.ServerGroup
  */
 @Database(
 	entities = [Server::class, ServerGroup::class],
-	version = 6,
+	version = 7,
 	exportSchema = false
 )
 @TypeConverters(AuthTypeConverter::class, ProxyTypeConverter::class)
@@ -73,6 +73,16 @@ abstract class AppDatabase : RoomDatabase() {
 		val MIGRATION_5_6 = object : Migration(5, 6) {
 			override fun migrate(database: SupportSQLiteDatabase) {
 				database.execSQL("ALTER TABLE servers ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+			}
+		}
+
+		/**
+		 * 数据库迁移：从版本6迁移到版本7
+		 * 添加可空的跳板引用
+		 */
+		val MIGRATION_6_7 = object : Migration(6, 7) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("ALTER TABLE servers ADD COLUMN jumpHostId INTEGER")
 			}
 		}
 	}

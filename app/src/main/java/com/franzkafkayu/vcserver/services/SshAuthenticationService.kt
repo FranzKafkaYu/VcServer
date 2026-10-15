@@ -1,6 +1,7 @@
 package com.franzkafkayu.vcserver.services
 
 import com.jcraft.jsch.JSch
+import com.jcraft.jsch.Proxy
 import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.utils.SecureStorage
@@ -19,7 +20,8 @@ interface SshAuthenticationService {
 		host: String,
 		port: Int,
 		username: String,
-		password: String
+		password: String,
+		proxy: Proxy? = null
 	): Result<Session>
 
 	/**
@@ -30,7 +32,8 @@ interface SshAuthenticationService {
 		port: Int,
 		username: String,
 		privateKey: String,
-		passphrase: String? = null
+		passphrase: String? = null,
+		proxy: Proxy? = null
 	): Result<Session>
 
 	/**
