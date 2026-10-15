@@ -6,7 +6,10 @@ import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.utils.SecureStorage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.ByteArrayInputStream
 import java.util.Properties
 
@@ -100,8 +103,8 @@ class SshAuthenticationServiceImpl(
 			if (proxy != null) {
 				session.setProxy(proxy)
 			}
-			
-			session.connect(CONNECTION_TIMEOUT)
+
+			connectWithinDeadline(session)
 			val duration = System.currentTimeMillis() - startTime
 			Log.i(TAG, "connectWithPassword succeed: $host:$port, cost: ${duration}ms")
 			Result.success(session)
@@ -137,8 +140,8 @@ class SshAuthenticationServiceImpl(
 			if (proxy != null) {
 				session.setProxy(proxy)
 			}
-			
-			session.connect(CONNECTION_TIMEOUT)
+
+			connectWithinDeadline(session)
 			Result.success(session)
 		} catch (e: Exception) {
 			Result.failure(wrapConnectFailure("key", e))
@@ -180,6 +183,19 @@ class SshAuthenticationServiceImpl(
 				Result.failure(exception)
 			}
 		)
+	}
+
+	private suspend fun connectWithinDeadline(session: Session) {
+		try {
+			withTimeout(CONNECTION_TIMEOUT.toLong() + 1_000L) {
+				runInterruptible {
+					session.connect(CONNECTION_TIMEOUT)
+				}
+			}
+		} catch (e: TimeoutCancellationException) {
+			closeSession(session)
+			throw SshConnectionException("Failed to connect: timeout", e)
+		}
 	}
 
 	override fun closeSession(session: Session) {

@@ -25,6 +25,8 @@
 	<string name="error_ssh_algorithm_negotiation">SSH algorithm negotiation failed (no matching host key type). The client must support ed25519 / rsa-sha2.</string>
 	<string name="jump_host">Jump host</string>
 	<string name="select_jump_host">Select jump host</string>
+	<string name="enable_jump_host">Connect through another saved server</string>
+	<string name="error_jump_host_required">Select a jump host</string>
 	<string name="jump_host_direct">Direct connection</string>
 	<string name="error_jump_host_self">A server cannot use itself as the jump host</string>
 	<string name="error_jump_host_in_use">Other servers still use this one as a jump host</string>
@@ -129,7 +131,7 @@
 	<string name="proxy_host">Proxy Host</string>
 	<string name="proxy_port">Proxy Port</string>
 	<string name="proxy_auth_optional">Proxy Authentication (Optional)</string>
-	<string name="proxy_settings">Proxy Settings</string>
+	<string name="proxy_settings">Proxy</string>
 	<string name="enable_proxy_for_server">Enable a proxy for this server</string>
 	<string name="hide_password">Hide password</string>
 	<string name="show_password">Show password</string>

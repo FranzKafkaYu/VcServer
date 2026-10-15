@@ -22,10 +22,12 @@ class JumpHostProxy(
 		val opened = jumpSession.openChannel("direct-tcpip") as ChannelDirectTCPIP
 		opened.setHost(host)
 		opened.setPort(port)
-		opened.connect(timeout)
-		channel = opened
+		// 必须在 connect 之前拿到流。否则目标的 SSH 欢迎语会在管道建立前到达并被丢掉，
+		// 随后握手会一直堵到对端空闲断开（常见约 120 秒）。
 		input = opened.inputStream
 		output = opened.outputStream
+		opened.connect(timeout)
+		channel = opened
 	}
 
 	override fun getInputStream(): InputStream {

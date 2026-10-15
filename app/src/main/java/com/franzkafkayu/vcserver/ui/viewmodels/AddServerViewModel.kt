@@ -92,6 +92,7 @@ class AddServerViewModel(
 					proxyUsername = server.proxyUsername ?: "",
 					proxyPassword = "", // 代理密码不显示，需要重新输入
 					jumpHostId = server.jumpHostId,
+					jumpEnabled = server.jumpHostId != null,
 					isLoading = false,
 					error = null
 				)
@@ -224,7 +225,27 @@ class AddServerViewModel(
 	}
 
 	fun updateJumpHost(jumpHostId: Long?) {
-		_uiState.value = _uiState.value.copy(jumpHostId = jumpHostId)
+		_uiState.value = _uiState.value.copy(jumpHostId = jumpHostId, jumpEnabled = true)
+	}
+
+	fun updateJumpEnabled(enabled: Boolean) {
+		_uiState.value = _uiState.value.copy(
+			jumpEnabled = enabled,
+			jumpHostId = if (enabled) _uiState.value.jumpHostId else null
+		)
+	}
+
+	private fun missingJumpHost(): Boolean {
+		val state = _uiState.value
+		if (!state.jumpEnabled || state.jumpHostId != null) {
+			return false
+		}
+		_uiState.value = state.copy(
+			isSaving = false,
+			isTestingConnection = false,
+			error = AppError.ValidationError("JUMP_HOST_REQUIRED")
+		)
+		return true
 	}
 
 	/**
@@ -238,6 +259,9 @@ class AddServerViewModel(
 	 * 测试连接
 	 */
 		fun testConnection() {
+		if (missingJumpHost()) {
+			return
+		}
 		viewModelScope.launch {
 			_uiState.value = _uiState.value.copy(isTestingConnection = true, error = null)
 			val state = _uiState.value
@@ -280,6 +304,9 @@ class AddServerViewModel(
 	 * 保存服务器（新增或编辑）
 	 */
 		fun saveServer(onSuccess: () -> Unit) {
+		if (missingJumpHost()) {
+			return
+		}
 		viewModelScope.launch {
 			_uiState.value = _uiState.value.copy(isSaving = true, error = null)
 			val state = _uiState.value
@@ -310,7 +337,7 @@ class AddServerViewModel(
 					proxyPort = if (proxyEnabled) proxyPort else null,
 					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
 					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
-					jumpHostId = state.jumpHostId
+					jumpHostId = if (state.jumpEnabled) state.jumpHostId else null
 				)
 			} else {
 				// 新增模式：添加服务器
@@ -330,7 +357,7 @@ class AddServerViewModel(
 					proxyPort = if (proxyEnabled) proxyPort else null,
 					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
 					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
-					jumpHostId = state.jumpHostId,
+					jumpHostId = if (state.jumpEnabled) state.jumpHostId else null,
 					testConnection = false
 				).map { Unit }
 			}
@@ -405,6 +432,7 @@ class AddServerViewModel(
 	val selectedGroupId: Long? = null,
 	val servers: List<com.franzkafkayu.vcserver.models.Server> = emptyList(),
 	val jumpHostId: Long? = null,
+	val jumpEnabled: Boolean = false,
 	val editingServerId: Long? = null,
 	// 代理设置
 	val proxyEnabled: Boolean = false,

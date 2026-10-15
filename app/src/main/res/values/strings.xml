@@ -25,6 +25,8 @@
 	<string name="error_ssh_algorithm_negotiation">SSH 算法协商失败（主机密钥类型不匹配）。请确认客户端已支持 ed25519 / rsa-sha2。</string>
 	<string name="jump_host">跳板</string>
 	<string name="select_jump_host">选择跳板</string>
+	<string name="enable_jump_host">经另一台已保存的服务器连接</string>
+	<string name="error_jump_host_required">请选择跳板</string>
 	<string name="jump_host_direct">直接连接</string>
 	<string name="error_jump_host_self">不能把自己选为跳板</string>
 	<string name="error_jump_host_in_use">仍有其他服务器使用它作为跳板，无法删除</string>
@@ -129,7 +131,7 @@
 	<string name="proxy_host">代理主机</string>
 	<string name="proxy_port">代理端口</string>
 	<string name="proxy_auth_optional">代理鉴权（可选）</string>
-	<string name="proxy_settings">代理设置</string>
+	<string name="proxy_settings">代理</string>
 	<string name="enable_proxy_for_server">为当前服务器启用代理连接</string>
 	<string name="hide_password">隐藏密码</string>
 	<string name="show_password">显示密码</string>
