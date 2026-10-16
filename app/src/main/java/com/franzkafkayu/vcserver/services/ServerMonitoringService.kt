@@ -8,6 +8,7 @@ import com.franzkafkayu.vcserver.models.MemoryInfo
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerStatus
 import com.franzkafkayu.vcserver.models.CpuInfo
+import com.franzkafkayu.vcserver.models.LoginSession
 import com.franzkafkayu.vcserver.models.SystemInfo
 import com.franzkafkayu.vcserver.models.NetworkInfo
 import com.franzkafkayu.vcserver.models.NetworkInterfaceInfo
@@ -93,6 +94,8 @@ class ServerMonitoringServiceImpl(
 			appendLine("uname -r 2>/dev/null")
 			appendLine("echo '---VC_OS---'")
 			appendLine("cat /etc/os-release 2>/dev/null")
+			appendLine("echo '---VC_WHO---'")
+			appendLine("who 2>/dev/null || true")
 			appendLine("echo '---VC_END---'")
 		}.trimEnd()
 		internal val OS_ONLY_COMMAND = """
@@ -255,6 +258,12 @@ class ServerMonitoringServiceImpl(
 		val diskDeferred = async { getDiskInfo(session) }
 		val uptimeDeferred = async { getUptime(session) }
 		val systemInfoDeferred = async { getSystemInfo(session) }
+		val whoDeferred = async {
+			sshCommandService.executeCommand(session, "who 2>/dev/null || true", timeout = 5000)
+				.getOrNull()
+				?.let { parseWhoOutput(it) }
+				?: emptyList()
+		}
 
 		val cpuResult = cpuDeferred.await()
 		if (cpuResult.isFailure) {
@@ -271,6 +280,11 @@ class ServerMonitoringServiceImpl(
 		val disk = diskDeferred.await().getOrNull()
 		val uptime = uptimeDeferred.await().getOrNull()
 		val systemInfo = systemInfoDeferred.await().getOrNull()
+		val loginSessions = try {
+			whoDeferred.await()
+		} catch (_: Exception) {
+			emptyList()
+		}
 		Result.success(
 			ServerStatus(
 				cpu = cpu,
@@ -278,7 +292,8 @@ class ServerMonitoringServiceImpl(
 				disk = disk,
 				uptime = uptime,
 				systemInfo = systemInfo,
-				network = null
+				network = null,
+				loginSessions = loginSessions
 			)
 		)
 	}
@@ -296,6 +311,7 @@ class ServerMonitoringServiceImpl(
 		val uptimeText = snapshotSection(output, "UPTIME")
 		val uptime = formatUptime(uptimeText).takeIf { it.isNotEmpty() && uptimeText.isNotBlank() }
 		val systemInfo = parseSystemInfo(snapshotSection(output, "KERNEL"), snapshotSection(output, "OS"))
+		val loginSessions = parseWhoOutput(snapshotSection(output, "WHO"))
 		return ServerStatus(
 			cpu = CpuInfo(
 				architecture = arch,
@@ -307,7 +323,8 @@ class ServerMonitoringServiceImpl(
 			disk = disk,
 			uptime = uptime,
 			systemInfo = systemInfo,
-			network = null
+			network = null,
+			loginSessions = loginSessions
 		)
 	}
 
@@ -962,6 +979,16 @@ class ServerMonitoringServiceImpl(
 			}
 		}
 	}
+}
+
+internal fun parseWhoOutput(output: String): List<LoginSession> {
+	return output.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.map { line ->
+		val user = line.split(Regex("\\s+")).firstOrNull().orEmpty()
+		val source = Regex("\\(([^)]+)\\)\\s*$").find(line)?.groupValues?.get(1)
+			?.takeIf { it.isNotBlank() }
+			?: LoginSession.SOURCE_LOCAL
+		LoginSession(user = user, source = source)
+	}.toList()
 }
 
 internal fun snapshotSectionOf(output: String, name: String): String {

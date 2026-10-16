@@ -9,7 +9,8 @@ data class ServerStatus(
 	val disk: DiskInfo?,
 	val uptime: String? = null,
 	val systemInfo: SystemInfo? = null,
-	val network: NetworkInfo? = null
+	val network: NetworkInfo? = null,
+	val loginSessions: List<LoginSession> = emptyList()
 )
 
 /**
@@ -52,6 +53,19 @@ data class SystemInfo(
 	val osVersion: String,   // 操作系统版本，例如"22.04"
 	val kernelVersion: String // 内核版本，例如"5.15.0"
 )
+
+/**
+ * 一条登录会话
+ * @param source 来源 IP，或本机会话的 [LoginSession.SOURCE_LOCAL]
+ */
+data class LoginSession(
+	val user: String,
+	val source: String
+) {
+	companion object {
+		const val SOURCE_LOCAL = "local"
+	}
+}
 
 /**
  * 网络信息

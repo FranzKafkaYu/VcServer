@@ -48,6 +48,9 @@
 	<string name="disconnect">Disconnect</string>
 	<string name="refresh">Refresh</string>
 	<string name="cpu_info">CPU Info</string>
+	<string name="login_info">Login Sessions</string>
+	<string name="login_session_count">Session count</string>
+	<string name="login_source_local">Local</string>
 	<string name="memory_info">Memory Info</string>
 	<string name="disk_info">Disk Info</string>
 	<string name="cpu_architecture">CPU Architecture</string>

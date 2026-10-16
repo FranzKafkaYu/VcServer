@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
+import com.franzkafkayu.vcserver.models.LoginSession
 import com.franzkafkayu.vcserver.models.DiskInfo
 import com.franzkafkayu.vcserver.models.NetworkInfo
 import com.franzkafkayu.vcserver.models.NetworkInterfaceInfo
@@ -296,6 +297,44 @@ fun ServerMonitoringScreen(
 							) {
 								Text(stringResource(R.string.kernel_version))
 								Text(systemInfo.kernelVersion, fontWeight = FontWeight.Medium)
+							}
+						}
+					}
+				}
+
+				Card(modifier = Modifier.fillMaxWidth()) {
+					Column(
+						modifier = Modifier.padding(16.dp),
+						verticalArrangement = Arrangement.spacedBy(8.dp)
+					) {
+						Text(
+							text = stringResource(R.string.login_info),
+							style = MaterialTheme.typography.titleMedium
+						)
+						Row(
+							modifier = Modifier.fillMaxWidth(),
+							horizontalArrangement = Arrangement.SpaceBetween
+						) {
+							Text(stringResource(R.string.login_session_count))
+							Text(
+								text = status.loginSessions.size.toString(),
+								fontWeight = FontWeight.Medium
+							)
+						}
+						status.loginSessions.forEach { session ->
+							Row(
+								modifier = Modifier.fillMaxWidth(),
+								horizontalArrangement = Arrangement.SpaceBetween
+							) {
+								Text(session.user)
+								Text(
+									text = if (session.source == LoginSession.SOURCE_LOCAL) {
+										stringResource(R.string.login_source_local)
+									} else {
+										session.source
+									},
+									fontWeight = FontWeight.Medium
+								)
 							}
 						}
 					}

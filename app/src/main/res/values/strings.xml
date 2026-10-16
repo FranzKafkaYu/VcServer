@@ -48,6 +48,9 @@
 	<string name="disconnect">断开连接</string>
 	<string name="refresh">刷新</string>
 	<string name="cpu_info">CPU 信息</string>
+	<string name="login_info">登录信息</string>
+	<string name="login_session_count">登录会话数</string>
+	<string name="login_source_local">本地</string>
 	<string name="memory_info">内存信息</string>
 	<string name="disk_info">磁盘信息</string>
 	<string name="cpu_architecture">CPU 架构</string>
