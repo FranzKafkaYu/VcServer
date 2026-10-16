@@ -192,6 +192,7 @@
 	<string name="about_build_date">Build Date</string>
 	<string name="about_author">Author</string>
 	<string name="about_github">GitHub</string>
+	<string name="privacy_policy_title">Privacy Policy</string>
 	<string name="about_description">VcServer is an Android application for managing remote servers via SSH.</string>
 	<!-- SFTP File Transfer -->
 	<string name="sftp_file_transfer">File Transfer</string>

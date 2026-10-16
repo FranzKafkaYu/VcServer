@@ -49,6 +49,7 @@ sealed class Screen(val route: String) {
 
     object Settings : Screen("settings")
     object About : Screen("about")
+    object PrivacyPolicy : Screen("privacy_policy")
 }
 
 /**
@@ -234,6 +235,16 @@ fun NavGraph(
         }
         composable(com.franzkafkayu.vcserver.ui.navigation.Screen.About.route) {
             com.franzkafkayu.vcserver.ui.screens.AboutScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onPrivacyPolicyClick = {
+                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.PrivacyPolicy.route)
+                }
+            )
+        }
+        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.PrivacyPolicy.route) {
+            com.franzkafkayu.vcserver.ui.screens.PrivacyPolicyScreen(
                 onBackClick = {
                     navController.popBackStack()
                 }

@@ -46,7 +46,8 @@ object AboutScreenConstants {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
-	onBackClick: () -> Unit
+	onBackClick: () -> Unit,
+	onPrivacyPolicyClick: () -> Unit
 ) {
 	val context = LocalContext.current
 
@@ -148,6 +149,18 @@ fun AboutScreen(
 						softWrap = true
 					)
 				}
+			}
+
+			Card(
+				modifier = Modifier.fillMaxWidth(),
+				onClick = onPrivacyPolicyClick
+			) {
+				Text(
+					text = stringResource(R.string.privacy_policy_title),
+					style = MaterialTheme.typography.bodyLarge,
+					color = MaterialTheme.colorScheme.primary,
+					modifier = Modifier.padding(16.dp)
+				)
 			}
 
 			// 应用描述

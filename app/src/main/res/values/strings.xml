@@ -192,6 +192,7 @@
 	<string name="about_build_date">构建日期</string>
 	<string name="about_author">作者</string>
 	<string name="about_github">GitHub</string>
+	<string name="privacy_policy_title">隐私权政策</string>
 	<string name="about_description">VcServer 是一款 Android 应用，通过 SSH 连接到远程服务器并进行管理。</string>
 	<!-- SFTP 文件传输 -->
 	<string name="sftp_file_transfer">文件传输</string>
