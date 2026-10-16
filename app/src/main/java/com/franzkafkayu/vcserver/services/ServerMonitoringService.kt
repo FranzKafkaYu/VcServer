@@ -819,12 +819,13 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取网卡列表和流量统计（包含速率计算）
 	 */
-	private suspend fun getNetworkInterfacesWithTraffic(session: Session): Result<List<NetworkInterfaceInfo>> {
-		return try {
+	private suspend fun getNetworkInterfacesWithTraffic(session: Session): Result<List<NetworkInterfaceInfo>> = coroutineScope {
+		val addressesDeferred = async { readNicAddresses(session) }
+		try {
 			// 第一次采样
 			val firstSample = getNetworkInterfacesTraffic(session)
 			if (firstSample.isFailure) {
-				return Result.failure(firstSample.exceptionOrNull() ?: Exception("Failed to get first traffic sample"))
+				return@coroutineScope Result.failure(firstSample.exceptionOrNull() ?: Exception("Failed to get first traffic sample"))
 			}
 
 			// 等待1秒
@@ -832,16 +833,18 @@ class ServerMonitoringServiceImpl(
 
 			// 第二次采样
 			val secondSample = getNetworkInterfacesTraffic(session)
+			val addresses = addressesDeferred.await()
 			if (secondSample.isFailure) {
 				// 如果第二次采样失败，只返回第一次的数据（速率为0）
-				val firstData = firstSample.getOrNull() ?: return Result.success(emptyList())
-				return Result.success(firstData.map { 
-					it.copy(currentRxRate = 0.0, currentTxRate = 0.0)
-				})
+				val firstData = firstSample.getOrNull() ?: return@coroutineScope Result.success(emptyList())
+				return@coroutineScope Result.success(
+					firstData.map { it.copy(currentRxRate = 0.0, currentTxRate = 0.0) }
+						.withNicAddresses(addresses)
+				)
 			}
 
-			val firstData = firstSample.getOrNull() ?: return Result.success(emptyList())
-			val secondData = secondSample.getOrNull() ?: return Result.success(emptyList())
+			val firstData = firstSample.getOrNull() ?: return@coroutineScope Result.success(emptyList())
+			val secondData = secondSample.getOrNull() ?: return@coroutineScope Result.success(emptyList())
 
 			// 计算速率（字节/秒）
 			val interfacesWithRate = firstData.map { first ->
@@ -860,9 +863,20 @@ class ServerMonitoringServiceImpl(
 				}
 			}
 
-			Result.success(interfacesWithRate)
+			Result.success(interfacesWithRate.withNicAddresses(addresses))
 		} catch (e: Exception) {
 			Result.failure(Exception("Failed to get network interfaces with traffic: ${e.message}", e))
+		}
+	}
+
+	private suspend fun readNicAddresses(session: Session): Map<String, NicAddresses> {
+		return try {
+			val output = sshCommandService.executeCommand(session, "ip -o addr 2>/dev/null", timeout = 5000)
+				.getOrNull()
+				?: return emptyMap()
+			parseNicAddresses(output)
+		} catch (e: Exception) {
+			emptyMap()
 		}
 	}
 
@@ -967,6 +981,44 @@ internal fun coreCpuFromSnapshot(output: String): Pair<Int, Double>? {
 		.mapNotNull { it.trim().toIntOrNull() }
 		.firstOrNull() ?: return null
 	return cores to cpuUsagePercent(snapshotSectionOf(output, "CPU_STAT"))
+}
+
+internal data class NicAddresses(
+	val ipv4: List<String> = emptyList(),
+	val ipv6: List<String> = emptyList()
+)
+
+internal fun parseNicAddresses(output: String): Map<String, NicAddresses> {
+	val ipv4 = linkedMapOf<String, MutableList<String>>()
+	val ipv6 = linkedMapOf<String, MutableList<String>>()
+	for (raw in output.lineSequence()) {
+		val parts = raw.trim().split(Regex("\\s+")).filter { it.isNotEmpty() && it != "\\" }
+		val familyIndex = parts.indexOfFirst { it == "inet" || it == "inet6" }
+		if (familyIndex < 1 || familyIndex + 1 >= parts.size) continue
+		val name = parts[familyIndex - 1].substringBefore('@')
+		val address = parts[familyIndex + 1]
+		if (parts[familyIndex] == "inet6") {
+			val scopeIndex = parts.indexOf("scope")
+			val scope = if (scopeIndex >= 0 && scopeIndex + 1 < parts.size) parts[scopeIndex + 1] else ""
+			if (scope == "link") continue
+			ipv6.getOrPut(name) { mutableListOf() }.add(address)
+		} else {
+			ipv4.getOrPut(name) { mutableListOf() }.add(address)
+		}
+	}
+	return (ipv4.keys + ipv6.keys).associateWith { name ->
+		NicAddresses(ipv4 = ipv4[name].orEmpty(), ipv6 = ipv6[name].orEmpty())
+	}
+}
+
+private fun List<NetworkInterfaceInfo>.withNicAddresses(
+	addresses: Map<String, NicAddresses>
+): List<NetworkInterfaceInfo> {
+	if (addresses.isEmpty()) return this
+	return map { nic ->
+		val found = addresses[nic.name] ?: return@map nic
+		nic.copy(ipv4Addresses = found.ipv4, ipv6Addresses = found.ipv6)
+	}
 }
 
 internal fun cpuUsagePercent(statText: String): Double {

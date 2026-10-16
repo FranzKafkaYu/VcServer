@@ -987,6 +987,24 @@ fun DiskInfoItem(disk: DiskInfo) {
 	}
 }
 
+@Composable
+private fun NicAddressRow(label: String, address: String) {
+	Row(
+		modifier = Modifier.fillMaxWidth(),
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+		verticalAlignment = Alignment.Top
+	) {
+		Text(label, style = MaterialTheme.typography.bodySmall)
+		Text(
+			text = address,
+			modifier = Modifier.weight(1f),
+			style = MaterialTheme.typography.bodySmall,
+			fontWeight = FontWeight.Medium,
+			textAlign = TextAlign.End
+		)
+	}
+}
+
 /**
  * 网卡信息项
  */
@@ -1008,6 +1026,12 @@ fun NetworkInterfaceItem(interfaceInfo: NetworkInterfaceInfo) {
 				style = MaterialTheme.typography.titleSmall,
 				fontWeight = FontWeight.Bold
 			)
+			interfaceInfo.ipv4Addresses.forEach { address ->
+				NicAddressRow(stringResource(R.string.nic_ipv4), address)
+			}
+			interfaceInfo.ipv6Addresses.forEach { address ->
+				NicAddressRow(stringResource(R.string.nic_ipv6), address)
+			}
 			
 			// 总流量
 			Row(

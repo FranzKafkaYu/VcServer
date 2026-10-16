@@ -68,6 +68,8 @@
 	<string name="tcp_connections">TCP 连接数</string>
 	<string name="udp_connections">UDP 连接数</string>
 	<string name="network_interfaces_info">网卡信息 (%d)</string>
+	<string name="nic_ipv4">IPv4</string>
+	<string name="nic_ipv6">IPv6</string>
 	<string name="total_received">总接收</string>
 	<string name="total_sent">总发送</string>
 	<string name="download_rate">下行速率</string>

@@ -68,6 +68,8 @@
 	<string name="tcp_connections">TCP Connections</string>
 	<string name="udp_connections">UDP Connections</string>
 	<string name="network_interfaces_info">Network Interfaces (%d)</string>
+	<string name="nic_ipv4">IPv4</string>
+	<string name="nic_ipv6">IPv6</string>
 	<string name="total_received">Total Received</string>
 	<string name="total_sent">Total Sent</string>
 	<string name="download_rate">Download Rate</string>

@@ -70,6 +70,8 @@ data class NetworkInterfaceInfo(
 	val totalRxBytes: Long,           // 总接收字节数（下行总量）
 	val totalTxBytes: Long,           // 总发送字节数（上行总量）
 	val currentRxRate: Double,        // 当前接收速率（字节/秒）
-	val currentTxRate: Double         // 当前发送速率（字节/秒）
+	val currentTxRate: Double,        // 当前发送速率（字节/秒）
+	val ipv4Addresses: List<String> = emptyList(),
+	val ipv6Addresses: List<String> = emptyList()
 )
 
