@@ -1,5 +1,6 @@
 package com.franzkafkayu.vcserver.services
 
+import com.franzkafkayu.vcserver.utils.SshSessionLocks
 import com.jcraft.jsch.ChannelShell
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
@@ -14,31 +15,44 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * 终端服务实现
  */
 class TerminalServiceImpl : TerminalService {
 	override suspend fun connectShell(session: Session, rows: Int, cols: Int): Result<ChannelShell> = withContext(Dispatchers.IO) {
-		try {
-			if (!session.isConnected) {
-				return@withContext Result.failure(
-					Exception("SSH session is not connected")
-				)
+		if (!session.isConnected) {
+			return@withContext Result.failure(Exception("SSH session is not connected"))
+		}
+		val executor = Executors.newSingleThreadExecutor()
+		val future = executor.submit<ChannelShell> {
+			SshSessionLocks.withLock(session) {
+				if (!session.isConnected) {
+					throw Exception("SSH session is not connected")
+				}
+				val opened = session.openChannel("shell") as ChannelShell
+				opened.setPty(true)
+				opened.setPtyType("xterm-256color")
+				opened.setEnv("TERM", "xterm-256color")
+				opened.setPtySize(cols, rows, 0, 0)
+				opened.connect(8_000)
+				opened
 			}
-
-			val channel = session.openChannel("shell") as ChannelShell
-			channel.setPty(true)
-			channel.setPtyType("xterm-256color")
-			channel.setEnv("TERM", "xterm-256color")
-			channel.setPtySize(cols, rows, 0, 0)
-			channel.connect()
-			
-			Result.success(channel)
+		}
+		try {
+			Result.success(future.get(12, TimeUnit.SECONDS))
+		} catch (e: TimeoutException) {
+			future.cancel(true)
+			Result.failure(Exception("Shell connect timeout"))
 		} catch (e: Exception) {
-			Result.failure(
-				Exception("Failed to connect shell: ${e.message}", e)
-			)
+			future.cancel(true)
+			val cause = e.cause ?: e
+			Result.failure(Exception("Failed to connect shell: ${cause.message}", cause))
+		} finally {
+			executor.shutdownNow()
 		}
 	}
 

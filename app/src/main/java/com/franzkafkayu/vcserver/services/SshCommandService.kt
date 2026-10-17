@@ -1,12 +1,11 @@
 package com.franzkafkayu.vcserver.services
 
+import com.franzkafkayu.vcserver.utils.SshSessionLocks
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.InputStream
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * SSH 命令执行服务接口
@@ -35,13 +34,6 @@ interface SshCommandService {
  * - 读取操作不加锁，提高并发性能
  */
 class SshCommandServiceImpl : SshCommandService {
-	// 为每个 Session 维护一个 Mutex，确保 Channel 创建和连接的线程安全
-	private val sessionMutexes = ConcurrentHashMap<Session, Mutex>()
-
-	private fun getMutexForSession(session: Session): Mutex {
-		return sessionMutexes.computeIfAbsent(session) { Mutex() }
-	}
-
 	override suspend fun executeCommand(
 		session: Session,
 		command: String,
@@ -58,20 +50,18 @@ class SshCommandServiceImpl : SshCommandService {
 
 			// 只对 Channel 的创建和连接加锁，这是唯一需要同步的部分
 			// JSch 允许在同一个 Session 上创建多个独立的 Channel
-			val mutex = getMutexForSession(session)
-			val channel = mutex.withLock {
-				if (!session.isConnected) {
-					return@withContext Result.failure(
-						Exception("SSH session is not connected")
-					)
+			val channel = runInterruptible {
+				SshSessionLocks.withLock(session) {
+					if (!session.isConnected) {
+						throw Exception("SSH session is not connected")
+					}
+					val ch = session.openChannel("exec") as com.jcraft.jsch.ChannelExec
+					ch.setCommand(command)
+					ch.setInputStream(null)
+					ch.setErrStream(null)
+					ch.connect(8_000)
+					ch
 				}
-
-				val ch = session.openChannel("exec") as com.jcraft.jsch.ChannelExec
-				ch.setCommand(command)
-				ch.setInputStream(null)
-				ch.setErrStream(null)
-				ch.connect()
-				ch
 			}
 			
 			execChannel = channel

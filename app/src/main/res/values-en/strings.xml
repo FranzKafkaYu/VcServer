@@ -96,6 +96,10 @@
 	<string name="terminal_copy">Copy output</string>
 	<string name="terminal_font_smaller">Smaller text</string>
 	<string name="terminal_font_larger">Larger text</string>
+	<string name="terminal_shell_tab">Shell %d</string>
+	<string name="terminal_new_tab">New terminal tab</string>
+	<string name="terminal_close_tab">Close tab</string>
+	<string name="terminal_tab_limit">At most 4 terminal tabs on the same host</string>
 	<string name="cursor_left">Move left</string>
 	<string name="cursor_right">Move right</string>
 	<string name="arrow_up">Up</string>

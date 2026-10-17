@@ -1,6 +1,7 @@
 package com.franzkafkayu.vcserver.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowLeft
@@ -53,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
 import com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel
 import com.franzkafkayu.vcserver.utils.AnsiParser
+import com.franzkafkayu.vcserver.utils.TerminalShellStore
 import com.franzkafkayu.vcserver.utils.CharCell
 import com.franzkafkayu.vcserver.utils.TerminalFont
 
@@ -72,8 +75,27 @@ fun TerminalScreen(
 	val keyboardController = LocalSoftwareKeyboardController.current
 	val clipboardManager = LocalClipboardManager.current
 	val fontSize = uiState.fontSizeSp.sp
+	val snackbarHostState = remember { SnackbarHostState() }
+	val tabLimitMessage = stringResource(R.string.terminal_tab_limit)
+	var dismissedTabIds by remember { mutableStateOf(setOf<String>()) }
+	val visibleTabs = uiState.tabs.filter { it.id !in dismissedTabIds }
+
+	LaunchedEffect(uiState.maxReached, uiState.tabs.size) {
+		if (uiState.tabs.size < TerminalShellStore.MAX_TABS) {
+			snackbarHostState.currentSnackbarData?.dismiss()
+			if (uiState.maxReached) {
+				viewModel.clearMaxReached()
+			}
+			return@LaunchedEffect
+		}
+		if (uiState.maxReached) {
+			snackbarHostState.showSnackbar(tabLimitMessage, duration = SnackbarDuration.Short)
+			viewModel.clearMaxReached()
+		}
+	}
 
 	Scaffold(
+		snackbarHost = { SnackbarHost(snackbarHostState) },
 		topBar = {
 			TopAppBar(
 				title = { Text(stringResource(R.string.terminal) + " - " + viewModel.server.name) },
@@ -105,7 +127,7 @@ fun TerminalScreen(
 					) {
 						Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.terminal_copy))
 					}
-					if (!uiState.isConnected && !uiState.isConnecting) {
+					if (!uiState.isConnected) {
 						IconButton(
 							onClick = { viewModel.reconnect() }
 						) {
@@ -132,8 +154,57 @@ fun TerminalScreen(
 				.imePadding()
 				.background(Color(0xFF1E1E1E)) // 深色背景
 		) {
-			// 连接状态提�?
-			if (uiState.isConnecting) {
+			if (visibleTabs.isNotEmpty()) {
+				CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+					Row(
+						modifier = Modifier
+							.fillMaxWidth()
+							.horizontalScroll(rememberScrollState())
+							.padding(horizontal = 8.dp, vertical = 4.dp),
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						visibleTabs.forEach { tab ->
+							Row(
+								verticalAlignment = Alignment.CenterVertically,
+								modifier = Modifier.padding(end = 4.dp)
+							) {
+								FilterChip(
+									selected = tab.isActive,
+									onClick = { viewModel.switchTab(tab.id) },
+									label = { Text(stringResource(R.string.terminal_shell_tab, tab.titleIndex)) }
+								)
+								Box(
+									modifier = Modifier
+										.size(36.dp)
+										.clickable {
+											val closingLast = visibleTabs.size == 1
+											dismissedTabIds = dismissedTabIds + tab.id
+											viewModel.closeTab(tab.id)
+											if (closingLast) {
+												onBackClick()
+											}
+										},
+									contentAlignment = Alignment.Center
+								) {
+									Icon(
+										Icons.Default.Close,
+										contentDescription = stringResource(R.string.terminal_close_tab),
+										tint = Color.White
+									)
+								}
+							}
+						}
+						IconButton(onClick = { viewModel.newTab() }) {
+							Icon(
+								Icons.Default.Add,
+								contentDescription = stringResource(R.string.terminal_new_tab)
+							)
+						}
+					}
+				}
+			}
+			// 连接状态提示
+			if (uiState.isConnecting && !uiState.isConnected) {
 				LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 				Text(
 					text = stringResource(R.string.shell_connecting),

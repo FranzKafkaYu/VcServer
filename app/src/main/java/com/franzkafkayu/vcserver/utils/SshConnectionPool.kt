@@ -93,8 +93,10 @@ object SshConnectionPool {
 	 * @param serverId 服务器 ID
 	 */
 	fun removeConnection(serverId: Long) {
+		TerminalShellStore.closeForServer(serverId)
 		val pooledConnection = connectionPool.remove(serverId)
 		pooledConnection?.let {
+			SshSessionLocks.remove(it.session)
 			try {
 				if (it.session.isConnected) {
 					it.session.disconnect()
