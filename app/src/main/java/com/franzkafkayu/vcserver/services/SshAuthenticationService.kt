@@ -1,31 +1,27 @@
 package com.franzkafkayu.vcserver.services
 
-import com.jcraft.jsch.JSch
-import com.jcraft.jsch.Proxy
-import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.AuthType
-import com.franzkafkayu.vcserver.utils.SecureStorage
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayInputStream
 
 /**
  * SSH 认证服务接口
  */
 interface SshAuthenticationService {
 	/**
-	 * 使用密码进行 SSH 连接
+	 * 使用密码进行 SSH 连接。jump 非空时经该跳板的 direct-tcpip 握手。
 	 */
 	suspend fun connectWithPassword(
 		host: String,
 		port: Int,
 		username: String,
 		password: String,
-		proxy: Proxy? = null
-	): Result<Session>
+		jump: SshClientSession? = null
+	): Result<SshClientSession>
 
 	/**
-	 * 使用密钥进行 SSH 连接
+	 * 使用密钥进行 SSH 连接。jump 非空时经该跳板的 direct-tcpip 握手。
 	 */
 	suspend fun connectWithKey(
 		host: String,
@@ -33,8 +29,8 @@ interface SshAuthenticationService {
 		username: String,
 		privateKey: String,
 		passphrase: String? = null,
-		proxy: Proxy? = null
-	): Result<Session>
+		jump: SshClientSession? = null
+	): Result<SshClientSession>
 
 	/**
 	 * 测试连接（连接后立即关闭）
@@ -52,8 +48,5 @@ interface SshAuthenticationService {
 	/**
 	 * 关闭 SSH 连接
 	 */
-	fun closeSession(session: Session)
+	fun closeSession(session: SshClientSession)
 }
-
-
-

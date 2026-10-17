@@ -1,7 +1,7 @@
 package com.franzkafkayu.vcserver.services
 
-import com.jcraft.jsch.ChannelShell
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
+import com.franzkafkayu.vcserver.ssh.SshShellChannel
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -9,53 +9,19 @@ import kotlinx.coroutines.flow.Flow
  */
 interface TerminalService {
 	/**
-	 * 连接到Shell通道
-	 * @param session SSH会话
-	 * @param rows 终端行数（默�?0�?
-	 * @param cols 终端列数（默�?4�?
-	 * @return 连接结果
+	 * 连接到 Shell 通道
 	 */
-	suspend fun connectShell(session: Session, rows: Int = 24, cols: Int = 80): Result<ChannelShell>
+	suspend fun connectShell(session: SshClientSession, rows: Int = 24, cols: Int = 80): Result<SshShellChannel>
 
-	/**
-	 * 发送命令到Shell
-	 * @param channel Shell通道
-	 * @param command 命令字符�?
-	 */
-	suspend fun sendCommand(channel: ChannelShell, command: String)
+	suspend fun sendCommand(channel: SshShellChannel, command: String)
 
-	/**
-	 * 发送原始字节到Shell（用于控制字符和实时输入�?
-	 * @param channel Shell通道
-	 * @param bytes 要发送的字节数组
-	 */
-	suspend fun sendRawBytes(channel: ChannelShell, bytes: ByteArray)
+	suspend fun sendRawBytes(channel: SshShellChannel, bytes: ByteArray)
 
-	/**
-	 * 发送控制字符到Shell
-	 * @param channel Shell通道
-	 * @param controlChar 控制字符（例如：Ctrl+C = 0x03, Ctrl+D = 0x04�?
-	 */
-	suspend fun sendControlChar(channel: ChannelShell, controlChar: Int)
+	suspend fun sendControlChar(channel: SshShellChannel, controlChar: Int)
 
-	/**
-	 * 获取Shell输出�?
-	 * @param channel Shell通道
-	 * @return 输出流（Flow<String>�?
-	 */
-	fun getOutputFlow(channel: ChannelShell): Flow<ByteArray>
+	fun getOutputFlow(channel: SshShellChannel): Flow<ByteArray>
 
-	/**
-	 * 断开Shell通道
-	 * @param channel Shell通道
-	 */
-	fun disconnectShell(channel: ChannelShell)
+	fun disconnectShell(channel: SshShellChannel)
 
-	/**
-	 * 检查Shell通道是否连接
-	 * @param channel Shell通道
-	 * @return 是否连接
-	 */
-	fun isConnected(channel: ChannelShell): Boolean
+	fun isConnected(channel: SshShellChannel): Boolean
 }
-

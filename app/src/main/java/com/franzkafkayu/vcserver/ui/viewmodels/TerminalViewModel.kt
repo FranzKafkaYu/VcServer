@@ -15,7 +15,7 @@ import com.franzkafkayu.vcserver.utils.TerminalPreferences
 import com.franzkafkayu.vcserver.utils.TerminalShellStore
 import com.franzkafkayu.vcserver.utils.TerminalBuffer
 import com.franzkafkayu.vcserver.utils.toAppError
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +31,7 @@ class TerminalViewModel(
 	private val terminalService: TerminalService,
 	private val serverMonitoringService: ServerMonitoringService,
 	val server: Server,
-	var session: Session,
+	var session: SshClientSession,
 	private val sessionKey: String,
 	private val terminalPreferences: TerminalPreferences
 ) : ViewModel() {

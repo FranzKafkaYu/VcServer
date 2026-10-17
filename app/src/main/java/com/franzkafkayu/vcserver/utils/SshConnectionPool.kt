@@ -1,7 +1,7 @@
 package com.franzkafkayu.vcserver.utils
 
 import android.util.Log
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -22,7 +22,7 @@ object SshConnectionPool {
 	 * 连接包装类，包含 Session 和最后使用时间
 	 */
 	private data class PooledConnection(
-		val session: Session,
+		val session: SshClientSession,
 		var lastUsedTime: Long = System.currentTimeMillis()
 	) {
 		fun updateLastUsedTime() {
@@ -46,7 +46,7 @@ object SshConnectionPool {
 	 * @param serverId 服务器 ID
 	 * @return 有效的 Session，如果不存在或无效则返回 null
 	 */
-	fun getConnection(serverId: Long): Session? {
+	fun getConnection(serverId: Long): SshClientSession? {
 		val pooledConnection = connectionPool[serverId] ?: return null
 		
 		// 检查连接是否有效
@@ -74,7 +74,7 @@ object SshConnectionPool {
 	 * @param serverId 服务器 ID
 	 * @param session SSH Session
 	 */
-	fun putConnection(serverId: Long, session: Session) {
+	fun putConnection(serverId: Long, session: SshClientSession) {
 		if (!session.isConnected) {
 			Log.w(TAG, "尝试添加未连接的 Session 到连接池: serverId=$serverId")
 			return
@@ -96,7 +96,6 @@ object SshConnectionPool {
 		TerminalShellStore.closeForServer(serverId)
 		val pooledConnection = connectionPool.remove(serverId)
 		pooledConnection?.let {
-			SshSessionLocks.remove(it.session)
 			try {
 				if (it.session.isConnected) {
 					it.session.disconnect()

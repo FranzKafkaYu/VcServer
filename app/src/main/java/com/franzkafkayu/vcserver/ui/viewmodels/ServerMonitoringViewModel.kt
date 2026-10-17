@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerStatus
 import com.franzkafkayu.vcserver.services.ServerMonitoringService
@@ -28,7 +28,7 @@ class ServerMonitoringViewModel(
 	private val serverMonitoringService: ServerMonitoringService,
 	private val sftpFileTransferService: SftpFileTransferService? = null,
 	val server: Server,
-	var session: Session, // 改为 var，支持重连后更新
+	var session: SshClientSession, // 改为 var，支持重连后更新
 	private val refreshInterval: Long = 3000L // 默认3s
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(ServerMonitoringUiState())

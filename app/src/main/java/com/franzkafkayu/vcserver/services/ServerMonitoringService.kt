@@ -1,7 +1,6 @@
 package com.franzkafkayu.vcserver.services
 
 import android.util.Log
-import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.DiskInfo
 import com.franzkafkayu.vcserver.models.MemoryInfo
@@ -13,8 +12,8 @@ import com.franzkafkayu.vcserver.models.SystemInfo
 import com.franzkafkayu.vcserver.models.NetworkInfo
 import com.franzkafkayu.vcserver.models.NetworkInterfaceInfo
 import com.franzkafkayu.vcserver.repositories.ServerRepository
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import com.franzkafkayu.vcserver.utils.JumpConnectFailure
-import com.franzkafkayu.vcserver.utils.JumpHostProxy
 import com.franzkafkayu.vcserver.utils.SecureStorage
 import com.franzkafkayu.vcserver.utils.SshConnectionPool
 import kotlinx.coroutines.Dispatchers
@@ -30,27 +29,27 @@ interface ServerMonitoringService {
 	/**
 	 * 连接到服务器
 	 */
-	suspend fun connectToServer(server: Server): Result<Session>
+	suspend fun connectToServer(server: Server): Result<SshClientSession>
 
 	/**
 	 * 获取服务器状态。CPU、内存、磁盘与网络信息在同一次结果中返回。
 	 */
-	suspend fun getServerStatus(session: Session): Result<ServerStatus>
+	suspend fun getServerStatus(session: SshClientSession): Result<ServerStatus>
 
 	/**
 	 * 只读取操作系统标识，供列表后台更新系统版本。
 	 */
-	suspend fun getOperatingSystem(session: Session): Result<SystemInfo>
+	suspend fun getOperatingSystem(session: SshClientSession): Result<SystemInfo>
 
 	/**
 	 * 获取网络连接数与速率。包含约 1 秒的流量采样，不得放在首次状态展示的关键路径上。
 	 */
-	suspend fun getNetworkInfo(session: Session): Result<NetworkInfo>
+	suspend fun getNetworkInfo(session: SshClientSession): Result<NetworkInfo>
 
 	/**
 	 * 断开连接
 	 */
-	fun disconnect(session: Session)
+	fun disconnect(session: SshClientSession)
 
 	/**
 	 * 显式断开服务器连接（从连接池和 SessionManager 同时移除）
@@ -108,7 +107,7 @@ class ServerMonitoringServiceImpl(
 	}
 	
 
-	override suspend fun connectToServer(server: Server): Result<Session> = withContext(Dispatchers.IO) {
+	override suspend fun connectToServer(server: Server): Result<SshClientSession> = withContext(Dispatchers.IO) {
 		try {
 			if (server.id > 0L) {
 				val pooledSession = SshConnectionPool.getConnection(server.id)
@@ -120,7 +119,7 @@ class ServerMonitoringServiceImpl(
 
 			val jumpId = server.jumpHostId
 			if (jumpId == null) {
-				return@withContext openAndPool(server, proxy = null)
+				return@withContext openAndPool(server, jump = null)
 			}
 			if (jumpId == server.id) {
 				return@withContext Result.failure(SshConnectionException(JumpConnectFailure.MISSING))
@@ -133,13 +132,13 @@ class ServerMonitoringServiceImpl(
 			val jumpSession = if (pooledJump != null) {
 				pooledJump
 			} else {
-				openAndPool(directJump, proxy = null).getOrElse { error ->
+				openAndPool(directJump, jump = null).getOrElse { error ->
 					return@withContext Result.failure(
 						SshConnectionException(JumpConnectFailure.code(jumpSide = true, error), error)
 					)
 				}
 			}
-			val targetResult = openAndPool(server, proxy = JumpHostProxy(jumpSession))
+			val targetResult = openAndPool(server, jump = jumpSession)
 			if (targetResult.isFailure) {
 				if (pooledJump == null && directJump.id > 0L) {
 					SshConnectionPool.removeConnection(directJump.id)
@@ -158,7 +157,7 @@ class ServerMonitoringServiceImpl(
 		}
 	}
 
-	private suspend fun openAndPool(server: Server, proxy: com.jcraft.jsch.Proxy?): Result<Session> {
+	private suspend fun openAndPool(server: Server, jump: SshClientSession?): Result<SshClientSession> {
 		val password = server.encryptedPassword?.let { secureStorage.decryptPassword(it) }
 		val privateKey = server.encryptedPrivateKey?.let { secureStorage.decryptPrivateKey(it) }
 		val result = when (server.authType) {
@@ -171,7 +170,7 @@ class ServerMonitoringServiceImpl(
 					port = server.port,
 					username = server.username,
 					password = password,
-					proxy = proxy
+					jump = jump
 				)
 			}
 			AuthType.KEY -> {
@@ -184,7 +183,7 @@ class ServerMonitoringServiceImpl(
 					username = server.username,
 					privateKey = privateKey,
 					passphrase = server.keyPassphrase,
-					proxy = proxy
+					jump = jump
 				)
 			}
 		}
@@ -196,13 +195,12 @@ class ServerMonitoringServiceImpl(
 				Result.success(session)
 			},
 			onFailure = { exception ->
-				proxy?.close()
 				Result.failure(exception)
 			}
 		)
 	}
 
-	override suspend fun getServerStatus(session: Session): Result<ServerStatus> = withContext(Dispatchers.IO) {
+	override suspend fun getServerStatus(session: SshClientSession): Result<ServerStatus> = withContext(Dispatchers.IO) {
 		try {
 			val startTime = System.currentTimeMillis()
 			coroutineScope {
@@ -223,7 +221,7 @@ class ServerMonitoringServiceImpl(
 		}
 	}
 
-	private suspend fun loadCoreStatus(session: Session): Result<ServerStatus> {
+	private suspend fun loadCoreStatus(session: SshClientSession): Result<ServerStatus> {
 		val scriptOutput = sshCommandService.executeCommand(
 			session,
 			CORE_SNAPSHOT_COMMAND,
@@ -238,7 +236,7 @@ class ServerMonitoringServiceImpl(
 		return loadCoreStatusFallback(session)
 	}
 
-	override suspend fun getOperatingSystem(session: Session): Result<SystemInfo> = withContext(Dispatchers.IO) {
+	override suspend fun getOperatingSystem(session: SshClientSession): Result<SystemInfo> = withContext(Dispatchers.IO) {
 		try {
 			val output = sshCommandService.executeCommand(session, OS_ONLY_COMMAND, timeout = 5000).getOrNull()
 			if (output != null && output.contains("---VC_END---")) {
@@ -252,7 +250,7 @@ class ServerMonitoringServiceImpl(
 		}
 	}
 
-	private suspend fun loadCoreStatusFallback(session: Session): Result<ServerStatus> = coroutineScope {
+	private suspend fun loadCoreStatusFallback(session: SshClientSession): Result<ServerStatus> = coroutineScope {
 		val cpuDeferred = async { getCpuInfo(session) }
 		val memoryDeferred = async { getMemoryInfo(session) }
 		val diskDeferred = async { getDiskInfo(session) }
@@ -330,8 +328,8 @@ class ServerMonitoringServiceImpl(
 
 	private fun snapshotSection(output: String, name: String): String = snapshotSectionOf(output, name)
 
-	override fun disconnect(session: Session) {
-		// 注意：这里只断开 Session，但不从连接池移除
+	override fun disconnect(session: SshClientSession) {
+		// 注意：这里只断开 SshClientSession，但不从连接池移除
 		// 连接池会在连接无效时自动清理
 		// 如果需要显式断开连接（用户主动断开），应该调用 disconnectFromServer(serverId)
 		sshAuthService.closeSession(session)
@@ -344,7 +342,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取 CPU 信息。使用率与快照共用两次 /proc/stat 采样。
 	 */
-	private suspend fun getCpuInfo(session: Session): Result<CpuInfo> = coroutineScope {
+	private suspend fun getCpuInfo(session: SshClientSession): Result<CpuInfo> = coroutineScope {
 		try {
 			val coresDeferred = async { sshCommandService.executeCommand(session, "nproc", timeout = 5000) }
 			val archDeferred = async { sshCommandService.executeCommand(session, "uname -m", timeout = 5000) }
@@ -397,7 +395,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取内存信息（优化：减少超时时间）
 	 */
-	private suspend fun getMemoryInfo(session: Session): Result<MemoryInfo> {
+	private suspend fun getMemoryInfo(session: SshClientSession): Result<MemoryInfo> {
 		return try {
 			val bytesResult = sshCommandService.executeCommand(session, "free -b", timeout = 5000)
 			val output = if (bytesResult.isSuccess) {
@@ -476,7 +474,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取磁盘信息（汇总所有分区，优化：减少超时时间）
 	 */
-	private suspend fun getDiskInfo(session: Session): Result<DiskInfo> {
+	private suspend fun getDiskInfo(session: SshClientSession): Result<DiskInfo> {
 		return try {
 			val result = sshCommandService.executeCommand(session, "df -h", timeout = 5000)
 			if (result.isFailure) {
@@ -608,7 +606,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取系统启动时长（优化：减少超时时间）
 	 */
-	private suspend fun getUptime(session: Session): Result<String> {
+	private suspend fun getUptime(session: SshClientSession): Result<String> {
 		return try {
 			val result = sshCommandService.executeCommand(session, "uptime -p", timeout = 5000)
 			val uptimeText = if (result.isSuccess) {
@@ -707,7 +705,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取系统信息和内核版本（优化：并行执行命令，减少超时时间）
 	 */
-	private suspend fun getSystemInfo(session: Session): Result<SystemInfo> = coroutineScope {
+	private suspend fun getSystemInfo(session: SshClientSession): Result<SystemInfo> = coroutineScope {
 		try {
 			val kernelDeferred = async { sshCommandService.executeCommand(session, "uname -r", timeout = 5000) }
 			val osReleaseDeferred = async { sshCommandService.executeCommand(session, "cat /etc/os-release", timeout = 5000) }
@@ -767,7 +765,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取网络信息
 	 */
-	override suspend fun getNetworkInfo(session: Session): Result<NetworkInfo> = coroutineScope {
+	override suspend fun getNetworkInfo(session: SshClientSession): Result<NetworkInfo> = coroutineScope {
 		try {
 			// 并行获取连接数
 			val tcpDeferred = async { getTcpConnections(session) }
@@ -792,7 +790,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取 TCP 连接数
 	 */
-	private suspend fun getTcpConnections(session: Session): Result<Int> {
+	private suspend fun getTcpConnections(session: SshClientSession): Result<Int> {
 		return try {
 			// 优先使用 ss 命令，如果失败则使用 netstat
 			val result = sshCommandService.executeCommand(session, "ss -s 2>/dev/null | grep -i TCP | head -1 | awk '{print \$2}'", timeout = 5000)
@@ -814,7 +812,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取 UDP 连接数
 	 */
-	private suspend fun getUdpConnections(session: Session): Result<Int> {
+	private suspend fun getUdpConnections(session: SshClientSession): Result<Int> {
 		return try {
 			// 优先使用 ss 命令，如果失败则使用 netstat
 			val result = sshCommandService.executeCommand(session, "ss -s 2>/dev/null | grep -i UDP | head -1 | awk '{print \$2}'", timeout = 5000)
@@ -836,7 +834,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取网卡列表和流量统计（包含速率计算）
 	 */
-	private suspend fun getNetworkInterfacesWithTraffic(session: Session): Result<List<NetworkInterfaceInfo>> = coroutineScope {
+	private suspend fun getNetworkInterfacesWithTraffic(session: SshClientSession): Result<List<NetworkInterfaceInfo>> = coroutineScope {
 		val addressesDeferred = async { readNicAddresses(session) }
 		try {
 			// 第一次采样
@@ -886,7 +884,7 @@ class ServerMonitoringServiceImpl(
 		}
 	}
 
-	private suspend fun readNicAddresses(session: Session): Map<String, NicAddresses> {
+	private suspend fun readNicAddresses(session: SshClientSession): Map<String, NicAddresses> {
 		return try {
 			val output = sshCommandService.executeCommand(session, "ip -o addr 2>/dev/null", timeout = 5000)
 				.getOrNull()
@@ -900,7 +898,7 @@ class ServerMonitoringServiceImpl(
 	/**
 	 * 获取网卡流量统计（单次采样）
 	 */
-	private suspend fun getNetworkInterfacesTraffic(session: Session): Result<List<NetworkInterfaceInfo>> {
+	private suspend fun getNetworkInterfacesTraffic(session: SshClientSession): Result<List<NetworkInterfaceInfo>> {
 		return try {
 			val result = sshCommandService.executeCommand(session, "cat /proc/net/dev", timeout = 5000)
 			if (result.isFailure) {

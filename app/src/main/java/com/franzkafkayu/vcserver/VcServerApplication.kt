@@ -1,6 +1,7 @@
 package com.franzkafkayu.vcserver
 
 import android.app.Application
+import com.franzkafkayu.vcserver.ssh.SshSecurity
 import com.franzkafkayu.vcserver.utils.SessionManager
 import com.franzkafkayu.vcserver.utils.SshConnectionPool
 
@@ -11,6 +12,7 @@ import com.franzkafkayu.vcserver.utils.SshConnectionPool
 class VcServerApplication : Application() {
 	override fun onCreate() {
 		super.onCreate()
+		SshSecurity.install()
 		// 应用启动时，清理可能残留的连接（如果应用异常退出）
 		SshConnectionPool.cleanupIdleConnections()
 	}

@@ -122,7 +122,8 @@ android {
 	}
 	packaging {
 		resources {
-			excludes += '/META-INF/{AL2.0,LGPL2.1}'
+			excludes += '/META-INF/{AL2.0,LGPL2.1,DEPENDENCIES,LICENSE,LICENSE.txt,NOTICE,NOTICE.txt,INDEX.LIST}'
+			excludes += 'META-INF/versions/**'
 		}
 	}
 	
@@ -163,8 +164,11 @@ dependencies {
 	// DataStore
 	implementation 'androidx.datastore:datastore-preferences:1.0.0'
 
-	// mwiede JSch：ed25519 / rsa-sha2。勿用 0.2.26+（class file 68 / Java 24，Jetifier 无法处理）
-	implementation 'com.github.mwiede:jsch:0.2.16'
+	// sshj 0.40.0：Java 11 字节码。0.41+ 升到 Java 17，本项目钉在 0.40。
+	// bcprov 在 sshj 里是 runtime，这里升到 compile 以便注册 BouncyCastleProvider。版本与 sshj 0.40 对齐。
+	implementation 'com.hierynomus:sshj:0.40.0'
+	implementation 'org.bouncycastle:bcprov-jdk18on:1.80'
+	implementation 'org.slf4j:slf4j-nop:2.0.16'
 
 	// Coroutines
 	implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'

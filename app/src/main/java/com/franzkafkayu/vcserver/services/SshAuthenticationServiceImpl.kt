@@ -1,65 +1,27 @@
 package com.franzkafkayu.vcserver.services
 
 import android.util.Log
-import com.jcraft.jsch.JSch
-import com.jcraft.jsch.Session
 import com.franzkafkayu.vcserver.models.AuthType
+import com.franzkafkayu.vcserver.ssh.SshClientSession
+import com.franzkafkayu.vcserver.ssh.disconnectQuietly
 import com.franzkafkayu.vcserver.utils.SecureStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import java.io.ByteArrayInputStream
-import java.util.Properties
+import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.connection.channel.direct.DirectConnection
 
 /**
- * SSH 认证服务实现
+ * SSH 认证服务实现（sshj）。未知主机密钥按现网策略接受。
  */
 class SshAuthenticationServiceImpl(
-	private val secureStorage: SecureStorage
+	@Suppress("unused") private val secureStorage: SecureStorage
 ) : SshAuthenticationService {
 	companion object {
 		private const val TAG = "SshAuthenticationService"
-		private const val CONNECTION_TIMEOUT = 5000 // 5秒，进一步减少超时
-		
-		/**
-		 * 优化的 SSH 配置，加快连接速度
-		 * 这些配置针对 JSch 库优化，减少连接建立时的延迟
-		 */
-		private const val HOST_KEY_ALGORITHMS =
-			"ssh-ed25519,rsa-sha2-512,rsa-sha2-256," +
-				"ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-rsa"
-
-		private fun getOptimizedConfig(): Properties {
-			val config = Properties()
-			// 禁用主机密钥检查（避免等待用户确认）
-			config["StrictHostKeyChecking"] = "no"
-			config["UserKnownHostsFile"] = "/dev/null"
-
-			config["server_host_key"] = HOST_KEY_ALGORITHMS
-			config["PubkeyAcceptedAlgorithms"] =
-				"ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ssh-rsa"
-
-			// 优化认证顺序，优先使用密码认证（如果使用密码）
-			config["PreferredAuthentications"] = "password,publickey,keyboard-interactive"
-			
-			// 禁用 GSSAPI 认证（避免额外的认证协商时间）
-			config["GSSAPIAuthentication"] = "no"
-			config["GSSAPIDelegateCredentials"] = "no"
-			
-			// 禁用压缩（对于快速网络，压缩可能增加 CPU 开销）
-			config["Compression"] = "no"
-			
-			// 设置服务器存活间隔（保持连接活跃，避免超时重连）
-			config["ServerAliveInterval"] = "30"
-			config["ServerAliveCountMax"] = "3"
-
-			// 禁用 DNS 查找（如果使用 IP 地址）
-			config["CheckHostIP"] = "no"
-			
-			return config
-		}
+		private const val CONNECTION_TIMEOUT = 5_000
 
 		private fun wrapConnectFailure(action: String, e: Exception): SshConnectionException {
 			if (isAlgorithmNegotiationFailure(e)) {
@@ -75,7 +37,9 @@ class SshAuthenticationServiceImpl(
 				if (
 					msg.contains("Algorithm negotiation fail", ignoreCase = true) ||
 					msg.contains("no matching host key", ignoreCase = true) ||
-					msg.contains("no matching key exchange", ignoreCase = true)
+					msg.contains("no matching key exchange", ignoreCase = true) ||
+					msg.contains("Unable to negotiate", ignoreCase = true) ||
+					msg.contains("no matching", ignoreCase = true)
 				) {
 					return true
 				}
@@ -90,29 +54,9 @@ class SshAuthenticationServiceImpl(
 		port: Int,
 		username: String,
 		password: String,
-		proxy: com.jcraft.jsch.Proxy?
-	): Result<Session> = withContext(Dispatchers.IO) {
-		val startTime = System.currentTimeMillis()
-		try {
-			val jsch = JSch()
-			val session = jsch.getSession(username, host, port)
-			session.setPassword(password)
-			
-			// 使用优化的 SSH 配置
-			session.setConfig(getOptimizedConfig())
-			if (proxy != null) {
-				session.setProxy(proxy)
-			}
-
-			connectWithinDeadline(session)
-			val duration = System.currentTimeMillis() - startTime
-			Log.i(TAG, "connectWithPassword succeed: $host:$port, cost: ${duration}ms")
-			Result.success(session)
-		} catch (e: Exception) {
-			val duration = System.currentTimeMillis() - startTime
-			Log.i(TAG, "connectWithPassword failed: $host:$port, cost: ${duration}ms,error: ${e.message}")
-			Result.failure(wrapConnectFailure("password", e))
-		}
+		jump: SshClientSession?
+	): Result<SshClientSession> = connect(host, port, jump, "password") { client ->
+		client.authPassword(username, password)
 	}
 
 	override suspend fun connectWithKey(
@@ -121,31 +65,15 @@ class SshAuthenticationServiceImpl(
 		username: String,
 		privateKey: String,
 		passphrase: String?,
-		proxy: com.jcraft.jsch.Proxy?
-	): Result<Session> = withContext(Dispatchers.IO) {
-		try {
-			val jsch = JSch()
-			
-			// 添加私钥
-			if (passphrase != null && passphrase.isNotEmpty()) {
-				jsch.addIdentity("key", privateKey.toByteArray(), null, passphrase.toByteArray())
-			} else {
-				jsch.addIdentity("key", privateKey.toByteArray(), null, null)
-			}
-			
-			val session = jsch.getSession(username, host, port)
-			
-			// 使用优化的 SSH 配置
-			session.setConfig(getOptimizedConfig())
-			if (proxy != null) {
-				session.setProxy(proxy)
-			}
-
-			connectWithinDeadline(session)
-			Result.success(session)
-		} catch (e: Exception) {
-			Result.failure(wrapConnectFailure("key", e))
+		jump: SshClientSession?
+	): Result<SshClientSession> = connect(host, port, jump, "key") { client ->
+		val finder = if (!passphrase.isNullOrEmpty()) {
+			SshClientSession.passwordFinder(passphrase)
+		} else {
+			null
 		}
+		val keys = client.loadKeys(privateKey, null, finder)
+		client.authPublickey(username, keys)
 	}
 
 	override suspend fun testConnection(
@@ -157,7 +85,7 @@ class SshAuthenticationServiceImpl(
 		privateKey: String?,
 		passphrase: String?
 	): Result<Unit> = withContext(Dispatchers.IO) {
-		val result: Result<Session> = when (authType) {
+		val result: Result<SshClientSession> = when (authType) {
 			AuthType.PASSWORD -> {
 				if (password == null) {
 					Result.failure(SshConnectionException("Password is required"))
@@ -175,7 +103,7 @@ class SshAuthenticationServiceImpl(
 		}
 
 		result.fold(
-			onSuccess = { session: Session ->
+			onSuccess = { session ->
 				closeSession(session)
 				Result.success(Unit)
 			},
@@ -185,26 +113,53 @@ class SshAuthenticationServiceImpl(
 		)
 	}
 
-	private suspend fun connectWithinDeadline(session: Session) {
+	override fun closeSession(session: SshClientSession) {
+		session.disconnect()
+	}
+
+	private suspend fun connect(
+		host: String,
+		port: Int,
+		jump: SshClientSession?,
+		action: String,
+		authenticate: (SSHClient) -> Unit
+	): Result<SshClientSession> = withContext(Dispatchers.IO) {
+		val startTime = System.currentTimeMillis()
+		val client = SshClientSession.openClient()
+		var tunnel: DirectConnection? = null
 		try {
 			withTimeout(CONNECTION_TIMEOUT.toLong() + 1_000L) {
 				runInterruptible {
-					session.connect(CONNECTION_TIMEOUT)
+					if (jump != null) {
+						tunnel = jump.openDirect(host, port)
+						client.connectVia(tunnel)
+					} else {
+						client.connect(host, port)
+					}
+					authenticate(client)
+					client.connection.keepAlive.keepAliveInterval = 30
 				}
 			}
+			val duration = System.currentTimeMillis() - startTime
+			Log.i(TAG, "connect $action succeed: $host:$port, cost: ${duration}ms")
+			Result.success(SshClientSession(client))
 		} catch (e: TimeoutCancellationException) {
-			closeSession(session)
-			throw SshConnectionException("Failed to connect: timeout", e)
+			client.disconnectQuietly()
+			closeTunnel(tunnel)
+			Result.failure(SshConnectionException("Failed to connect: timeout", e))
+		} catch (e: Exception) {
+			val duration = System.currentTimeMillis() - startTime
+			Log.i(TAG, "connect $action failed: $host:$port, cost: ${duration}ms, error: ${e.message}")
+			client.disconnectQuietly()
+			closeTunnel(tunnel)
+			Result.failure(wrapConnectFailure(action, e))
 		}
 	}
 
-	override fun closeSession(session: Session) {
+	private fun closeTunnel(tunnel: DirectConnection?) {
 		try {
-			if (session.isConnected) {
-				session.disconnect()
-			}
-		} catch (e: Exception) {
-			// 忽略关闭错误
+			tunnel?.close()
+		} catch (_: Exception) {
 		}
 	}
 }
@@ -213,6 +168,3 @@ class SshAuthenticationServiceImpl(
  * SSH 连接异常
  */
 class SshConnectionException(message: String, cause: Throwable? = null) : Exception(message, cause)
-
-
-

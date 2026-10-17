@@ -4,7 +4,6 @@ import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.repositories.ServerRepository
 import com.franzkafkayu.vcserver.utils.JumpConnectFailure
-import com.franzkafkayu.vcserver.utils.JumpHostProxy
 import com.franzkafkayu.vcserver.utils.SecureStorage
 import com.franzkafkayu.vcserver.utils.SshConnectionPool
 import kotlinx.coroutines.flow.Flow
@@ -392,25 +391,21 @@ class ServerManagementServiceImpl(
 				return Result.failure(SshConnectionException(JumpConnectFailure.code(jumpSide = true, error), error))
 			}
 		}
-		val proxy = JumpHostProxy(jumpSession)
 		val target = when (authType) {
 			AuthType.PASSWORD -> {
 				if (password == null) {
 					closeNewJump(pooledJump, jumpSession)
 					return Result.failure(Exception("Password is required"))
 				}
-				sshAuthenticationService.connectWithPassword(host, port, username, password, proxy)
+				sshAuthenticationService.connectWithPassword(host, port, username, password, jumpSession)
 			}
 			AuthType.KEY -> {
 				if (privateKey == null) {
 					closeNewJump(pooledJump, jumpSession)
 					return Result.failure(Exception("Private key is required"))
 				}
-				sshAuthenticationService.connectWithKey(host, port, username, privateKey, keyPassphrase, proxy)
+				sshAuthenticationService.connectWithKey(host, port, username, privateKey, keyPassphrase, jumpSession)
 			}
-		}
-		if (target.isFailure) {
-			proxy.close()
 		}
 		target.onSuccess { sshAuthenticationService.closeSession(it) }
 		if (pooledJump == null) {
@@ -426,7 +421,7 @@ class ServerManagementServiceImpl(
 		)
 	}
 
-	private fun closeNewJump(pooledJump: com.jcraft.jsch.Session?, jumpSession: com.jcraft.jsch.Session) {
+	private fun closeNewJump(pooledJump: com.franzkafkayu.vcserver.ssh.SshClientSession?, jumpSession: com.franzkafkayu.vcserver.ssh.SshClientSession) {
 		if (pooledJump == null) {
 			sshAuthenticationService.closeSession(jumpSession)
 		}

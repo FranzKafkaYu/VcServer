@@ -1,19 +1,19 @@
 package com.franzkafkayu.vcserver.utils
 
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Session 管理器，用于在导航之间传递 Session
  */
 object SessionManager {
-	private val sessions = ConcurrentHashMap<String, Session>()
+	private val sessions = ConcurrentHashMap<String, SshClientSession>()
 
-	fun putSession(key: String, session: Session) {
+	fun putSession(key: String, session: SshClientSession) {
 		sessions[key] = session
 	}
 
-	fun getSession(key: String): Session? {
+	fun getSession(key: String): SshClientSession? {
 		return sessions[key]
 	}
 

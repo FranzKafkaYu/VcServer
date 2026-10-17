@@ -1,8 +1,8 @@
 package com.franzkafkayu.vcserver.utils
 
 import com.franzkafkayu.vcserver.services.TerminalService
-import com.jcraft.jsch.ChannelShell
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
+import com.franzkafkayu.vcserver.ssh.SshShellChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
- * 按 sessionKey 持有多路 ChannelShell，存活不依赖 TerminalViewModel。
+ * 按 sessionKey 持有多路 SshShellChannel，存活不依赖 TerminalViewModel。
  */
 object TerminalShellStore {
 	const val MAX_TABS = 4
@@ -31,7 +31,7 @@ object TerminalShellStore {
 
 	fun ensureFirstTab(
 		sessionKey: String,
-		session: Session,
+		session: SshClientSession,
 		terminalService: TerminalService,
 		cols: Int,
 		rows: Int
@@ -48,7 +48,7 @@ object TerminalShellStore {
 
 	fun newTab(
 		sessionKey: String,
-		session: Session,
+		session: SshClientSession,
 		terminalService: TerminalService,
 		cols: Int,
 		rows: Int
@@ -127,7 +127,7 @@ object TerminalShellStore {
 		}
 	}
 
-	fun bindSession(sessionKey: String, session: Session) {
+	fun bindSession(sessionKey: String, session: SshClientSession) {
 		val h = holders[sessionKey] ?: return
 		synchronized(h) {
 			h.session = session
@@ -136,7 +136,7 @@ object TerminalShellStore {
 
 	fun reconnectActiveShell(
 		sessionKey: String,
-		session: Session,
+		session: SshClientSession,
 		terminalService: TerminalService
 	) {
 		val h = holders[sessionKey] ?: return
@@ -149,7 +149,7 @@ object TerminalShellStore {
 
 	fun reconnectAllShells(
 		sessionKey: String,
-		session: Session,
+		session: SshClientSession,
 		terminalService: TerminalService
 	) {
 		val h = holders[sessionKey] ?: return
@@ -167,7 +167,7 @@ object TerminalShellStore {
 		tab.buffer.setSize(cols, rows)
 		tab.channel?.let { channel ->
 			try {
-				channel.setPtySize(cols, rows, 0, 0)
+				channel.resize(cols, rows)
 			} catch (_: Exception) {
 			}
 		}
@@ -188,11 +188,11 @@ object TerminalShellStore {
 		Thread(runnable, "shell-tab-close").apply { isDaemon = true }
 	}
 
-	private fun disconnectChannel(channel: ChannelShell?) {
+	private fun disconnectChannel(channel: SshShellChannel?) {
 		if (channel == null) return
 		closeExecutor.execute {
 			try {
-				channel.disconnect()
+				channel.close()
 			} catch (_: Exception) {
 			}
 		}
@@ -204,7 +204,7 @@ object TerminalShellStore {
 
 	private fun addTabLocked(
 		h: SessionShells,
-		session: Session,
+		session: SshClientSession,
 		terminalService: TerminalService,
 		cols: Int,
 		rows: Int
@@ -226,7 +226,7 @@ object TerminalShellStore {
 	private fun connectTab(
 		h: SessionShells,
 		tab: ShellTab,
-		session: Session,
+		session: SshClientSession,
 		terminalService: TerminalService,
 		force: Boolean = false
 	) {
@@ -304,8 +304,8 @@ object TerminalShellStore {
 	private fun collectOutput(
 		h: SessionShells,
 		tab: ShellTab,
-		channel: ChannelShell,
-		session: Session,
+		channel: SshShellChannel,
+		session: SshClientSession,
 		terminalService: TerminalService,
 		generation: Int
 	) {
@@ -334,7 +334,7 @@ object TerminalShellStore {
 		val tabs = mutableListOf<ShellTab>()
 		var activeId: String = ""
 		var maxReached: Boolean = false
-		var session: Session? = null
+		var session: SshClientSession? = null
 		val snapshot = MutableStateFlow(ShellSessionSnapshot())
 
 		fun nextTitleIndexLocked(): Int {
@@ -366,7 +366,7 @@ object TerminalShellStore {
 class ShellTab(
 	val id: String,
 	val titleIndex: Int,
-	var channel: ChannelShell? = null,
+	var channel: SshShellChannel? = null,
 	val buffer: TerminalBuffer,
 	var ptyCols: Int,
 	var ptyRows: Int,

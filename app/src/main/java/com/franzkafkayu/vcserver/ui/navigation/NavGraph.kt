@@ -7,7 +7,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import com.franzkafkayu.vcserver.services.TerminalService
 import com.franzkafkayu.vcserver.ui.screens.AboutScreen
 import com.franzkafkayu.vcserver.ui.screens.AddServerScreen
@@ -260,7 +260,7 @@ class ServerMonitoringViewModelFactory(
     private val serverMonitoringService: com.franzkafkayu.vcserver.services.ServerMonitoringService,
     private val sftpFileTransferService: com.franzkafkayu.vcserver.services.SftpFileTransferService,
     private val server: com.franzkafkayu.vcserver.models.Server,
-    private val session: Session
+    private val session: SshClientSession
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.ServerMonitoringViewModel::class.java)) {
@@ -283,7 +283,7 @@ class TerminalViewModelFactory(
     private val terminalService: TerminalService,
     private val serverMonitoringService: com.franzkafkayu.vcserver.services.ServerMonitoringService,
     private val server: com.franzkafkayu.vcserver.models.Server,
-    private val session: Session,
+    private val session: SshClientSession,
     private val sessionKey: String,
     private val terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences
 ) : androidx.lifecycle.ViewModelProvider.Factory {

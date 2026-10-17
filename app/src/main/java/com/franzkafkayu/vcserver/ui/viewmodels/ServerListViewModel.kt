@@ -2,7 +2,7 @@ package com.franzkafkayu.vcserver.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jcraft.jsch.Session
+import com.franzkafkayu.vcserver.ssh.SshClientSession
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerGroup
 import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
@@ -266,7 +266,7 @@ class ServerListViewModel(
 	/**
 	 * 更新服务器的系统版本信息
 	 */
-	private suspend fun updateServerSystemInfo(server: Server, session: com.jcraft.jsch.Session) {
+	private suspend fun updateServerSystemInfo(server: Server, session: SshClientSession) {
 		try {
 			val osResult = serverMonitoringService.getOperatingSystem(session)
 			osResult.fold(
