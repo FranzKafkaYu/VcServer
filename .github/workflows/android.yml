@@ -14,11 +14,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 需要写入权限来创建和上�?release
-    
+      contents: write  # 创建并上传 GitHub Release
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        fetch-tags: true
       
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -116,6 +119,38 @@ jobs:
         path: ${{ env.APK_PATH }}
         retention-days: 30
 
+    - name: Collect release notes
+      if: github.event.inputs.release_tag != ''
+      env:
+        RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      run: |
+        git fetch --tags --force
+        PREV=$(git tag --list --sort=-version:refname | grep -vxF "$RELEASE_TAG" | head -n 1 || true)
+        NOTES=release-notes.md
+        {
+          echo "## Changes"
+          echo
+          if [ -n "$PREV" ]; then
+            echo "Compared with \`$PREV\`."
+            echo
+            git log --pretty=format:'- %s (%h)' "$PREV"..HEAD
+          else
+            echo "No previous tag; listing commits from the repository root."
+            echo
+            git log --pretty=format:'- %s (%h)'
+          fi
+          echo
+        } > "$NOTES"
+        MAX=60000
+        SIZE=$(wc -c < "$NOTES")
+        if [ "$SIZE" -gt "$MAX" ]; then
+          head -c "$MAX" "$NOTES" > "${NOTES}.tmp"
+          echo "" >> "${NOTES}.tmp"
+          echo "...(truncated)" >> "${NOTES}.tmp"
+          mv "${NOTES}.tmp" "$NOTES"
+        fi
+        echo "Wrote $NOTES ($(wc -c < "$NOTES") bytes), previous tag: ${PREV:-none}"
+
     - name: Upload to release
       uses: softprops/action-gh-release@v1
       if: github.event.inputs.release_tag != ''
@@ -123,5 +158,6 @@ jobs:
         files: ${{ env.APK_PATH }}
         tag_name: ${{ github.event.inputs.release_tag }}
         name: Release ${{ github.event.inputs.release_tag }}
+        body_path: release-notes.md
         prerelease: true
         token: ${{ secrets.GITHUB_TOKEN }}
