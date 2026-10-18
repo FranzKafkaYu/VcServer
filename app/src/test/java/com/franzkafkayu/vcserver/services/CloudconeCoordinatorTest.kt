@@ -1,74 +1,54 @@
 package com.franzkafkayu.vcserver.services
 
 import com.franzkafkayu.vcserver.models.BandwagonLink
-import com.franzkafkayu.vcserver.models.CloudconeAccount
 import com.franzkafkayu.vcserver.models.CloudconeLink
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudconeCoordinatorTest {
 	@Test
-	fun saveAccountRequiresSuccessfulList() = runBlocking {
+	fun listRequiresKeyAndHash() = runBlocking {
 		val harness = Harness()
-		harness.client.listResult = CloudconeCallResult(ok = false, message = "no", instances = emptyList())
-		val failed = harness.coordinator.saveAccount("key", "hash")
-		assertTrue(failed is CloudconeAccountResult.Failed)
-		assertNull(harness.accounts.get())
-
-		harness.client.listResult = CloudconeCallResult(
-			ok = true,
-			message = null,
-			instances = listOf(CloudconeInstance("9", "1.1.1.1", null))
-		)
-		val saved = harness.coordinator.saveAccount("key", "hash")
-		assertTrue(saved is CloudconeAccountResult.Success)
-		assertEquals("key", harness.keys.live[harness.accounts.get()?.encryptedApiKey])
-		assertEquals("hash", harness.keys.live[harness.accounts.get()?.encryptedHash])
+		val failed = harness.coordinator.listInstances("", "hash")
+		assertTrue(!failed.ok)
+		assertTrue(harness.client.listCalls.isEmpty())
 	}
 
 	@Test
-	fun replaceDeletesPreviousKeyFiles() = runBlocking {
+	fun unbindDeletesKeyFiles() = runBlocking {
 		val harness = Harness()
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "old-key", encryptedHash = "old-hash"))
-		harness.keys.live["old-key"] = "a"
-		harness.keys.live["old-hash"] = "b"
 		harness.client.listResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
-		assertTrue(harness.coordinator.saveAccount("new-key", "new-hash") is CloudconeAccountResult.Success)
-		assertTrue(harness.keys.deleted.contains("old-key"))
-		assertTrue(harness.keys.deleted.contains("old-hash"))
-	}
-
-	@Test
-	fun deleteAccountClearsLinksAndSecretsButNotServers() = runBlocking {
-		val harness = Harness()
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
-		harness.keys.live["key"] = "secret"
-		harness.keys.live["hash"] = "digest"
-		harness.links.insert(CloudconeLink(serverId = 4L, instanceId = "9"))
-		val servers = mutableListOf(4L)
-		harness.coordinator.deleteAccount()
-		assertNull(harness.accounts.get())
+		assertTrue(harness.coordinator.bind(4L, "9", "secret", "digest") is CloudconeBindResult.Success)
+		val link = harness.links.getByServerId(4L)!!
+		harness.coordinator.unbind(4L)
 		assertTrue(harness.links.all().isEmpty())
-		assertTrue(harness.keys.deleted.containsAll(listOf("key", "hash")))
-		assertEquals(listOf(4L), servers)
+		assertTrue(harness.keys.deleted.contains(link.encryptedApiKey))
+		assertTrue(harness.keys.deleted.contains(link.encryptedHash))
 	}
 
 	@Test
 	fun bindRejectsOtherVendorAndDuplicateInstance() = runBlocking {
 		val harness = Harness()
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
 		harness.bandwagon.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "bw"))
-		assertTrue(harness.coordinator.bind(1L, "9") is CloudconeBindResult.OtherVendor)
+		assertTrue(harness.coordinator.bind(1L, "9", "k", "h") is CloudconeBindResult.OtherVendor)
 		assertTrue(harness.links.all().isEmpty())
 
 		harness.bandwagon.deleteByServerId(1L)
-		harness.links.insert(CloudconeLink(serverId = 2L, instanceId = "9"))
-		assertTrue(harness.coordinator.bind(1L, "9") is CloudconeBindResult.InstanceInUse)
+		harness.links.insert(sampleLink(serverId = 2L, instanceId = "9"))
+		assertTrue(harness.coordinator.bind(1L, "9", "k", "h") is CloudconeBindResult.InstanceInUse)
+	}
+
+	@Test
+	fun secondBindUsesOwnCredentials() = runBlocking {
+		val harness = Harness()
+		assertTrue(harness.coordinator.bind(1L, "9", "key-a", "hash-a") is CloudconeBindResult.Success)
+		assertTrue(harness.coordinator.bind(2L, "10", "key-b", "hash-b") is CloudconeBindResult.Success)
+		assertEquals("key-a", harness.keys.live[harness.links.getByServerId(1L)?.encryptedApiKey])
+		assertEquals("key-b", harness.keys.live[harness.links.getByServerId(2L)?.encryptedApiKey])
 	}
 
 	@Test
@@ -97,10 +77,10 @@ class CloudconeCoordinatorTest {
 	@Test
 	fun shutdownWithoutConfirmationDoesNotCallVendor() = runBlocking {
 		val harness = Harness()
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
+		harness.links.insert(sampleLink(serverId = 3L, instanceId = "9"))
 		harness.keys.live["key"] = "secret"
 		harness.keys.live["hash"] = "digest"
-		val result = harness.coordinator.power("9", CloudconePowerAction.SHUTDOWN, confirmed = false)
+		val result = harness.coordinator.power(3L, CloudconePowerAction.SHUTDOWN, confirmed = false)
 		assertTrue(result is CloudconePowerResult.NeedsConfirmation)
 		assertTrue(harness.client.powerCalls.isEmpty())
 		assertTrue(harness.closed.isEmpty())
@@ -109,18 +89,17 @@ class CloudconeCoordinatorTest {
 	@Test
 	fun acceptedShutdownClosesBoundSessionAndKeepsLinkOnFailure() = runBlocking {
 		val harness = Harness()
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
+		harness.links.insert(sampleLink(serverId = 3L, instanceId = "9"))
 		harness.keys.live["key"] = "secret"
 		harness.keys.live["hash"] = "digest"
-		harness.links.insert(CloudconeLink(serverId = 3L, instanceId = "9"))
 		harness.client.powerResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
-		val accepted = harness.coordinator.power("9", CloudconePowerAction.SHUTDOWN, confirmed = true)
+		val accepted = harness.coordinator.power(3L, CloudconePowerAction.SHUTDOWN, confirmed = true)
 		assertTrue(accepted is CloudconePowerResult.Accepted)
 		assertEquals(listOf(3L), harness.closed)
 		assertEquals("9", harness.links.getByServerId(3L)?.instanceId)
 
 		harness.client.powerResult = CloudconeCallResult(ok = false, message = "busy", instances = emptyList())
-		val failed = harness.coordinator.power("9", CloudconePowerAction.REBOOT, confirmed = true)
+		val failed = harness.coordinator.power(3L, CloudconePowerAction.REBOOT, confirmed = true)
 		assertTrue(failed is CloudconePowerResult.Failed)
 		assertEquals("9", harness.links.getByServerId(3L)?.instanceId)
 	}
@@ -131,10 +110,9 @@ class CloudconeCoordinatorTest {
 		assertTrue(harness.coordinator.instanceInfo(1L) is CloudconeInfoResult.NotBound)
 		assertTrue(harness.client.informationCalls.isEmpty())
 
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
+		harness.links.insert(sampleLink(serverId = 1L, instanceId = "9"))
 		harness.keys.live["key"] = "secret"
 		harness.keys.live["hash"] = "digest"
-		harness.links.insert(CloudconeLink(serverId = 1L, instanceId = "9"))
 		harness.client.informationResult = CloudconeCallResult(
 			ok = true,
 			message = null,
@@ -153,26 +131,29 @@ class CloudconeCoordinatorTest {
 	}
 
 	@Test
-	fun unboundShutdownDoesNotCloseSessions() = runBlocking {
+	fun unboundShutdownDoesNotCallVendor() = runBlocking {
 		val harness = Harness()
-		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
-		harness.keys.live["key"] = "secret"
-		harness.keys.live["hash"] = "digest"
 		harness.client.powerResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
-		val accepted = harness.coordinator.power("9", CloudconePowerAction.SHUTDOWN, confirmed = true)
-		assertTrue(accepted is CloudconePowerResult.Accepted)
+		val missing = harness.coordinator.power(9L, CloudconePowerAction.SHUTDOWN, confirmed = true)
+		assertTrue(missing is CloudconePowerResult.NoAccount)
+		assertTrue(harness.client.powerCalls.isEmpty())
 		assertTrue(harness.closed.isEmpty())
 	}
 
+	private fun sampleLink(serverId: Long, instanceId: String) = CloudconeLink(
+		serverId = serverId,
+		instanceId = instanceId,
+		encryptedApiKey = "key",
+		encryptedHash = "hash"
+	)
+
 	private class Harness {
-		val accounts = MemoryCloudconeAccountStore()
 		val links = MemoryCloudconeLinkStore()
 		val bandwagon = MemoryBandwagonStore()
 		val client = FakeCloudconeClient()
 		val keys = MemoryKeyStore()
 		val closed = mutableListOf<Long>()
 		val coordinator = CloudconeCoordinator(
-			accounts = accounts,
 			links = links,
 			bandwagonLinks = bandwagon,
 			virtualizorLinks = MemoryVirtualizorLinkStore(),
@@ -187,10 +168,14 @@ private class FakeCloudconeClient : CloudconeClient {
 	var listResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
 	var powerResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
 	var informationResult: CloudconeCallResult? = null
+	val listCalls = mutableListOf<Pair<String, String>>()
 	val powerCalls = mutableListOf<String>()
 	val informationCalls = mutableListOf<String>()
 
-	override suspend fun list(apiKey: String, hash: String): CloudconeCallResult = listResult
+	override suspend fun list(apiKey: String, hash: String): CloudconeCallResult {
+		listCalls += apiKey to hash
+		return listResult
+	}
 
 	override suspend fun information(apiKey: String, hash: String, instanceId: String): CloudconeCallResult {
 		informationCalls += instanceId
@@ -229,18 +214,6 @@ internal class MemoryKeyStore : BandwagonKeyStore {
 		deleted += path
 		live.remove(path)
 	}
-}
-
-internal class MemoryCloudconeAccountStore : CloudconeAccountStore {
-	private val state = MutableStateFlow<CloudconeAccount?>(null)
-	override suspend fun get(): CloudconeAccount? = state.value
-	override suspend fun save(account: CloudconeAccount) {
-		state.value = account
-	}
-	override suspend fun delete() {
-		state.value = null
-	}
-	override fun observe(): Flow<CloudconeAccount?> = state
 }
 
 internal class MemoryCloudconeLinkStore : CloudconeLinkStore {

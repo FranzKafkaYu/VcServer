@@ -1,7 +1,6 @@
 package com.franzkafkayu.vcserver.services
 
 import com.franzkafkayu.vcserver.models.BandwagonLink
-import com.franzkafkayu.vcserver.models.CloudconeAccount
 import com.franzkafkayu.vcserver.models.CloudconeLink
 import com.franzkafkayu.vcserver.models.VirtualizorLink
 import kotlinx.coroutines.flow.Flow
@@ -44,7 +43,7 @@ class VirtualizorCoordinatorTest {
 		assertTrue(harness.coordinator.bind(1L, "9", "p", 4083, "key", "pass") is VirtualizorBindResult.OtherVendor)
 
 		harness.bandwagon.deleteByServerId(1L)
-		harness.cloudcone.insert(CloudconeLink(serverId = 1L, instanceId = "cc"))
+		harness.cloudcone.insert(CloudconeLink(serverId = 1L, instanceId = "cc", encryptedApiKey = "k", encryptedHash = "h"))
 		assertTrue(harness.coordinator.bind(1L, "9", "p", 4083, "key", "pass") is VirtualizorBindResult.OtherVendor)
 
 		harness.cloudcone.deleteByServerId(1L)
@@ -65,9 +64,7 @@ class VirtualizorCoordinatorTest {
 	fun cloudconeBindRejectsVirtualizorServer() = runBlocking {
 		val harness = Harness()
 		harness.vzLinks.insert(sampleLink(serverId = 1L, vpsid = "9", host = "p"))
-		harness.ccAccounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
 		val cloudcone = CloudconeCoordinator(
-			accounts = harness.ccAccounts,
 			links = harness.cloudcone,
 			bandwagonLinks = harness.bandwagon,
 			virtualizorLinks = harness.vzLinks,
@@ -78,7 +75,7 @@ class VirtualizorCoordinatorTest {
 			},
 			keys = harness.keys
 		) { }
-		assertTrue(cloudcone.bind(1L, "12") is CloudconeBindResult.OtherVendor)
+		assertTrue(cloudcone.bind(1L, "12", "k", "h") is CloudconeBindResult.OtherVendor)
 	}
 
 	@Test
@@ -151,7 +148,6 @@ class VirtualizorCoordinatorTest {
 		val vzLinks = links
 		val bandwagon = MemoryBandwagonStore()
 		val cloudcone = MemoryCloudconeLinkStore()
-		val ccAccounts = MemoryCloudconeAccountStore()
 		val client = FakeVirtualizorClient()
 		val keys = MemoryKeyStore()
 		val closed = mutableListOf<Long>()

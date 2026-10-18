@@ -27,6 +27,8 @@ class AddServerViewModel(
 	private val cloudcone: CloudconeCoordinator? = null
 ) : ViewModel() {
 	private var pendingCloudconeInstanceId: String? = null
+	private var pendingCloudconeApiKey: String? = null
+	private var pendingCloudconeHash: String? = null
 	private val _uiState = MutableStateFlow(
 		AddServerUiState(isEditMode = serverId != null, editingServerId = serverId)
 	)
@@ -118,8 +120,10 @@ class AddServerViewModel(
 	/**
 	 * 更新主机地址
 	 */
-	fun prepareCloudconeServer(instanceId: String, host: String?) {
+	fun prepareCloudconeServer(instanceId: String, host: String?, apiKey: String, hash: String) {
 		pendingCloudconeInstanceId = instanceId
+		pendingCloudconeApiKey = apiKey
+		pendingCloudconeHash = hash
 		if (!host.isNullOrBlank() && _uiState.value.host.isBlank()) {
 			_uiState.value = _uiState.value.copy(host = host)
 		}
@@ -127,6 +131,8 @@ class AddServerViewModel(
 
 	fun clearPendingCloudcone() {
 		pendingCloudconeInstanceId = null
+		pendingCloudconeApiKey = null
+		pendingCloudconeHash = null
 	}
 
 	fun updateHost(host: String) {
@@ -375,9 +381,13 @@ class AddServerViewModel(
 					testConnection = false
 				).map { newId ->
 					val pending = pendingCloudconeInstanceId
-					if (pending != null) {
-						cloudcone?.bind(newId, pending)
+					val pendingKey = pendingCloudconeApiKey
+					val pendingHash = pendingCloudconeHash
+					if (pending != null && pendingKey != null && pendingHash != null) {
+						cloudcone?.bind(newId, pending, pendingKey, pendingHash)
 						pendingCloudconeInstanceId = null
+						pendingCloudconeApiKey = null
+						pendingCloudconeHash = null
 					}
 					Unit
 				}

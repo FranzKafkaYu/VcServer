@@ -24,7 +24,6 @@ import com.franzkafkayu.vcserver.services.HttpBandwagonClient
 import com.franzkafkayu.vcserver.services.HttpCloudconeClient
 import com.franzkafkayu.vcserver.services.HttpVirtualizorClient
 import com.franzkafkayu.vcserver.services.RoomBandwagonLinkStore
-import com.franzkafkayu.vcserver.services.RoomCloudconeAccountStore
 import com.franzkafkayu.vcserver.services.RoomCloudconeLinkStore
 import com.franzkafkayu.vcserver.services.RoomVirtualizorLinkStore
 import com.franzkafkayu.vcserver.services.SecureBandwagonKeyStore
@@ -98,14 +97,14 @@ class MainActivity : ComponentActivity() {
 				AppDatabase.MIGRATION_7_8,
 				AppDatabase.MIGRATION_8_9,
 				AppDatabase.MIGRATION_9_10,
-				AppDatabase.MIGRATION_10_11
+				AppDatabase.MIGRATION_10_11,
+				AppDatabase.MIGRATION_11_12
 			)
 			.build()
 
 		val secureStorage = SecureStorage(applicationContext)
 		val serverRepository = ServerRepositoryImpl(database.serverDao())
 		val bandwagonStore = RoomBandwagonLinkStore(database.bandwagonLinkDao())
-		val cloudconeAccounts = RoomCloudconeAccountStore(database.cloudconeAccountDao())
 		val cloudconeLinks = RoomCloudconeLinkStore(database.cloudconeLinkDao())
 		val virtualizorLinks = RoomVirtualizorLinkStore(database.virtualizorLinkDao())
 		val vendorKeys = SecureBandwagonKeyStore(secureStorage)
@@ -119,7 +118,6 @@ class MainActivity : ComponentActivity() {
 			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
 		)
 		val cloudcone = CloudconeCoordinator(
-			accounts = cloudconeAccounts,
 			links = cloudconeLinks,
 			bandwagonLinks = bandwagonStore,
 			virtualizorLinks = virtualizorLinks,

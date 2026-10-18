@@ -50,7 +50,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import com.franzkafkayu.vcserver.R
@@ -84,11 +83,6 @@ class ServerListViewModel(
 				cloudconeLinkRows = links
 				cloudconeIds = links.map { it.serverId }.toSet()
 				publishVendors()
-			}
-		}
-		viewModelScope.launch {
-			cloudcone.observeAccount().collect { account ->
-				_uiState.value = _uiState.value.copy(hasCloudconeAccount = account != null)
 			}
 		}
 		viewModelScope.launch {
@@ -329,11 +323,7 @@ class ServerListViewModel(
 				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Bandwagon(prompt.serverId))
 			}
 			VendorKind.CLOUDCONE -> {
-				if (_uiState.value.hasCloudconeAccount) {
-					loadCloudconeInstances(prompt.serverId)
-				} else {
-					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.CloudconeSecrets(prompt.serverId))
-				}
+				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.CloudconeSecrets(prompt.serverId))
 			}
 			VendorKind.VIRTUALIZOR -> {
 				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.VirtualizorSecrets(prompt.serverId))
@@ -376,17 +366,7 @@ class ServerListViewModel(
 
 	fun submitCloudconeAccount(apiKey: String, hash: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.CloudconeSecrets ?: return
-		viewModelScope.launch {
-			when (val result = cloudcone.saveAccount(apiKey, hash)) {
-				com.franzkafkayu.vcserver.services.CloudconeAccountResult.Success -> loadCloudconeInstances(prompt.serverId)
-				is com.franzkafkayu.vcserver.services.CloudconeAccountResult.Failed -> {
-					_uiState.value = _uiState.value.copy(
-						noticeMessageRes = R.string.cloudcone_account_failed,
-						noticeMessageArg = result.message
-					)
-				}
-			}
-		}
+		loadCloudconeInstances(prompt.serverId, apiKey, hash)
 	}
 
 	fun submitVirtualizorAccount(
@@ -457,7 +437,7 @@ class ServerListViewModel(
 	fun bindCloudconeInstance(instanceId: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.CloudconePick ?: return
 		viewModelScope.launch {
-			when (val result = cloudcone.bind(prompt.serverId, instanceId)) {
+			when (val result = cloudcone.bind(prompt.serverId, instanceId, prompt.apiKey, prompt.hash)) {
 				CloudconeBindResult.Success -> {
 					_uiState.value = _uiState.value.copy(
 						vendorPrompt = null,
@@ -467,7 +447,6 @@ class ServerListViewModel(
 				}
 				CloudconeBindResult.OtherVendor -> notice(R.string.vendor_already_bound)
 				CloudconeBindResult.InstanceInUse -> notice(R.string.cloudcone_instance_in_use)
-				CloudconeBindResult.NoAccount -> notice(R.string.cloudcone_no_account)
 				is CloudconeBindResult.Failed -> {
 					_uiState.value = _uiState.value.copy(
 						noticeMessageRes = R.string.cloudcone_account_failed,
@@ -540,9 +519,9 @@ class ServerListViewModel(
 		}
 	}
 
-	private fun loadCloudconeInstances(serverId: Long) {
+	private fun loadCloudconeInstances(serverId: Long, apiKey: String, hash: String) {
 		viewModelScope.launch {
-			val listed = cloudcone.listInstances()
+			val listed = cloudcone.listInstances(apiKey, hash)
 			if (!listed.ok) {
 				_uiState.value = _uiState.value.copy(
 					noticeMessageRes = R.string.cloudcone_list_failed,
@@ -553,7 +532,13 @@ class ServerListViewModel(
 			val taken = cloudconeLinkRows.map { it.instanceId }.toSet()
 			val available = listed.instances.filter { it.id !in taken }
 			_uiState.value = _uiState.value.copy(
-				vendorPrompt = VendorPrompt.CloudconePick(serverId, available, cloudconeIds)
+				vendorPrompt = VendorPrompt.CloudconePick(
+					serverId = serverId,
+					instances = available,
+					boundServerIds = cloudconeIds,
+					apiKey = apiKey.trim(),
+					hash = hash.trim()
+				)
 			)
 		}
 	}
@@ -576,13 +561,12 @@ class ServerListViewModel(
 					showBandwagonPower(bandwagon.power(serverId, action, confirmed = true))
 				}
 				VendorKind.CLOUDCONE -> {
-					val instanceId = cloudconeInstanceId(serverId) ?: return@launch
 					val action = when (stop) {
 						null -> CloudconePowerAction.BOOT
 						true -> CloudconePowerAction.SHUTDOWN
 						false -> CloudconePowerAction.REBOOT
 					}
-					showCloudconePower(cloudcone.power(instanceId, action, confirmed = true))
+					showCloudconePower(cloudcone.power(serverId, action, confirmed = true))
 				}
 				VendorKind.VIRTUALIZOR -> {
 					val action = when (stop) {
@@ -594,11 +578,6 @@ class ServerListViewModel(
 				}
 			}
 		}
-	}
-
-	private suspend fun cloudconeInstanceId(serverId: Long): String? {
-		return cloudconeLinkRows.find { it.serverId == serverId }?.instanceId
-			?: cloudcone.observeLinks().first().find { it.serverId == serverId }?.instanceId
 	}
 
 	private fun queryServiceInfo(serverId: Long, vendor: VendorKind?) {
@@ -786,8 +765,7 @@ class ServerListViewModel(
 					is BandwagonStatusResult.Failed -> noticeArg(R.string.bandwagon_status_failed, result.message)
 				}
 				VendorKind.CLOUDCONE -> {
-					val instanceId = cloudconeInstanceId(serverId) ?: return@launch
-					when (val result = cloudcone.status(instanceId)) {
+					when (val result = cloudcone.status(serverId)) {
 						is CloudconeStatusResult.Known -> {
 							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Status(result.powerStatus))
 						}
@@ -1107,7 +1085,6 @@ data class ServerListUiState(
 	val noticeMessageRes: Int? = null,
 	val noticeMessageArg: String? = null,
 	val serverVendors: Map<Long, VendorKind> = emptyMap(),
-	val hasCloudconeAccount: Boolean = false,
 	val vendorPrompt: VendorPrompt? = null
 )
 
@@ -1118,7 +1095,9 @@ sealed class VendorPrompt {
 	data class CloudconePick(
 		val serverId: Long,
 		val instances: List<CloudconeInstance>,
-		val boundServerIds: Set<Long>
+		val boundServerIds: Set<Long>,
+		val apiKey: String,
+		val hash: String
 	) : VendorPrompt()
 	data class VirtualizorSecrets(val serverId: Long, val pendingPin: String? = null) : VendorPrompt()
 	data class VirtualizorPick(

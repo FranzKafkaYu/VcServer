@@ -1,28 +1,8 @@
 package com.franzkafkayu.vcserver.services
 
-import com.franzkafkayu.vcserver.data.dao.CloudconeAccountDao
 import com.franzkafkayu.vcserver.data.dao.CloudconeLinkDao
-import com.franzkafkayu.vcserver.models.CloudconeAccount
 import com.franzkafkayu.vcserver.models.CloudconeLink
 import kotlinx.coroutines.flow.Flow
-
-interface CloudconeAccountStore {
-	suspend fun get(): CloudconeAccount?
-	suspend fun save(account: CloudconeAccount)
-	suspend fun delete()
-	fun observe(): Flow<CloudconeAccount?>
-}
-
-class RoomCloudconeAccountStore(
-	private val dao: CloudconeAccountDao
-) : CloudconeAccountStore {
-	override suspend fun get(): CloudconeAccount? = dao.get()
-	override suspend fun save(account: CloudconeAccount) {
-		dao.upsert(account.copy(id = CloudconeAccount.SINGLE_ID))
-	}
-	override suspend fun delete() = dao.delete()
-	override fun observe(): Flow<CloudconeAccount?> = dao.observe()
-}
 
 interface CloudconeLinkStore {
 	suspend fun getByServerId(serverId: Long): CloudconeLink?
@@ -50,16 +30,10 @@ class RoomCloudconeLinkStore(
 
 enum class CloudconePowerAction { BOOT, SHUTDOWN, REBOOT }
 
-sealed class CloudconeAccountResult {
-	data object Success : CloudconeAccountResult()
-	data class Failed(val message: String) : CloudconeAccountResult()
-}
-
 sealed class CloudconeBindResult {
 	data object Success : CloudconeBindResult()
 	data object OtherVendor : CloudconeBindResult()
 	data object InstanceInUse : CloudconeBindResult()
-	data object NoAccount : CloudconeBindResult()
 	data class Failed(val message: String) : CloudconeBindResult()
 }
 
@@ -83,7 +57,6 @@ sealed class CloudconeInfoResult {
 }
 
 class CloudconeCoordinator(
-	private val accounts: CloudconeAccountStore,
 	private val links: CloudconeLinkStore,
 	private val bandwagonLinks: BandwagonLinkStore,
 	private val virtualizorLinks: VirtualizorLinkStore,
@@ -91,142 +64,120 @@ class CloudconeCoordinator(
 	private val keys: BandwagonKeyStore,
 	private val closeSessions: (Long) -> Unit
 ) {
-	fun observeAccount(): Flow<CloudconeAccount?> = accounts.observe()
 	fun observeLinks(): Flow<List<CloudconeLink>> = links.observeAll()
 
-	suspend fun saveAccount(apiKey: String, hash: String): CloudconeAccountResult {
+	suspend fun listInstances(apiKey: String, hash: String): CloudconeCallResult {
 		val trimmedKey = apiKey.trim()
 		val trimmedHash = hash.trim()
 		if (trimmedKey.isEmpty() || trimmedHash.isEmpty()) {
-			return CloudconeAccountResult.Failed("API key and hash are required")
+			return CloudconeCallResult(ok = false, message = "API key and hash are required", instances = emptyList())
 		}
-		val listed = try {
+		return try {
 			client.list(trimmedKey, trimmedHash)
-		} catch (e: Exception) {
-			return CloudconeAccountResult.Failed(e.message ?: "request failed")
-		}
-		if (!listed.ok) {
-			return CloudconeAccountResult.Failed(listed.message ?: "request failed")
-		}
-		val encryptedKey = keys.encrypt(trimmedKey)
-		val encryptedHash = keys.encrypt(trimmedHash)
-		val previous = accounts.get()
-		return try {
-			accounts.save(
-				CloudconeAccount(
-					encryptedApiKey = encryptedKey,
-					encryptedHash = encryptedHash
-				)
-			)
-			if (previous != null) {
-				if (previous.encryptedApiKey != encryptedKey) keys.delete(previous.encryptedApiKey)
-				if (previous.encryptedHash != encryptedHash) keys.delete(previous.encryptedHash)
-			}
-			CloudconeAccountResult.Success
-		} catch (e: Exception) {
-			keys.delete(encryptedKey)
-			keys.delete(encryptedHash)
-			CloudconeAccountResult.Failed(e.message ?: "save failed")
-		}
-	}
-
-	suspend fun deleteAccount() {
-		val previous = accounts.get()
-		links.deleteAll()
-		accounts.delete()
-		previous?.let {
-			keys.delete(it.encryptedApiKey)
-			keys.delete(it.encryptedHash)
-		}
-	}
-
-	suspend fun onServerDeleted(serverId: Long) {
-		links.deleteByServerId(serverId)
-	}
-
-	suspend fun bind(serverId: Long, instanceId: String): CloudconeBindResult {
-		if (bandwagonLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
-		if (virtualizorLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
-		val occupied = links.getByInstanceId(instanceId)
-		if (occupied != null && occupied.serverId != serverId) return CloudconeBindResult.InstanceInUse
-		if (accounts.get() == null) return CloudconeBindResult.NoAccount
-		val existing = links.getByServerId(serverId)
-		if (existing != null) return CloudconeBindResult.OtherVendor
-		return try {
-			links.insert(CloudconeLink(serverId = serverId, instanceId = instanceId))
-			CloudconeBindResult.Success
-		} catch (e: Exception) {
-			CloudconeBindResult.Failed(e.message ?: "save failed")
-		}
-	}
-
-	suspend fun unbind(serverId: Long) {
-		links.deleteByServerId(serverId)
-	}
-
-	suspend fun listInstances(): CloudconeCallResult {
-		val secrets = secrets() ?: return CloudconeCallResult(ok = false, message = "no account", instances = emptyList())
-		return try {
-			client.list(secrets.first, secrets.second)
 		} catch (e: Exception) {
 			CloudconeCallResult(ok = false, message = e.message ?: "request failed", instances = emptyList())
 		}
 	}
 
-	suspend fun power(
+	suspend fun bind(
+		serverId: Long,
 		instanceId: String,
+		apiKey: String,
+		hash: String
+	): CloudconeBindResult {
+		if (bandwagonLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
+		if (virtualizorLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
+		if (links.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
+		val occupied = links.getByInstanceId(instanceId)
+		if (occupied != null && occupied.serverId != serverId) return CloudconeBindResult.InstanceInUse
+		val encryptedKey = keys.encrypt(apiKey.trim())
+		val encryptedHash = keys.encrypt(hash.trim())
+		return try {
+			links.insert(
+				CloudconeLink(
+					serverId = serverId,
+					instanceId = instanceId,
+					encryptedApiKey = encryptedKey,
+					encryptedHash = encryptedHash
+				)
+			)
+			CloudconeBindResult.Success
+		} catch (e: Exception) {
+			keys.delete(encryptedKey)
+			keys.delete(encryptedHash)
+			CloudconeBindResult.Failed(e.message ?: "save failed")
+		}
+	}
+
+	suspend fun unbind(serverId: Long) {
+		onServerDeleted(serverId)
+	}
+
+	suspend fun onServerDeleted(serverId: Long) {
+		val previous = links.getByServerId(serverId) ?: return
+		links.deleteByServerId(serverId)
+		keys.delete(previous.encryptedApiKey)
+		keys.delete(previous.encryptedHash)
+	}
+
+	suspend fun power(
+		serverId: Long,
 		action: CloudconePowerAction,
 		confirmed: Boolean
 	): CloudconePowerResult {
 		if (action != CloudconePowerAction.BOOT && !confirmed) {
 			return CloudconePowerResult.NeedsConfirmation
 		}
-		val secrets = secrets() ?: return CloudconePowerResult.NoAccount
+		val session = session(serverId) ?: return CloudconePowerResult.NoAccount
 		val result = try {
-			client.power(secrets.first, secrets.second, instanceId, action.endpoint())
+			client.power(session.apiKey, session.hash, session.instanceId, action.endpoint())
 		} catch (e: Exception) {
 			return CloudconePowerResult.Failed(e.message ?: "request failed")
 		}
 		if (!result.ok) return CloudconePowerResult.Failed(result.message ?: "request failed")
 		if (action != CloudconePowerAction.BOOT) {
-			links.getByInstanceId(instanceId)?.let { closeSessions(it.serverId) }
+			closeSessions(serverId)
 		}
 		return CloudconePowerResult.Accepted
 	}
 
 	suspend fun instanceInfo(serverId: Long): CloudconeInfoResult {
-		val link = links.getByServerId(serverId) ?: return CloudconeInfoResult.NotBound
-		val secrets = secrets() ?: return CloudconeInfoResult.Failed("no account")
+		val session = session(serverId) ?: return CloudconeInfoResult.NotBound
 		val result = try {
-			client.information(secrets.first, secrets.second, link.instanceId)
+			client.information(session.apiKey, session.hash, session.instanceId)
 		} catch (e: Exception) {
 			return CloudconeInfoResult.Failed(e.message ?: "request failed")
 		}
 		if (!result.ok) {
-			return CloudconeInfoResult.Failed("${result.message ?: "request failed"} (id=${link.instanceId})")
+			return CloudconeInfoResult.Failed("${result.message ?: "request failed"} (id=${session.instanceId})")
 		}
 		val info = result.info
-			?: return CloudconeInfoResult.Failed("empty info (id=${link.instanceId})")
+			?: return CloudconeInfoResult.Failed("empty info (id=${session.instanceId})")
 		return CloudconeInfoResult.Known(info)
 	}
 
-	suspend fun status(instanceId: String): CloudconeStatusResult {
-		val secrets = secrets() ?: return CloudconeStatusResult.Failed("no account")
+	suspend fun status(serverId: Long): CloudconeStatusResult {
+		val session = session(serverId) ?: return CloudconeStatusResult.Failed("no account")
 		val result = try {
-			client.information(secrets.first, secrets.second, instanceId)
+			client.information(session.apiKey, session.hash, session.instanceId)
 		} catch (e: Exception) {
 			return CloudconeStatusResult.Failed(e.message ?: "request failed")
 		}
 		if (!result.ok) return CloudconeStatusResult.Failed(result.message ?: "request failed")
-		val power = result.instances.firstOrNull { it.id == instanceId }?.powerStatus
+		val power = result.instances.firstOrNull { it.id == session.instanceId }?.powerStatus
 			?: result.instances.firstOrNull()?.powerStatus
+			?: result.info?.powerStatus
 		if (power.isNullOrBlank()) return CloudconeStatusResult.Unknown
 		return CloudconeStatusResult.Known(power)
 	}
 
-	private suspend fun secrets(): Pair<String, String>? {
-		val account = accounts.get() ?: return null
-		return keys.decrypt(account.encryptedApiKey) to keys.decrypt(account.encryptedHash)
+	private suspend fun session(serverId: Long): CloudconeSession? {
+		val link = links.getByServerId(serverId) ?: return null
+		return CloudconeSession(
+			instanceId = link.instanceId,
+			apiKey = keys.decrypt(link.encryptedApiKey),
+			hash = keys.decrypt(link.encryptedHash)
+		)
 	}
 
 	private fun CloudconePowerAction.endpoint(): String {
@@ -237,3 +188,9 @@ class CloudconeCoordinator(
 		}
 	}
 }
+
+private data class CloudconeSession(
+	val instanceId: String,
+	val apiKey: String,
+	val hash: String
+)

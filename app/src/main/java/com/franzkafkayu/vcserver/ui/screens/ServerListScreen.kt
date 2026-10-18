@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,6 +55,7 @@ import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
 import com.franzkafkayu.vcserver.ui.viewmodels.VendorPrompt
 import com.franzkafkayu.vcserver.utils.AppError
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 
 /**
  * 服务器列表界面
@@ -919,6 +922,8 @@ private fun VendorPromptDialog(
 		is VendorPrompt.CloudconeSecrets -> {
 			var apiKey by remember(prompt.serverId) { mutableStateOf("") }
 			var hash by remember(prompt.serverId) { mutableStateOf("") }
+			var apiKeyVisible by remember(prompt.serverId) { mutableStateOf(false) }
+			var hashVisible by remember(prompt.serverId) { mutableStateOf(false) }
 			AlertDialog(
 				onDismissRequest = { viewModel.dismissVendorPrompt() },
 				title = { Text(stringResource(R.string.cloudcone_account_title)) },
@@ -929,14 +934,34 @@ private fun VendorPromptDialog(
 							onValueChange = { apiKey = it },
 							label = { Text(stringResource(R.string.cloudcone_api_key)) },
 							singleLine = true,
-							visualTransformation = PasswordVisualTransformation()
+							visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+							trailingIcon = {
+								IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+									Icon(
+										imageVector = if (apiKeyVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+										contentDescription = stringResource(
+											if (apiKeyVisible) R.string.hide_password else R.string.show_password
+										)
+									)
+								}
+							}
 						)
 						OutlinedTextField(
 							value = hash,
 							onValueChange = { hash = it },
 							label = { Text(stringResource(R.string.cloudcone_hash)) },
 							singleLine = true,
-							visualTransformation = PasswordVisualTransformation()
+							visualTransformation = if (hashVisible) VisualTransformation.None else PasswordVisualTransformation(),
+							trailingIcon = {
+								IconButton(onClick = { hashVisible = !hashVisible }) {
+									Icon(
+										imageVector = if (hashVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+										contentDescription = stringResource(
+											if (hashVisible) R.string.hide_password else R.string.show_password
+										)
+									)
+								}
+							}
 						)
 					}
 				},

@@ -5,7 +5,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * CloudCone 实例与 SSH 服务器的绑定。密钥在账号上，不在这一行。
+ * CloudCone 实例与 SSH 服务器的绑定。API Key 与 Hash 存在这一行。
  */
 @Entity(
 	tableName = "cloudcone_links",
@@ -18,5 +18,7 @@ data class CloudconeLink(
 	@PrimaryKey(autoGenerate = true)
 	val id: Long = 0,
 	val serverId: Long,
-	val instanceId: String
+	val instanceId: String,
+	val encryptedApiKey: String,
+	val encryptedHash: String
 )

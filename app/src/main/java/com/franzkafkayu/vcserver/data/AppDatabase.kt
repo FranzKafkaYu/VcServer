@@ -6,7 +6,6 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.franzkafkayu.vcserver.data.dao.BandwagonLinkDao
-import com.franzkafkayu.vcserver.data.dao.CloudconeAccountDao
 import com.franzkafkayu.vcserver.data.dao.CloudconeLinkDao
 import com.franzkafkayu.vcserver.data.dao.ServerDao
 import com.franzkafkayu.vcserver.data.dao.ServerGroupDao
@@ -14,7 +13,6 @@ import com.franzkafkayu.vcserver.data.dao.VirtualizorLinkDao
 import com.franzkafkayu.vcserver.data.converters.AuthTypeConverter
 import com.franzkafkayu.vcserver.data.converters.ProxyTypeConverter
 import com.franzkafkayu.vcserver.models.BandwagonLink
-import com.franzkafkayu.vcserver.models.CloudconeAccount
 import com.franzkafkayu.vcserver.models.CloudconeLink
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerGroup
@@ -28,11 +26,10 @@ import com.franzkafkayu.vcserver.models.VirtualizorLink
 		Server::class,
 		ServerGroup::class,
 		BandwagonLink::class,
-		CloudconeAccount::class,
 		CloudconeLink::class,
 		VirtualizorLink::class
 	],
-	version = 11,
+	version = 12,
 	exportSchema = false
 )
 @TypeConverters(AuthTypeConverter::class, ProxyTypeConverter::class)
@@ -40,7 +37,6 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun serverDao(): ServerDao
 	abstract fun serverGroupDao(): ServerGroupDao
 	abstract fun bandwagonLinkDao(): BandwagonLinkDao
-	abstract fun cloudconeAccountDao(): CloudconeAccountDao
 	abstract fun cloudconeLinkDao(): CloudconeLinkDao
 	abstract fun virtualizorLinkDao(): VirtualizorLinkDao
 
@@ -223,6 +219,23 @@ abstract class AppDatabase : RoomDatabase() {
 				database.execSQL("DROP TABLE IF EXISTS `virtualizor_account`")
 			}
 		}
+
+		val MIGRATION_11_12 = object : Migration(11, 12) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("ALTER TABLE `cloudcone_links` ADD COLUMN `encryptedApiKey` TEXT NOT NULL DEFAULT ''")
+				database.execSQL("ALTER TABLE `cloudcone_links` ADD COLUMN `encryptedHash` TEXT NOT NULL DEFAULT ''")
+				database.execSQL(
+					"""
+					UPDATE `cloudcone_links` SET
+						encryptedApiKey = (SELECT encryptedApiKey FROM cloudcone_account WHERE id = 1),
+						encryptedHash = (SELECT encryptedHash FROM cloudcone_account WHERE id = 1)
+					WHERE EXISTS (SELECT 1 FROM cloudcone_account WHERE id = 1)
+					""".trimIndent()
+				)
+				database.execSQL("DELETE FROM `cloudcone_links` WHERE encryptedApiKey = '' OR encryptedHash = ''")
+				database.execSQL("DROP TABLE IF EXISTS `cloudcone_account`")
+			}
+		}
 	}
 }
 
@@ -248,6 +261,26 @@ internal fun migrateVirtualizorLinksFromAccount(
 			encryptedApiKey = account.encryptedApiKey,
 			encryptedApiPass = account.encryptedApiPass,
 			certPinSha256 = account.certPinSha256
+		)
+	}
+}
+
+internal data class CloudconeLegacyAccount(
+	val encryptedApiKey: String,
+	val encryptedHash: String
+)
+
+internal fun migrateCloudconeLinksFromAccount(
+	account: CloudconeLegacyAccount?,
+	links: List<Pair<Long, String>>
+): List<CloudconeLink> {
+	if (account == null) return emptyList()
+	return links.map { (serverId, instanceId) ->
+		CloudconeLink(
+			serverId = serverId,
+			instanceId = instanceId,
+			encryptedApiKey = account.encryptedApiKey,
+			encryptedHash = account.encryptedHash
 		)
 	}
 }
