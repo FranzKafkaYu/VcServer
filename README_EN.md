@@ -21,6 +21,8 @@ VcServer connects over SSH to run commands, monitor status, transfer files, and 
 | ![Server List](media/server_list.png) | ![Add Server](media/add_server.png) |
 | **Status Page**                     | **Settings Page**                 |
 | ![Status Page](media/server_status.png) | ![Settings Page](media/settings.png) |
+| **Operations**                      | **Details**                       |
+| ![Operations](media/server_operation.jpg) | ![Details](media/server_usage_detail.jpg) |
 
 ## ✨ Core Features
 

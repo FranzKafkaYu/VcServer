@@ -21,6 +21,8 @@ VcServer 通过 SSH 连接远程服务器，执行命令、监控状态、传输
 | ![列表页](media/server_list.png)   | ![添加页](media/add_server.png) |
 | **状态页**                         | **设置页**                      |
 | ![状态页](media/server_status.png) | ![设置页](media/settings.png)   |
+| **操作页**                         | **详情页**                      |
+| ![操作页](media/server_operation.jpg) | ![详情页](media/server_usage_detail.jpg) |
 
 ## ✨ 核心功能
 
