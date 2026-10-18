@@ -6,11 +6,13 @@
 
 <p align="center"><strong>SSH in your pocket.</strong></p>
 
-A powerful Android SSH server management application that supports connecting to remote servers via SSH for management.
+<p align="center"><a href="./README.md">简体中文</a> | ENGLISH</p>
 
-## 📱 Application Overview
+An Android SSH server manager: connect to remote hosts, watch status, transfer files, and bind a server to a provider’s control panel.
 
-VcServer is a modern Android application that allows users to securely connect to remote servers via SSH protocol, execute commands, monitor server status, and perform daily operations management. The app follows Material Design 3 design guidelines, providing a smooth user experience.
+## 📱 Overview
+
+VcServer connects over SSH to run commands, monitor status, transfer files, and handle day-to-day ops. You can bind a server to a provider and use their panel API for power, info, relocate, and usage. Data stays on-device; secrets use Android Keystore.
 
 ## 📸 Screenshots
 
@@ -22,41 +24,34 @@ VcServer is a modern Android application that allows users to securely connect t
 
 ## ✨ Core Features
 
-### 🔐 Server Management
-- **Add Servers**: Support adding servers via IP/domain name and SSH port
-- **Multiple Authentication Methods**: Password authentication, key authentication  
-- **Server List Management**: View, edit, and delete servers  
-- **Connection Testing**: Test connection before adding a server
+### 🖥️ Servers and SSH
+- Add by IP/hostname and port; password or key auth
+- List, edit, delete, pin, swipe-delete, copy
+- Connection test before save
+- HTTP / SOCKS proxy and SSH jump host
 
-### 📊 Server Monitoring
-- **Real-time Status Monitoring**: CPU, memory, disk, system information, and uptime  
-- **Auto Refresh**: Configurable refresh interval for automatic server status updates  
+### 📊 Monitoring
+- CPU, memory, disk, OS, uptime
+- NIC IPs and logged-in users
+- Configurable auto-refresh
 
-### 💻 Interactive Terminal
-- **SSH Terminal**: Execute commands via SSH connection
-- **Command History**: Support viewing and executing historical commands
-- **Command Completion**: Support command auto-completion
-- **ANSI Support**: Support ANSI color code display
-- **Terminal Buffer**: Manage terminal output content
+### 🏭 Provider binding
+- Each SSH server can bind to **one** vendor (BandwagonHost, CloudCone, Virtualizor, and others)
+- Unbind keeps the saved SSH configuration
 
-### ⚙️ Application Settings
-- **Theme Settings**: Dark and light theme adaptation  
-- **Language Settings**: Support Chinese and English  
-- **Connection Settings**: Default port, connection timeout settings  
-- **Display Settings**: Refresh time interval settings  
-- **Proxy Settings**: HTTP and SOCKS proxy settings  
+### 💻 Terminal
+- Interactive SSH; command history and local common-command completion
+- ANSI / xterm 256-color; multiple shells on the same host
+- Full-screen apps such as `htop` and `vim`
+- Ctrl / Esc / Tab / arrows; adjustable font size
 
-### 🔒 Security Features
-- **Encrypted Storage**: Use Android Keystore to encrypt and store sensitive information (passwords, SSH private keys)
-- **Secure Transmission**: All SSH connections use encrypted protocols
-- **Data Persistence**: Server configuration information is securely saved to local database
+### 📁 Files
+- SFTP upload, download, create, delete
 
-### 🛠️ Development Tools
-- **Build Tool**: Gradle 8.7
-- **Kotlin Version**: 1.9.10
-- **Compile SDK**: 34
-- **Min SDK**: Android 10 (API 29)
-- **Target SDK**: 34
+### 🔒 Security and local data
+- Keystore-encrypted passwords and private keys
+- Local import/export; no collection or upload of user data
+- Light / dark theme; Chinese and English
 
 ## 🚀 Quick Start
 
@@ -64,7 +59,7 @@ VcServer is a modern Android application that allows users to securely connect t
 - Android Studio Narwhal Feature Drop | 2025.1.2 or higher
 - JDK 17
 - Android SDK 29+
-- Gradle 8.7
+- Gradle 8.7 (Kotlin 1.9.10, compile / target SDK 34, min Android 10)
 
 ### Build Steps
 
@@ -97,4 +92,4 @@ The application will automatically create a local database and settings storage 
 
 Issues and Pull Requests are welcome!
 
- ⭐[![Stargazers over time](https://starchart.cc/FranzKafkaYu/VcServer.svg)](https://starchart.cc/FranzKafkaYu/VcServer)  
+⭐[![Stargazers over time](https://starchart.cc/FranzKafkaYu/VcServer.svg)](https://starchart.cc/FranzKafkaYu/VcServer)

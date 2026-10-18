@@ -8,11 +8,11 @@
 
 <p align="center">简体中文 | <a href="./README_EN.md">ENGLISH</a></p>
 
-一个功能强大的 Android SSH 服务器管理应用，支持通过 SSH 连接到远程服务器并进行管理。
+一个 Android SSH 服务器管理应用：连接远程主机、查看状态、传输文件，并可将服务器绑定到服务器厂商管理后台。
 
 ## 📱 应用简介
 
-VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安全地连接到远程服务器，执行命令、监控服务器状态，并进行日常运维管理。应用采用 Material Design 3 设计规范，提供流畅的用户体验。
+VcServer 通过 SSH 连接远程服务器，执行命令、监控状态、传输文件，并进行日常运维。支持把一台服务器绑定到对应厂商，使用面板 API 做电源、信息、迁移和用量等操作。数据保存在本机，敏感信息使用 Android Keystore 加密。
 
 ## 📸 应用截图
 
@@ -24,41 +24,34 @@ VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安
 
 ## ✨ 核心功能
 
-### 🔐 服务器管理
-- **添加服务器**：支持通过 IP/域名、SSH 端口添加服务器
-- **多种认证方式**：密码认证、密钥认证  
-- **服务器列表管理**：查看、编辑、删除服务器  
-- **连接测试**：添加服务器前可测试连接
+### 🖥️ 服务器与 SSH
+- 按 IP/域名、端口添加；密码或密钥认证
+- 列表查看、编辑、删除、置顶、滑动删除、复制
+- 添加前可测连通
+- HTTP / SOCKS 代理与 SSH 跳板
 
-### 📊 服务器监控
-- **实时状态监控**：CPU、内存、磁盘、系统信息以及运行时长  
-- **自动刷新**：可配置刷新间隔，自动更新服务器状态  
+### 📊 状态监控
+- CPU、内存、磁盘、系统信息、运行时长
+- 网卡 IP、当前登录用户
+- 可配置自动刷新间隔
 
-### 💻 交互式终端
-- **SSH 终端**：通过 SSH 连接执行命令
-- **命令历史**：支持查看和执行历史命令
-- **命令补全**：支持命令自动补全功能
-- **ANSI 支持**：支持 ANSI 颜色代码显示
-- **终端缓冲区**：管理终端输出内容
+### 🏭 服务器厂商绑定
+- 每台 SSH 服务器可绑定 **一家** 厂商（BandwagonHost、CloudCone 或 Virtualizor等）
+- 解除绑定不影响已保存的 SSH 配置
 
-### ⚙️ 应用设置
-- **主题设置**：深色、浅色主题适配  
-- **语言设置**：支持中、英文  
-- **连接设置**：默认端口、连接超时设置  
-- **显示设置**：刷新时间间隔设置  
-- **代理设置**：HTTP、SOCKS代理设置  
+### 💻 终端
+- 交互式 SSH；命令历史与本地常见命令补全
+- ANSI / xterm 256 色；同机多 Shell 标签
+- `htop`、`vim` 等全屏程序的画面与按键
+- Ctrl / Esc / Tab / 方向键栏；可调字号
 
-### 🔒 安全特性
-- **加密存储**：使用 Android Keystore 加密存储敏感信息（密码、SSH 私钥）
-- **安全传输**：所有 SSH 连接使用加密协议
-- **数据持久化**：服务器配置信息安全保存到本地数据库
+### 📁 文件
+- SFTP 上传、下载、创建、删除
 
-### 开发工具
-- **构建工具**：Gradle 8.7
-- **Kotlin 版本**：1.9.10
-- **编译 SDK**：34
-- **最低支持**：Android 10 (API 29)
-- **目标 SDK**：34
+### 🔒 安全与本地
+- Keystore 加密密码与私钥
+- 导入导出本机数据；不收集、不上传用户数据
+- 深色 / 浅色主题；中、英文
 
 ## 🚀 快速开始
 
@@ -66,7 +59,7 @@ VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安
 - Android Studio Narwhal Feature Drop | 2025.1.2 或更高版本
 - JDK 17
 - Android SDK 29+
-- Gradle 8.7
+- Gradle 8.7（Kotlin 1.9.10，compile / target SDK 34，最低 Android 10）
 
 ### 构建步骤
 
@@ -97,12 +90,8 @@ VcServer 是一个现代化的 Android 应用，允许用户通过 SSH 协议安
 
 ## 👥 贡献
 
-欢迎提交 Issue 和 Pull Request！  
+欢迎提交 Issue 和 Pull Request！
 
 ## ⭐Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=FranzKafkaYu/VcServer&type=date&legend=top-left)](https://www.star-history.com/#FranzKafkaYu/VcServer&type=date&legend=top-left)
-
-
-
-
