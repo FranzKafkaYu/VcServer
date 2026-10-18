@@ -13,6 +13,11 @@ import com.franzkafkayu.vcserver.services.BandwagonPowerResult
 import com.franzkafkayu.vcserver.services.BandwagonStatusResult
 import com.franzkafkayu.vcserver.services.BandwagonServiceInfo
 import com.franzkafkayu.vcserver.services.BandwagonServiceInfoResult
+import com.franzkafkayu.vcserver.services.BandwagonMigrateLocation
+import com.franzkafkayu.vcserver.services.BandwagonMigrateLocations
+import com.franzkafkayu.vcserver.services.BandwagonMigrateLocationsResult
+import com.franzkafkayu.vcserver.services.BandwagonMigrateStart
+import com.franzkafkayu.vcserver.services.BandwagonMigrateStartResult
 import com.franzkafkayu.vcserver.services.CloudconeBindResult
 import com.franzkafkayu.vcserver.services.CloudconeCoordinator
 import com.franzkafkayu.vcserver.services.CloudconeInstance
@@ -295,6 +300,7 @@ class ServerListViewModel(
 			}
 			VendorMenuEntry.STATUS -> queryStatus(serverId, vendor)
 			VendorMenuEntry.SERVICE_INFO -> queryServiceInfo(serverId, vendor)
+			VendorMenuEntry.MIGRATE -> queryMigrateLocations(serverId, vendor)
 			VendorMenuEntry.BANDWIDTH -> queryBandwidth(serverId, vendor)
 			VendorMenuEntry.UNBIND -> {
 				if (vendor != null) {
@@ -574,6 +580,65 @@ class ServerListViewModel(
 				BandwagonServiceInfoResult.NotBound -> notice(R.string.bandwagon_not_bound)
 				is BandwagonServiceInfoResult.Failed -> noticeArg(R.string.bandwagon_service_info_failed, result.message)
 			}
+		}
+	}
+
+	private fun queryMigrateLocations(serverId: Long, vendor: VendorKind?) {
+		if (vendor != VendorKind.BANDWAGON) return
+		viewModelScope.launch {
+			when (val result = bandwagon.migrateLocations(serverId)) {
+				is BandwagonMigrateLocationsResult.Known -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = VendorPrompt.MigratePick(serverId, result.locations)
+					)
+				}
+				BandwagonMigrateLocationsResult.NotBound -> notice(R.string.bandwagon_not_bound)
+				is BandwagonMigrateLocationsResult.Failed -> noticeArg(R.string.bandwagon_migrate_failed, result.message)
+			}
+		}
+	}
+
+	fun pickMigrateLocation(location: BandwagonMigrateLocation) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.MigratePick ?: return
+		_uiState.value = _uiState.value.copy(
+			vendorPrompt = VendorPrompt.ConfirmMigrate(prompt.serverId, location)
+		)
+	}
+
+	fun confirmMigrate() {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ConfirmMigrate ?: return
+		viewModelScope.launch {
+			when (val result = bandwagon.migrateStart(prompt.serverId, prompt.location.id, confirmed = true)) {
+				is BandwagonMigrateStartResult.Accepted -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = VendorPrompt.MigrateResult(prompt.serverId, result.start)
+					)
+				}
+				BandwagonMigrateStartResult.NeedsConfirmation -> Unit
+				BandwagonMigrateStartResult.NotBound -> {
+					dismissVendorPrompt()
+					notice(R.string.bandwagon_not_bound)
+				}
+				is BandwagonMigrateStartResult.Failed -> {
+					dismissVendorPrompt()
+					noticeArg(R.string.bandwagon_migrate_failed, result.message)
+				}
+			}
+		}
+	}
+
+	fun applyMigrateHost(ip: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.MigrateResult ?: return
+		val server = _uiState.value.servers.find { it.id == prompt.serverId } ?: return
+		viewModelScope.launch {
+			serverManagementService.updateServer(server.copy(host = ip))
+				.onSuccess {
+					dismissVendorPrompt()
+					noticeArg(R.string.bandwagon_migrate_host_updated, ip)
+				}
+				.onFailure { error ->
+					noticeArg(R.string.bandwagon_migrate_failed, error.message ?: "")
+				}
 		}
 	}
 
@@ -955,4 +1020,7 @@ sealed class VendorPrompt {
 	data object StatusUnknown : VendorPrompt()
 	data class Bandwidth(val bandwidth: VirtualizorBandwidth) : VendorPrompt()
 	data class ServiceInfo(val info: BandwagonServiceInfo) : VendorPrompt()
+	data class MigratePick(val serverId: Long, val locations: BandwagonMigrateLocations) : VendorPrompt()
+	data class ConfirmMigrate(val serverId: Long, val location: BandwagonMigrateLocation) : VendorPrompt()
+	data class MigrateResult(val serverId: Long, val start: BandwagonMigrateStart) : VendorPrompt()
 }

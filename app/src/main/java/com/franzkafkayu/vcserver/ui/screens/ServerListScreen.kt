@@ -816,6 +816,7 @@ private fun vendorMenuLabel(vendor: VendorKind?, entry: VendorMenuEntry): String
 		VendorMenuEntry.RESTART -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_restart))
 		VendorMenuEntry.STATUS -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_status))
 		VendorMenuEntry.SERVICE_INFO -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_service_info))
+		VendorMenuEntry.MIGRATE -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_migrate))
 		VendorMenuEntry.BANDWIDTH -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.virtualizor_bandwidth))
 		VendorMenuEntry.UNBIND -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_unbind))
 	}
@@ -1075,6 +1076,45 @@ private fun VendorPromptDialog(
 			onConfirm = { viewModel.dismissVendorPrompt() },
 			onDismiss = { viewModel.dismissVendorPrompt() },
 			confirmOnly = true
+		)
+		is VendorPrompt.MigratePick -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			title = { Text(stringResource(R.string.bandwagon_migrate_title)) },
+			text = {
+				BandwagonMigrateLocationList(
+					locations = prompt.locations,
+					onPick = { viewModel.pickMigrateLocation(it) }
+				)
+			},
+			confirmButton = {},
+			dismissButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.cancel))
+				}
+			}
+		)
+		is VendorPrompt.ConfirmMigrate -> BandwagonConfirmDialog(
+			message = stringResource(
+				R.string.bandwagon_migrate_confirm,
+				prompt.location.description?.takeIf { it.isNotBlank() } ?: prompt.location.id
+			),
+			onConfirm = { viewModel.confirmMigrate() },
+			onDismiss = { viewModel.dismissVendorPrompt() }
+		)
+		is VendorPrompt.MigrateResult -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			title = { Text(stringResource(R.string.bandwagon_migrate_title)) },
+			text = {
+				BandwagonMigrateResultPanel(
+					start = prompt.start,
+					onUseHost = { viewModel.applyMigrateHost(it) }
+				)
+			},
+			confirmButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.confirm))
+				}
+			}
 		)
 		is VendorPrompt.ServiceInfo -> AlertDialog(
 			onDismissRequest = { viewModel.dismissVendorPrompt() },

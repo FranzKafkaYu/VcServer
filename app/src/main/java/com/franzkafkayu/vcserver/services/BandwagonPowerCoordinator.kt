@@ -98,6 +98,19 @@ sealed class BandwagonServiceInfoResult {
 	data class Failed(val message: String) : BandwagonServiceInfoResult()
 }
 
+sealed class BandwagonMigrateLocationsResult {
+	data class Known(val locations: BandwagonMigrateLocations) : BandwagonMigrateLocationsResult()
+	data object NotBound : BandwagonMigrateLocationsResult()
+	data class Failed(val message: String) : BandwagonMigrateLocationsResult()
+}
+
+sealed class BandwagonMigrateStartResult {
+	data class Accepted(val start: BandwagonMigrateStart) : BandwagonMigrateStartResult()
+	data object NeedsConfirmation : BandwagonMigrateStartResult()
+	data object NotBound : BandwagonMigrateStartResult()
+	data class Failed(val message: String) : BandwagonMigrateStartResult()
+}
+
 class BandwagonPowerCoordinator(
 	private val store: BandwagonLinkStore,
 	private val client: BandwagonClient,
@@ -226,6 +239,55 @@ class BandwagonPowerCoordinator(
 		}
 		val info = result.info ?: return BandwagonServiceInfoResult.Failed("empty info")
 		return BandwagonServiceInfoResult.Known(info)
+	}
+
+	suspend fun migrateLocations(serverId: Long): BandwagonMigrateLocationsResult {
+		val link = store.getByServerId(serverId) ?: return BandwagonMigrateLocationsResult.NotBound
+		val result = try {
+			client.call(
+				HttpBandwagonClient.ACTION_MIGRATE_LOCATIONS,
+				link.veid,
+				keys.decrypt(link.encryptedApiKey),
+				HttpBandwagonClient.TIMEOUT_POWER_MS
+			)
+		} catch (e: Exception) {
+			return BandwagonMigrateLocationsResult.Failed(e.message ?: "request failed")
+		}
+		if (result.error != 0) {
+			return BandwagonMigrateLocationsResult.Failed(result.message ?: "error ${result.error}")
+		}
+		val locations = result.migrateLocations ?: return BandwagonMigrateLocationsResult.Failed("empty locations")
+		return BandwagonMigrateLocationsResult.Known(locations)
+	}
+
+	suspend fun migrateStart(
+		serverId: Long,
+		location: String,
+		confirmed: Boolean
+	): BandwagonMigrateStartResult {
+		if (!confirmed) return BandwagonMigrateStartResult.NeedsConfirmation
+		val trimmed = location.trim()
+		if (trimmed.isEmpty()) {
+			return BandwagonMigrateStartResult.Failed("location is required")
+		}
+		val link = store.getByServerId(serverId) ?: return BandwagonMigrateStartResult.NotBound
+		val result = try {
+			client.call(
+				HttpBandwagonClient.ACTION_MIGRATE_START,
+				link.veid,
+				keys.decrypt(link.encryptedApiKey),
+				HttpBandwagonClient.TIMEOUT_MIGRATE_MS,
+				mapOf("location" to trimmed)
+			)
+		} catch (e: Exception) {
+			return BandwagonMigrateStartResult.Failed(e.message ?: "request failed")
+		}
+		if (result.error != 0) {
+			return BandwagonMigrateStartResult.Failed(result.message ?: "error ${result.error}")
+		}
+		val start = result.migrateStart ?: BandwagonMigrateStart(notificationEmail = null, newIps = emptyList())
+		closeSessions(serverId)
+		return BandwagonMigrateStartResult.Accepted(start)
 	}
 
 	private fun BandwagonPowerAction.endpoint(): String {

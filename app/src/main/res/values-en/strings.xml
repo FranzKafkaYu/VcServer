@@ -51,6 +51,16 @@
 	<string name="bandwagon_status">Power status</string>
 	<string name="bandwagon_service_info">Server info</string>
 	<string name="bandwagon_service_info_failed">Failed to query server info: %1$s</string>
+	<string name="bandwagon_migrate">Migrate location</string>
+	<string name="bandwagon_migrate_title">Migrate location</string>
+	<string name="bandwagon_migrate_current">Current: %1$s</string>
+	<string name="bandwagon_migrate_multiplier">Data multiplier ×%1$s</string>
+	<string name="bandwagon_migrate_confirm">Migrate to %1$s? All IPv4 addresses will be replaced.</string>
+	<string name="bandwagon_migrate_accepted">The migrate request was accepted. This does not mean it has finished.</string>
+	<string name="bandwagon_migrate_email">Notification will go to: %1$s</string>
+	<string name="bandwagon_migrate_failed">Migration failed: %1$s</string>
+	<string name="bandwagon_migrate_host_updated">SSH host updated to %1$s</string>
+	<string name="bandwagon_migrate_use_host">Use as SSH host: %1$s</string>
 	<string name="bandwagon_info_hostname">Hostname</string>
 	<string name="bandwagon_info_location">Location</string>
 	<string name="bandwagon_info_plan">Plan</string>

@@ -29,6 +29,7 @@ class VendorMenuTest {
 				VendorMenuEntry.RESTART,
 				VendorMenuEntry.STATUS,
 				VendorMenuEntry.SERVICE_INFO,
+				VendorMenuEntry.MIGRATE,
 				VendorMenuEntry.UNBIND
 			),
 			menu.entries
@@ -58,6 +59,19 @@ class VendorMenuTest {
 		)
 		assertTrue(
 			VendorMenuEntry.SERVICE_INFO !in vendorMenu(selectionMode = false, vendor = VendorKind.VIRTUALIZOR).entries
+		)
+		assertTrue(
+			vendorMenu(selectionMode = true, vendor = VendorKind.BANDWAGON).entries.isEmpty()
+		)
+	}
+
+	@Test
+	fun otherVendorsDoNotOfferMigrate() {
+		assertTrue(
+			VendorMenuEntry.MIGRATE !in vendorMenu(selectionMode = false, vendor = VendorKind.CLOUDCONE).entries
+		)
+		assertTrue(
+			VendorMenuEntry.MIGRATE !in vendorMenu(selectionMode = false, vendor = VendorKind.VIRTUALIZOR).entries
 		)
 		assertTrue(
 			vendorMenu(selectionMode = true, vendor = VendorKind.BANDWAGON).entries.isEmpty()

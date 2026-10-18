@@ -75,5 +75,50 @@ class BandwagonResponseParserTest {
 	fun nonZeroErrorDoesNotParseInfo() {
 		val parsed = parseBandwagonResponse("""{"error":5,"message":"no","hostname":"x"}""")
 		assertNull(parsed.info)
+		assertNull(parsed.migrateLocations)
+		assertNull(parsed.migrateStart)
+	}
+
+	@Test
+	fun migrateLocationsReadsOfficialFields() {
+		val parsed = parseBandwagonResponse(
+			"""
+			{"error":0,"currentLocation":"USCA_9",
+			"locations":["USCA_9","USFL_2"],
+			"descriptions":{"USCA_9":"Los Angeles","USFL_2":"Miami, Florida"},
+			"dataTransferMultipliers":{"USFL_2":0.5}}
+			""".trimIndent()
+		)
+		val locations = parsed.migrateLocations!!
+		assertEquals("USCA_9", locations.currentLocation)
+		assertEquals(2, locations.options.size)
+		assertEquals("Los Angeles", locations.options[0].description)
+		assertEquals(0.5, locations.options[1].dataTransferMultiplier!!, 0.0)
+		assertNull(locations.options[0].dataTransferMultiplier)
+	}
+
+	@Test
+	fun missingMigrateLocationsStayNull() {
+		val parsed = parseBandwagonResponse("""{"error":0}""")
+		assertNull(parsed.migrateLocations)
+		assertNull(parsed.migrateStart)
+	}
+
+	@Test
+	fun migrateStartReadsEmailAndIps() {
+		val parsed = parseBandwagonResponse(
+			"""{"error":0,"notificationEmail":"user@example.com","newIps":["11.22.33.44","11.22.33.45"]}"""
+		)
+		val start = parsed.migrateStart!!
+		assertEquals("user@example.com", start.notificationEmail)
+		assertEquals(listOf("11.22.33.44", "11.22.33.45"), start.newIps)
+	}
+
+	@Test
+	fun migrateStartFailureSkipsPayload() {
+		val parsed = parseBandwagonResponse(
+			"""{"error":7,"message":"busy","notificationEmail":"x","newIps":["1.1.1.1"]}"""
+		)
+		assertNull(parsed.migrateStart)
 	}
 }

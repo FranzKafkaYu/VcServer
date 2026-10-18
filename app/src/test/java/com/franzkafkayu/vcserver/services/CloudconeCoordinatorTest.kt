@@ -81,7 +81,8 @@ class CloudconeCoordinatorTest {
 					action: String,
 					veid: String,
 					apiKey: String,
-					timeoutMs: Int
+					timeoutMs: Int,
+					extraFields: Map<String, String>
 				): BandwagonCallResult {
 					throw AssertionError("should not call")
 				}

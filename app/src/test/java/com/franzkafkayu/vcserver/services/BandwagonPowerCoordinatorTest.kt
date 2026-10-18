@@ -19,6 +19,7 @@ class BandwagonPowerCoordinatorTest {
 		assertTrue(result is BandwagonBindResult.Success)
 		assertEquals("200", harness.store.getByServerId(1L)?.veid)
 		assertEquals(listOf(HttpBandwagonClient.ACTION_INFO), harness.client.calls)
+		assertEquals(listOf(emptyMap<String, String>()), harness.client.extras)
 	}
 
 	@Test
@@ -139,6 +140,64 @@ class BandwagonPowerCoordinatorTest {
 	}
 
 	@Test
+	fun migrateLocationsRequiresBindingAndKeepsLinkOnFailure() = runBlocking {
+		val harness = Harness()
+		val unbound = harness.coordinator.migrateLocations(1L)
+		assertTrue(unbound is BandwagonMigrateLocationsResult.NotBound)
+		assertTrue(harness.client.calls.isEmpty())
+
+		harness.store.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "key"))
+		harness.keys.live["key"] = "secret"
+		harness.client.next = BandwagonCallResult(
+			error = 0,
+			message = null,
+			veStatus = null,
+			migrateLocations = BandwagonMigrateLocations(
+				currentLocation = "USCA_9",
+				options = listOf(BandwagonMigrateLocation("USFL_2", "Miami", 0.5))
+			)
+		)
+		val known = harness.coordinator.migrateLocations(1L)
+		assertTrue(known is BandwagonMigrateLocationsResult.Known)
+		assertEquals("USCA_9", (known as BandwagonMigrateLocationsResult.Known).locations.currentLocation)
+		assertEquals(listOf(HttpBandwagonClient.ACTION_MIGRATE_LOCATIONS), harness.client.calls)
+		assertTrue(harness.client.extras.last().isEmpty())
+
+		harness.client.next = BandwagonCallResult(error = 1, message = "busy", veStatus = null)
+		val failed = harness.coordinator.migrateLocations(1L)
+		assertTrue(failed is BandwagonMigrateLocationsResult.Failed)
+		assertEquals("200", harness.store.getByServerId(1L)?.veid)
+	}
+
+	@Test
+	fun migrateStartNeedsConfirmationThenKeepsBindingOnFailure() = runBlocking {
+		val harness = Harness()
+		harness.store.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "key"))
+		harness.keys.live["key"] = "secret"
+		val pending = harness.coordinator.migrateStart(1L, "USFL_2", confirmed = false)
+		assertTrue(pending is BandwagonMigrateStartResult.NeedsConfirmation)
+		assertTrue(harness.client.calls.isEmpty())
+
+		harness.client.next = BandwagonCallResult(
+			error = 0,
+			message = null,
+			veStatus = null,
+			migrateStart = BandwagonMigrateStart("user@example.com", listOf("9.9.9.9"))
+		)
+		val accepted = harness.coordinator.migrateStart(1L, "USFL_2", confirmed = true)
+		assertTrue(accepted is BandwagonMigrateStartResult.Accepted)
+		assertEquals(listOf("9.9.9.9"), (accepted as BandwagonMigrateStartResult.Accepted).start.newIps)
+		assertEquals(listOf(HttpBandwagonClient.ACTION_MIGRATE_START), harness.client.calls)
+		assertEquals(mapOf("location" to "USFL_2"), harness.client.extras.last())
+		assertEquals(listOf(1L), harness.closed)
+
+		harness.client.next = BandwagonCallResult(error = 1, message = "busy", veStatus = null)
+		val failed = harness.coordinator.migrateStart(1L, "USFL_2", confirmed = true)
+		assertTrue(failed is BandwagonMigrateStartResult.Failed)
+		assertEquals("200", harness.store.getByServerId(1L)?.veid)
+	}
+
+	@Test
 	fun duplicateDoesNotCopyLink() = runBlocking {
 		val harness = Harness()
 		harness.store.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "key"))
@@ -162,13 +221,17 @@ private class FakeBandwagonClient : BandwagonClient {
 	val calls = mutableListOf<String>()
 	var next = BandwagonCallResult(error = 0, message = null, veStatus = null)
 
+	val extras = mutableListOf<Map<String, String>>()
+
 	override suspend fun call(
 		action: String,
 		veid: String,
 		apiKey: String,
-		timeoutMs: Int
+		timeoutMs: Int,
+		extraFields: Map<String, String>
 	): BandwagonCallResult {
 		calls += action
+		extras += extraFields
 		return next
 	}
 }

@@ -22,11 +22,29 @@ data class BandwagonServiceInfo(
 	val ipAddresses: List<String>
 )
 
+data class BandwagonMigrateLocation(
+	val id: String,
+	val description: String?,
+	val dataTransferMultiplier: Double?
+)
+
+data class BandwagonMigrateLocations(
+	val currentLocation: String?,
+	val options: List<BandwagonMigrateLocation>
+)
+
+data class BandwagonMigrateStart(
+	val notificationEmail: String?,
+	val newIps: List<String>
+)
+
 data class BandwagonCallResult(
 	val error: Int,
 	val message: String?,
 	val veStatus: String?,
-	val info: BandwagonServiceInfo? = null
+	val info: BandwagonServiceInfo? = null,
+	val migrateLocations: BandwagonMigrateLocations? = null,
+	val migrateStart: BandwagonMigrateStart? = null
 )
 
 internal fun parseBandwagonResponse(json: String): BandwagonCallResult {
@@ -38,7 +56,16 @@ internal fun parseBandwagonResponse(json: String): BandwagonCallResult {
 	val statusElement = obj.get("ve_status")
 	val veStatus = if (statusElement != null && !statusElement.isJsonNull) statusElement.asString else null
 	val info = if (error == 0) parseBandwagonServiceInfo(obj) else null
-	return BandwagonCallResult(error = error, message = message, veStatus = veStatus, info = info)
+	val migrateLocations = if (error == 0) parseBandwagonMigrateLocations(obj) else null
+	val migrateStart = if (error == 0) parseBandwagonMigrateStart(obj) else null
+	return BandwagonCallResult(
+		error = error,
+		message = message,
+		veStatus = veStatus,
+		info = info,
+		migrateLocations = migrateLocations,
+		migrateStart = migrateStart
+	)
 }
 
 internal fun parseBandwagonServiceInfo(obj: com.google.gson.JsonObject): BandwagonServiceInfo {
@@ -54,6 +81,29 @@ internal fun parseBandwagonServiceInfo(obj: com.google.gson.JsonObject): Bandwag
 		os = jsonString(obj, "os"),
 		ipAddresses = jsonStringList(obj, "ip_addresses")
 	)
+}
+
+internal fun parseBandwagonMigrateLocations(obj: com.google.gson.JsonObject): BandwagonMigrateLocations? {
+	val current = jsonString(obj, "currentLocation")
+	val ids = jsonStringList(obj, "locations")
+	if (current == null && ids.isEmpty()) return null
+	val descriptions = jsonStringMap(obj, "descriptions")
+	val multipliers = jsonDoubleMap(obj, "dataTransferMultipliers")
+	val options = ids.map { id ->
+		BandwagonMigrateLocation(
+			id = id,
+			description = descriptions[id],
+			dataTransferMultiplier = multipliers[id]
+		)
+	}
+	return BandwagonMigrateLocations(currentLocation = current, options = options)
+}
+
+internal fun parseBandwagonMigrateStart(obj: com.google.gson.JsonObject): BandwagonMigrateStart? {
+	val email = jsonString(obj, "notificationEmail")
+	val ips = jsonStringList(obj, "newIps")
+	if (email == null && ips.isEmpty()) return null
+	return BandwagonMigrateStart(notificationEmail = email, newIps = ips)
 }
 
 internal fun formatBandwagonBytes(bytes: Long): String {
@@ -92,12 +142,37 @@ private fun jsonStringList(obj: com.google.gson.JsonObject, name: String): List<
 	}
 }
 
+private fun jsonStringMap(obj: com.google.gson.JsonObject, name: String): Map<String, String> {
+	val element = obj.get(name) ?: return emptyMap()
+	if (!element.isJsonObject) return emptyMap()
+	return element.asJsonObject.entrySet().mapNotNull { entry ->
+		val value = entry.value
+		if (value.isJsonPrimitive) value.asString.takeIf { it.isNotBlank() }?.let { entry.key to it } else null
+	}.toMap()
+}
+
+private fun jsonDoubleMap(obj: com.google.gson.JsonObject, name: String): Map<String, Double> {
+	val element = obj.get(name) ?: return emptyMap()
+	if (!element.isJsonObject) return emptyMap()
+	return element.asJsonObject.entrySet().mapNotNull { entry ->
+		val value = entry.value
+		if (!value.isJsonPrimitive) return@mapNotNull null
+		val number = try {
+			value.asDouble
+		} catch (_: Exception) {
+			value.asString.toDoubleOrNull()
+		} ?: return@mapNotNull null
+		entry.key to number
+	}.toMap()
+}
+
 interface BandwagonClient {
 	suspend fun call(
 		action: String,
 		veid: String,
 		apiKey: String,
-		timeoutMs: Int
+		timeoutMs: Int,
+		extraFields: Map<String, String> = emptyMap()
 	): BandwagonCallResult
 }
 
@@ -106,7 +181,8 @@ class HttpBandwagonClient : BandwagonClient {
 		action: String,
 		veid: String,
 		apiKey: String,
-		timeoutMs: Int
+		timeoutMs: Int,
+		extraFields: Map<String, String>
 	): BandwagonCallResult = withContext(Dispatchers.IO) {
 		val connection = (URL("$API_ROOT$action").openConnection() as HttpURLConnection).apply {
 			requestMethod = "POST"
@@ -116,7 +192,9 @@ class HttpBandwagonClient : BandwagonClient {
 			setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 		}
 		try {
-			val body = formBody(mapOf("veid" to veid, "api_key" to apiKey))
+			val payload = extraFields.filterKeys { it != "veid" && it != "api_key" } +
+				mapOf("veid" to veid, "api_key" to apiKey)
+			val body = formBody(payload)
 			connection.outputStream.use { stream ->
 				stream.write(body.toByteArray(StandardCharsets.UTF_8))
 			}
@@ -154,5 +232,8 @@ class HttpBandwagonClient : BandwagonClient {
 		const val ACTION_START = "start"
 		const val ACTION_STOP = "stop"
 		const val ACTION_RESTART = "restart"
+		const val ACTION_MIGRATE_LOCATIONS = "migrate/getLocations"
+		const val ACTION_MIGRATE_START = "migrate/start"
+		const val TIMEOUT_MIGRATE_MS = 30_000
 	}
 }

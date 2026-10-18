@@ -51,6 +51,16 @@
 	<string name="bandwagon_status">查看电源状态</string>
 	<string name="bandwagon_service_info">查看服务器信息</string>
 	<string name="bandwagon_service_info_failed">查询服务器信息失败：%1$s</string>
+	<string name="bandwagon_migrate">迁移机房</string>
+	<string name="bandwagon_migrate_title">迁移机房</string>
+	<string name="bandwagon_migrate_current">当前：%1$s</string>
+	<string name="bandwagon_migrate_multiplier">流量倍率 ×%1$s</string>
+	<string name="bandwagon_migrate_confirm">确定迁移到 %1$s？全部 IPv4 地址会被替换。</string>
+	<string name="bandwagon_migrate_accepted">迁移请求已接受，尚未表示迁移完成。</string>
+	<string name="bandwagon_migrate_email">完成后将通知：%1$s</string>
+	<string name="bandwagon_migrate_failed">迁移失败：%1$s</string>
+	<string name="bandwagon_migrate_host_updated">已将 SSH 地址改为 %1$s</string>
+	<string name="bandwagon_migrate_use_host">用作 SSH 地址：%1$s</string>
 	<string name="bandwagon_info_hostname">主机名</string>
 	<string name="bandwagon_info_location">机房</string>
 	<string name="bandwagon_info_plan">套餐</string>
