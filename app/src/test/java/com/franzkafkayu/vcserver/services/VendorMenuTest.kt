@@ -57,10 +57,13 @@ class VendorMenuTest {
 	@Test
 	fun otherVendorsDoNotOfferServiceInfo() {
 		assertTrue(
-			VendorMenuEntry.SERVICE_INFO !in vendorMenu(selectionMode = false, vendor = VendorKind.CLOUDCONE).entries
+			VendorMenuEntry.SERVICE_INFO in vendorMenu(selectionMode = false, vendor = VendorKind.CLOUDCONE).entries
 		)
 		assertTrue(
 			VendorMenuEntry.SERVICE_INFO !in vendorMenu(selectionMode = false, vendor = VendorKind.VIRTUALIZOR).entries
+		)
+		assertTrue(
+			vendorMenu(selectionMode = true, vendor = VendorKind.CLOUDCONE).entries.isEmpty()
 		)
 		assertTrue(
 			vendorMenu(selectionMode = true, vendor = VendorKind.BANDWAGON).entries.isEmpty()

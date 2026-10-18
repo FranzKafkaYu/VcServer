@@ -76,6 +76,12 @@ sealed class CloudconeStatusResult {
 	data class Failed(val message: String) : CloudconeStatusResult()
 }
 
+sealed class CloudconeInfoResult {
+	data class Known(val info: CloudconeInstanceInfo) : CloudconeInfoResult()
+	data object NotBound : CloudconeInfoResult()
+	data class Failed(val message: String) : CloudconeInfoResult()
+}
+
 class CloudconeCoordinator(
 	private val accounts: CloudconeAccountStore,
 	private val links: CloudconeLinkStore,
@@ -186,6 +192,22 @@ class CloudconeCoordinator(
 			links.getByInstanceId(instanceId)?.let { closeSessions(it.serverId) }
 		}
 		return CloudconePowerResult.Accepted
+	}
+
+	suspend fun instanceInfo(serverId: Long): CloudconeInfoResult {
+		val link = links.getByServerId(serverId) ?: return CloudconeInfoResult.NotBound
+		val secrets = secrets() ?: return CloudconeInfoResult.Failed("no account")
+		val result = try {
+			client.information(secrets.first, secrets.second, link.instanceId)
+		} catch (e: Exception) {
+			return CloudconeInfoResult.Failed(e.message ?: "request failed")
+		}
+		if (!result.ok) {
+			return CloudconeInfoResult.Failed("${result.message ?: "request failed"} (id=${link.instanceId})")
+		}
+		val info = result.info
+			?: return CloudconeInfoResult.Failed("empty info (id=${link.instanceId})")
+		return CloudconeInfoResult.Known(info)
 	}
 
 	suspend fun status(instanceId: String): CloudconeStatusResult {

@@ -25,7 +25,9 @@ import com.franzkafkayu.vcserver.services.BandwagonUsageStats
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.services.CloudconeBindResult
 import com.franzkafkayu.vcserver.services.CloudconeCoordinator
+import com.franzkafkayu.vcserver.services.CloudconeInfoResult
 import com.franzkafkayu.vcserver.services.CloudconeInstance
+import com.franzkafkayu.vcserver.services.CloudconeInstanceInfo
 import com.franzkafkayu.vcserver.services.CloudconePowerAction
 import com.franzkafkayu.vcserver.services.CloudconePowerResult
 import com.franzkafkayu.vcserver.services.CloudconeStatusResult
@@ -582,15 +584,26 @@ class ServerListViewModel(
 	}
 
 	private fun queryServiceInfo(serverId: Long, vendor: VendorKind?) {
-		if (vendor != VendorKind.BANDWAGON) return
-		viewModelScope.launch {
-			when (val result = bandwagon.serviceInfo(serverId)) {
-				is BandwagonServiceInfoResult.Known -> {
-					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ServiceInfo(result.info))
+		when (vendor) {
+			VendorKind.BANDWAGON -> viewModelScope.launch {
+				when (val result = bandwagon.serviceInfo(serverId)) {
+					is BandwagonServiceInfoResult.Known -> {
+						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ServiceInfo(result.info))
+					}
+					BandwagonServiceInfoResult.NotBound -> notice(R.string.bandwagon_not_bound)
+					is BandwagonServiceInfoResult.Failed -> noticeArg(R.string.bandwagon_service_info_failed, result.message)
 				}
-				BandwagonServiceInfoResult.NotBound -> notice(R.string.bandwagon_not_bound)
-				is BandwagonServiceInfoResult.Failed -> noticeArg(R.string.bandwagon_service_info_failed, result.message)
 			}
+			VendorKind.CLOUDCONE -> viewModelScope.launch {
+				when (val result = cloudcone.instanceInfo(serverId)) {
+					is CloudconeInfoResult.Known -> {
+						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.CloudconeInfo(result.info))
+					}
+					CloudconeInfoResult.NotBound -> notice(R.string.cloudcone_not_bound)
+					is CloudconeInfoResult.Failed -> noticeArg(R.string.cloudcone_service_info_failed, result.message)
+				}
+			}
+			else -> return
 		}
 	}
 
@@ -1105,6 +1118,7 @@ sealed class VendorPrompt {
 	data object StatusUnknown : VendorPrompt()
 	data class Bandwidth(val bandwidth: VirtualizorBandwidth) : VendorPrompt()
 	data class ServiceInfo(val info: BandwagonServiceInfo) : VendorPrompt()
+	data class CloudconeInfo(val info: CloudconeInstanceInfo) : VendorPrompt()
 	data class MigratePick(val serverId: Long, val locations: BandwagonMigrateLocations) : VendorPrompt()
 	data class ConfirmMigrate(val serverId: Long, val location: BandwagonMigrateLocation) : VendorPrompt()
 	data class MigrateResult(val serverId: Long, val start: BandwagonMigrateStart) : VendorPrompt()

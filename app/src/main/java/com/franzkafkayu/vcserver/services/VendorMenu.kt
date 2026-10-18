@@ -40,6 +40,9 @@ fun vendorMenu(selectionMode: Boolean, vendor: VendorKind?): VendorMenu {
 		entries += VendorMenuEntry.RESET_ROOT
 		entries += VendorMenuEntry.USAGE
 	}
+	if (vendor == VendorKind.CLOUDCONE) {
+		entries += VendorMenuEntry.SERVICE_INFO
+	}
 	if (vendor == VendorKind.VIRTUALIZOR) {
 		entries += VendorMenuEntry.BANDWIDTH
 	}

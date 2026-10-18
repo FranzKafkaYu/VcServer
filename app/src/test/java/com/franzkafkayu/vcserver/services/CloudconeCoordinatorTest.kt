@@ -126,6 +126,33 @@ class CloudconeCoordinatorTest {
 	}
 
 	@Test
+	fun instanceInfoRequiresBindingAndKeepsLinkOnFailure() = runBlocking {
+		val harness = Harness()
+		assertTrue(harness.coordinator.instanceInfo(1L) is CloudconeInfoResult.NotBound)
+		assertTrue(harness.client.informationCalls.isEmpty())
+
+		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
+		harness.keys.live["key"] = "secret"
+		harness.keys.live["hash"] = "digest"
+		harness.links.insert(CloudconeLink(serverId = 1L, instanceId = "9"))
+		harness.client.informationResult = CloudconeCallResult(
+			ok = true,
+			message = null,
+			instances = emptyList(),
+			info = CloudconeInstanceInfo(hostname = "box")
+		)
+		val known = harness.coordinator.instanceInfo(1L)
+		assertTrue(known is CloudconeInfoResult.Known)
+		assertEquals("box", (known as CloudconeInfoResult.Known).info.hostname)
+
+		harness.client.informationResult = CloudconeCallResult(ok = false, message = "busy", instances = emptyList())
+		val failed = harness.coordinator.instanceInfo(1L)
+		assertTrue(failed is CloudconeInfoResult.Failed)
+		assertTrue((failed as CloudconeInfoResult.Failed).message.contains("9"))
+		assertEquals("9", harness.links.getByServerId(1L)?.instanceId)
+	}
+
+	@Test
 	fun unboundShutdownDoesNotCloseSessions() = runBlocking {
 		val harness = Harness()
 		harness.accounts.save(CloudconeAccount(encryptedApiKey = "key", encryptedHash = "hash"))
@@ -159,12 +186,15 @@ class CloudconeCoordinatorTest {
 private class FakeCloudconeClient : CloudconeClient {
 	var listResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
 	var powerResult = CloudconeCallResult(ok = true, message = null, instances = emptyList())
+	var informationResult: CloudconeCallResult? = null
 	val powerCalls = mutableListOf<String>()
+	val informationCalls = mutableListOf<String>()
 
 	override suspend fun list(apiKey: String, hash: String): CloudconeCallResult = listResult
 
 	override suspend fun information(apiKey: String, hash: String, instanceId: String): CloudconeCallResult {
-		return CloudconeCallResult(
+		informationCalls += instanceId
+		return informationResult ?: CloudconeCallResult(
 			ok = true,
 			message = null,
 			instances = listOf(CloudconeInstance(instanceId, null, null))

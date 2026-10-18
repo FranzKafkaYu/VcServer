@@ -1191,7 +1191,18 @@ private fun VendorPromptDialog(
 		)
 		is VendorPrompt.ServiceInfo -> AlertDialog(
 			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			title = { Text(stringResource(R.string.bandwagon_service_info)) },
 			text = { BandwagonServiceInfoPanel(prompt.info) },
+			confirmButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.confirm))
+				}
+			}
+		)
+		is VendorPrompt.CloudconeInfo -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			title = { Text(stringResource(R.string.bandwagon_service_info)) },
+			text = { CloudconeInstanceInfoPanel(prompt.info) },
 			confirmButton = {
 				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
 					Text(stringResource(R.string.confirm))

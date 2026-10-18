@@ -135,6 +135,10 @@
 	<string name="cloudcone_instance_in_use">This instance is already linked to another server</string>
 	<string name="cloudcone_list_failed">Failed to load instances: %1$s</string>
 	<string name="cloudcone_status_failed">Failed to query power status: %1$s</string>
+	<string name="cloudcone_service_info_failed">Failed to query server info: %1$s</string>
+	<string name="cloudcone_not_bound">This server is not linked to CloudCone</string>
+	<string name="cloudcone_info_cpu">CPU</string>
+	<string name="cloudcone_info_power">Power</string>
 	<string name="cloudcone_confirm_unbind">Unlinking removes this server from the instance. The SSH configuration and CloudCone account stay.</string>
 	<string name="cloudcone_not_linked">Not in the server list</string>
 	<string name="cloudcone_linked">In the server list</string>
