@@ -35,7 +35,7 @@ class VirtualizorExportResetTest {
 	}
 
 	@Test
-	fun settingsResetDoesNotDeleteVirtualizorAccount() {
-		assertFalse(SettingsServiceImpl.RESET_DELETES_VIRTUALIZOR_ACCOUNT)
+	fun settingsResetDoesNotDeleteVirtualizorLinks() {
+		assertFalse(SettingsServiceImpl.RESET_DELETES_VIRTUALIZOR_LINKS)
 	}
 }

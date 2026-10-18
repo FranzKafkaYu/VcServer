@@ -67,6 +67,6 @@ class SettingsServiceImpl(
 
 	companion object {
 		internal const val RESET_DELETES_CLOUDCONE_ACCOUNT = false
-		internal const val RESET_DELETES_VIRTUALIZOR_ACCOUNT = false
+		internal const val RESET_DELETES_VIRTUALIZOR_LINKS = false
 	}
 }

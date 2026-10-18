@@ -18,8 +18,8 @@ interface VirtualizorLinkDao {
 	@Query("SELECT * FROM virtualizor_links WHERE serverId = :serverId")
 	suspend fun getByServerId(serverId: Long): VirtualizorLink?
 
-	@Query("SELECT * FROM virtualizor_links WHERE vpsid = :vpsid")
-	suspend fun getByVpsid(vpsid: String): VirtualizorLink?
+	@Query("SELECT * FROM virtualizor_links WHERE host = :host AND port = :port AND vpsid = :vpsid")
+	suspend fun getByPanelVps(host: String, port: Int, vpsid: String): VirtualizorLink?
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insert(link: VirtualizorLink): Long

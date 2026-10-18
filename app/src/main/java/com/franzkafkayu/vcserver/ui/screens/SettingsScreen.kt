@@ -45,8 +45,7 @@ import com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel
 fun SettingsScreen(
 	viewModel: SettingsViewModel,
 	onBackClick: () -> Unit,
-	onAboutClick: () -> Unit,
-	onVirtualizorAccountClick: () -> Unit = {}
+	onAboutClick: () -> Unit
 ) {
 	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 	val snackbarHostState = remember { SnackbarHostState() }
@@ -220,23 +219,6 @@ fun SettingsScreen(
 							}
 						},
 						isError = defaultSshPortText.toIntOrNull()?.let { it !in 1..65535 } ?: false
-					)
-				}
-			}
-
-			Card(
-				onClick = onVirtualizorAccountClick,
-				modifier = Modifier.fillMaxWidth()
-			) {
-				Column(modifier = Modifier.padding(16.dp)) {
-					Text(
-						text = stringResource(R.string.virtualizor_account_title),
-						style = MaterialTheme.typography.titleMedium
-					)
-					Text(
-						text = stringResource(R.string.virtualizor_account_entry),
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onSurfaceVariant
 					)
 				}
 			}

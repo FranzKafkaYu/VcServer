@@ -1,32 +1,12 @@
 package com.franzkafkayu.vcserver.services
 
-import com.franzkafkayu.vcserver.data.dao.VirtualizorAccountDao
 import com.franzkafkayu.vcserver.data.dao.VirtualizorLinkDao
-import com.franzkafkayu.vcserver.models.VirtualizorAccount
 import com.franzkafkayu.vcserver.models.VirtualizorLink
 import kotlinx.coroutines.flow.Flow
 
-interface VirtualizorAccountStore {
-	suspend fun get(): VirtualizorAccount?
-	suspend fun save(account: VirtualizorAccount)
-	suspend fun delete()
-	fun observe(): Flow<VirtualizorAccount?>
-}
-
-class RoomVirtualizorAccountStore(
-	private val dao: VirtualizorAccountDao
-) : VirtualizorAccountStore {
-	override suspend fun get(): VirtualizorAccount? = dao.get()
-	override suspend fun save(account: VirtualizorAccount) {
-		dao.upsert(account.copy(id = VirtualizorAccount.SINGLE_ID))
-	}
-	override suspend fun delete() = dao.delete()
-	override fun observe(): Flow<VirtualizorAccount?> = dao.observe()
-}
-
 interface VirtualizorLinkStore {
 	suspend fun getByServerId(serverId: Long): VirtualizorLink?
-	suspend fun getByVpsid(vpsid: String): VirtualizorLink?
+	suspend fun getByPanelVps(host: String, port: Int, vpsid: String): VirtualizorLink?
 	suspend fun all(): List<VirtualizorLink>
 	suspend fun insert(link: VirtualizorLink)
 	suspend fun deleteByServerId(serverId: Long)
@@ -38,7 +18,8 @@ class RoomVirtualizorLinkStore(
 	private val dao: VirtualizorLinkDao
 ) : VirtualizorLinkStore {
 	override suspend fun getByServerId(serverId: Long): VirtualizorLink? = dao.getByServerId(serverId)
-	override suspend fun getByVpsid(vpsid: String): VirtualizorLink? = dao.getByVpsid(vpsid)
+	override suspend fun getByPanelVps(host: String, port: Int, vpsid: String): VirtualizorLink? =
+		dao.getByPanelVps(host, port, vpsid)
 	override suspend fun all(): List<VirtualizorLink> = dao.all()
 	override suspend fun insert(link: VirtualizorLink) {
 		dao.insert(link.copy(id = 0))
@@ -60,7 +41,6 @@ sealed class VirtualizorBindResult {
 	data object Success : VirtualizorBindResult()
 	data object OtherVendor : VirtualizorBindResult()
 	data object InstanceInUse : VirtualizorBindResult()
-	data object NoAccount : VirtualizorBindResult()
 	data class Failed(val message: String) : VirtualizorBindResult()
 }
 
@@ -85,7 +65,6 @@ sealed class VirtualizorTrafficResult {
 }
 
 class VirtualizorCoordinator(
-	private val accounts: VirtualizorAccountStore,
 	private val links: VirtualizorLinkStore,
 	private val bandwagonLinks: BandwagonLinkStore,
 	private val cloudconeLinks: CloudconeLinkStore,
@@ -93,124 +72,112 @@ class VirtualizorCoordinator(
 	private val keys: BandwagonKeyStore,
 	private val closeSessions: (Long) -> Unit
 ) {
-	fun observeAccount(): Flow<VirtualizorAccount?> = accounts.observe()
 	fun observeLinks(): Flow<List<VirtualizorLink>> = links.observeAll()
 
-	suspend fun saveAccount(
+	suspend fun listInstances(
+		host: String,
+		port: Int,
+		apiKey: String,
+		apiPass: String,
+		confirmedPin: String? = null
+	): VirtualizorCallResult {
+		val trimmedHost = host.trim()
+		val trimmedKey = apiKey.trim()
+		val trimmedPass = apiPass.trim()
+		if (trimmedHost.isEmpty() || trimmedKey.isEmpty() || trimmedPass.isEmpty()) {
+			return VirtualizorCallResult(ok = false, message = "host, API key and API pass are required")
+		}
+		if (port !in 1..65535) {
+			return VirtualizorCallResult(ok = false, message = "invalid port")
+		}
+		return try {
+			client.list(trimmedHost, port, trimmedKey, trimmedPass, confirmedPin)
+		} catch (e: Exception) {
+			VirtualizorCallResult(ok = false, message = e.message ?: "request failed")
+		}
+	}
+
+	suspend fun previewInstances(
 		host: String,
 		port: Int,
 		apiKey: String,
 		apiPass: String,
 		confirmedPin: String? = null
 	): VirtualizorAccountResult {
-		val trimmedHost = host.trim()
-		val trimmedKey = apiKey.trim()
-		val trimmedPass = apiPass.trim()
-		if (trimmedHost.isEmpty() || trimmedKey.isEmpty() || trimmedPass.isEmpty()) {
-			return VirtualizorAccountResult.Failed("host, API key and API pass are required")
-		}
-		if (port !in 1..65535) {
-			return VirtualizorAccountResult.Failed("invalid port")
-		}
-		val listed = try {
-			client.list(trimmedHost, port, trimmedKey, trimmedPass, confirmedPin)
-		} catch (e: Exception) {
-			return VirtualizorAccountResult.Failed(e.message ?: "request failed")
-		}
+		val listed = listInstances(host, port, apiKey, apiPass, confirmedPin)
 		if (!listed.ok && !listed.certPinSha256.isNullOrBlank() && confirmedPin == null) {
 			return VirtualizorAccountResult.NeedsCertificatePin(listed.certPinSha256)
 		}
 		if (!listed.ok) {
 			return VirtualizorAccountResult.Failed(listed.message ?: "request failed")
 		}
-		val encryptedKey = keys.encrypt(trimmedKey)
-		val encryptedPass = keys.encrypt(trimmedPass)
-		val previous = accounts.get()
+		return VirtualizorAccountResult.Success
+	}
+
+	suspend fun bind(
+		serverId: Long,
+		vpsid: String,
+		host: String,
+		port: Int,
+		apiKey: String,
+		apiPass: String,
+		certPinSha256: String? = null
+	): VirtualizorBindResult {
+		if (bandwagonLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
+		if (cloudconeLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
+		if (links.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
+		val trimmedHost = host.trim()
+		val occupied = links.getByPanelVps(trimmedHost, port, vpsid)
+		if (occupied != null && occupied.serverId != serverId) return VirtualizorBindResult.InstanceInUse
+		val encryptedKey = keys.encrypt(apiKey.trim())
+		val encryptedPass = keys.encrypt(apiPass.trim())
 		return try {
-			if (previous != null) {
-				links.deleteAll()
-			}
-			accounts.save(
-				VirtualizorAccount(
+			links.insert(
+				VirtualizorLink(
+					serverId = serverId,
+					vpsid = vpsid,
 					host = trimmedHost,
 					port = port,
 					encryptedApiKey = encryptedKey,
 					encryptedApiPass = encryptedPass,
-					certPinSha256 = confirmedPin ?: previous
-						?.takeIf { it.host == trimmedHost && it.port == port }
-						?.certPinSha256
+					certPinSha256 = certPinSha256
 				)
 			)
-			if (previous != null) {
-				if (previous.encryptedApiKey != encryptedKey) keys.delete(previous.encryptedApiKey)
-				if (previous.encryptedApiPass != encryptedPass) keys.delete(previous.encryptedApiPass)
-			}
-			VirtualizorAccountResult.Success
+			VirtualizorBindResult.Success
 		} catch (e: Exception) {
 			keys.delete(encryptedKey)
 			keys.delete(encryptedPass)
-			VirtualizorAccountResult.Failed(e.message ?: "save failed")
-		}
-	}
-
-	suspend fun deleteAccount() {
-		val previous = accounts.get()
-		links.deleteAll()
-		accounts.delete()
-		previous?.let {
-			keys.delete(it.encryptedApiKey)
-			keys.delete(it.encryptedApiPass)
-		}
-	}
-
-	suspend fun onServerDeleted(serverId: Long) {
-		links.deleteByServerId(serverId)
-	}
-
-	suspend fun bind(serverId: Long, vpsid: String): VirtualizorBindResult {
-		if (bandwagonLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
-		if (cloudconeLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
-		val occupied = links.getByVpsid(vpsid)
-		if (occupied != null && occupied.serverId != serverId) return VirtualizorBindResult.InstanceInUse
-		if (accounts.get() == null) return VirtualizorBindResult.NoAccount
-		if (links.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
-		return try {
-			links.insert(VirtualizorLink(serverId = serverId, vpsid = vpsid))
-			VirtualizorBindResult.Success
-		} catch (e: Exception) {
 			VirtualizorBindResult.Failed(e.message ?: "save failed")
 		}
 	}
 
 	suspend fun unbind(serverId: Long) {
-		links.deleteByServerId(serverId)
+		onServerDeleted(serverId)
 	}
 
-	suspend fun listInstances(): VirtualizorCallResult {
-		val session = session() ?: return VirtualizorCallResult(ok = false, message = "no account")
-		return try {
-			client.list(session.host, session.port, session.apiKey, session.apiPass, session.pin)
-		} catch (e: Exception) {
-			VirtualizorCallResult(ok = false, message = e.message ?: "request failed")
-		}
+	suspend fun onServerDeleted(serverId: Long) {
+		val previous = links.getByServerId(serverId) ?: return
+		links.deleteByServerId(serverId)
+		keys.delete(previous.encryptedApiKey)
+		keys.delete(previous.encryptedApiPass)
 	}
 
 	suspend fun power(
-		vpsid: String,
+		serverId: Long,
 		action: VirtualizorPowerAction,
 		confirmed: Boolean
 	): VirtualizorPowerResult {
 		if (action != VirtualizorPowerAction.START && !confirmed) {
 			return VirtualizorPowerResult.NeedsConfirmation
 		}
-		val session = session() ?: return VirtualizorPowerResult.NoAccount
+		val session = session(serverId) ?: return VirtualizorPowerResult.NoAccount
 		val result = try {
 			client.power(
 				session.host,
 				session.port,
 				session.apiKey,
 				session.apiPass,
-				vpsid,
+				session.vpsid,
 				action.endpoint(),
 				session.pin
 			)
@@ -219,28 +186,33 @@ class VirtualizorCoordinator(
 		}
 		if (!result.ok) return VirtualizorPowerResult.Failed(result.message ?: "request failed")
 		if (action != VirtualizorPowerAction.START) {
-			links.getByVpsid(vpsid)?.let { closeSessions(it.serverId) }
+			closeSessions(serverId)
 		}
 		return VirtualizorPowerResult.Accepted
 	}
 
-	suspend fun status(vpsid: String): VirtualizorStatusResult {
-		val listed = listInstances()
+	suspend fun status(serverId: Long): VirtualizorStatusResult {
+		val session = session(serverId) ?: return VirtualizorStatusResult.Failed("not bound")
+		val listed = try {
+			client.list(session.host, session.port, session.apiKey, session.apiPass, session.pin)
+		} catch (e: Exception) {
+			return VirtualizorStatusResult.Failed(e.message ?: "request failed")
+		}
 		if (!listed.ok) return VirtualizorStatusResult.Failed(listed.message ?: "request failed")
-		val power = listed.instances.firstOrNull { it.id == vpsid }?.powerStatus
+		val power = listed.instances.firstOrNull { it.id == session.vpsid }?.powerStatus
 		if (power.isNullOrBlank()) return VirtualizorStatusResult.Unknown
 		return VirtualizorStatusResult.Known(power)
 	}
 
-	suspend fun bandwidth(vpsid: String, show: String? = currentYearMonth()): VirtualizorTrafficResult {
-		val session = session() ?: return VirtualizorTrafficResult.NoAccount
+	suspend fun bandwidth(serverId: Long, show: String? = currentYearMonth()): VirtualizorTrafficResult {
+		val session = session(serverId) ?: return VirtualizorTrafficResult.NoAccount
 		val result = try {
 			client.bandwidth(
 				session.host,
 				session.port,
 				session.apiKey,
 				session.apiPass,
-				vpsid,
+				session.vpsid,
 				show,
 				session.pin
 			)
@@ -262,14 +234,15 @@ class VirtualizorCoordinator(
 		}
 	}
 
-	private suspend fun session(): PanelSession? {
-		val account = accounts.get() ?: return null
+	private suspend fun session(serverId: Long): PanelSession? {
+		val link = links.getByServerId(serverId) ?: return null
 		return PanelSession(
-			host = account.host,
-			port = account.port,
-			apiKey = keys.decrypt(account.encryptedApiKey),
-			apiPass = keys.decrypt(account.encryptedApiPass),
-			pin = account.certPinSha256
+			host = link.host,
+			port = link.port,
+			apiKey = keys.decrypt(link.encryptedApiKey),
+			apiPass = keys.decrypt(link.encryptedApiPass),
+			vpsid = link.vpsid,
+			pin = link.certPinSha256
 		)
 	}
 
@@ -286,6 +259,7 @@ class VirtualizorCoordinator(
 		val port: Int,
 		val apiKey: String,
 		val apiPass: String,
+		val vpsid: String,
 		val pin: String?
 	)
 }

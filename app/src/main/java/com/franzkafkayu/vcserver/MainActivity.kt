@@ -26,7 +26,6 @@ import com.franzkafkayu.vcserver.services.HttpVirtualizorClient
 import com.franzkafkayu.vcserver.services.RoomBandwagonLinkStore
 import com.franzkafkayu.vcserver.services.RoomCloudconeAccountStore
 import com.franzkafkayu.vcserver.services.RoomCloudconeLinkStore
-import com.franzkafkayu.vcserver.services.RoomVirtualizorAccountStore
 import com.franzkafkayu.vcserver.services.RoomVirtualizorLinkStore
 import com.franzkafkayu.vcserver.services.SecureBandwagonKeyStore
 import com.franzkafkayu.vcserver.services.VirtualizorCoordinator
@@ -98,7 +97,8 @@ class MainActivity : ComponentActivity() {
 				AppDatabase.MIGRATION_6_7,
 				AppDatabase.MIGRATION_7_8,
 				AppDatabase.MIGRATION_8_9,
-				AppDatabase.MIGRATION_9_10
+				AppDatabase.MIGRATION_9_10,
+				AppDatabase.MIGRATION_10_11
 			)
 			.build()
 
@@ -107,7 +107,6 @@ class MainActivity : ComponentActivity() {
 		val bandwagonStore = RoomBandwagonLinkStore(database.bandwagonLinkDao())
 		val cloudconeAccounts = RoomCloudconeAccountStore(database.cloudconeAccountDao())
 		val cloudconeLinks = RoomCloudconeLinkStore(database.cloudconeLinkDao())
-		val virtualizorAccounts = RoomVirtualizorAccountStore(database.virtualizorAccountDao())
 		val virtualizorLinks = RoomVirtualizorLinkStore(database.virtualizorLinkDao())
 		val vendorKeys = SecureBandwagonKeyStore(secureStorage)
 		val bandwagon = BandwagonPowerCoordinator(
@@ -129,7 +128,6 @@ class MainActivity : ComponentActivity() {
 			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
 		)
 		val virtualizor = VirtualizorCoordinator(
-			accounts = virtualizorAccounts,
 			links = virtualizorLinks,
 			bandwagonLinks = bandwagonStore,
 			cloudconeLinks = cloudconeLinks,
@@ -183,8 +181,7 @@ class MainActivity : ComponentActivity() {
 			serverManagementService,
 			settingsService,
 			serverGroupRepository,
-			cloudcone = cloudcone,
-			virtualizor = virtualizor
+			cloudcone = cloudcone
 		)
 
 		setContent {
@@ -209,8 +206,7 @@ class MainActivity : ComponentActivity() {
 						terminalPreferences = terminalPreferences,
 						settingsService = settingsService,
 						exportImportService = exportImportService,
-						sftpFileTransferService = sftpFileTransferService,
-						virtualizor = virtualizor
+						sftpFileTransferService = sftpFileTransferService
 					)
 				}
 			}

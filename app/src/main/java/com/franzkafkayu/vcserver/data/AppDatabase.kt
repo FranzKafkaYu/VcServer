@@ -10,7 +10,6 @@ import com.franzkafkayu.vcserver.data.dao.CloudconeAccountDao
 import com.franzkafkayu.vcserver.data.dao.CloudconeLinkDao
 import com.franzkafkayu.vcserver.data.dao.ServerDao
 import com.franzkafkayu.vcserver.data.dao.ServerGroupDao
-import com.franzkafkayu.vcserver.data.dao.VirtualizorAccountDao
 import com.franzkafkayu.vcserver.data.dao.VirtualizorLinkDao
 import com.franzkafkayu.vcserver.data.converters.AuthTypeConverter
 import com.franzkafkayu.vcserver.data.converters.ProxyTypeConverter
@@ -19,7 +18,6 @@ import com.franzkafkayu.vcserver.models.CloudconeAccount
 import com.franzkafkayu.vcserver.models.CloudconeLink
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerGroup
-import com.franzkafkayu.vcserver.models.VirtualizorAccount
 import com.franzkafkayu.vcserver.models.VirtualizorLink
 
 /**
@@ -32,10 +30,9 @@ import com.franzkafkayu.vcserver.models.VirtualizorLink
 		BandwagonLink::class,
 		CloudconeAccount::class,
 		CloudconeLink::class,
-		VirtualizorAccount::class,
 		VirtualizorLink::class
 	],
-	version = 10,
+	version = 11,
 	exportSchema = false
 )
 @TypeConverters(AuthTypeConverter::class, ProxyTypeConverter::class)
@@ -45,7 +42,6 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun bandwagonLinkDao(): BandwagonLinkDao
 	abstract fun cloudconeAccountDao(): CloudconeAccountDao
 	abstract fun cloudconeLinkDao(): CloudconeLinkDao
-	abstract fun virtualizorAccountDao(): VirtualizorAccountDao
 	abstract fun virtualizorLinkDao(): VirtualizorLinkDao
 
 	companion object {
@@ -200,6 +196,59 @@ abstract class AppDatabase : RoomDatabase() {
 				)
 			}
 		}
+
+		val MIGRATION_10_11 = object : Migration(10, 11) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("ALTER TABLE `virtualizor_links` ADD COLUMN `host` TEXT NOT NULL DEFAULT ''")
+				database.execSQL("ALTER TABLE `virtualizor_links` ADD COLUMN `port` INTEGER NOT NULL DEFAULT 0")
+				database.execSQL("ALTER TABLE `virtualizor_links` ADD COLUMN `encryptedApiKey` TEXT NOT NULL DEFAULT ''")
+				database.execSQL("ALTER TABLE `virtualizor_links` ADD COLUMN `encryptedApiPass` TEXT NOT NULL DEFAULT ''")
+				database.execSQL("ALTER TABLE `virtualizor_links` ADD COLUMN `certPinSha256` TEXT")
+				database.execSQL(
+					"""
+					UPDATE `virtualizor_links` SET
+						host = (SELECT host FROM virtualizor_account WHERE id = 1),
+						port = (SELECT port FROM virtualizor_account WHERE id = 1),
+						encryptedApiKey = (SELECT encryptedApiKey FROM virtualizor_account WHERE id = 1),
+						encryptedApiPass = (SELECT encryptedApiPass FROM virtualizor_account WHERE id = 1),
+						certPinSha256 = (SELECT certPinSha256 FROM virtualizor_account WHERE id = 1)
+					WHERE EXISTS (SELECT 1 FROM virtualizor_account WHERE id = 1)
+					""".trimIndent()
+				)
+				database.execSQL("DELETE FROM `virtualizor_links` WHERE host = '' OR encryptedApiKey = ''")
+				database.execSQL("DROP INDEX IF EXISTS `index_virtualizor_links_vpsid`")
+				database.execSQL(
+					"CREATE UNIQUE INDEX IF NOT EXISTS `index_virtualizor_links_host_port_vpsid` ON `virtualizor_links` (`host`, `port`, `vpsid`)"
+				)
+				database.execSQL("DROP TABLE IF EXISTS `virtualizor_account`")
+			}
+		}
+	}
+}
+
+internal data class VirtualizorLegacyAccount(
+	val host: String,
+	val port: Int,
+	val encryptedApiKey: String,
+	val encryptedApiPass: String,
+	val certPinSha256: String?
+)
+
+internal fun migrateVirtualizorLinksFromAccount(
+	account: VirtualizorLegacyAccount?,
+	links: List<Pair<Long, String>>
+): List<VirtualizorLink> {
+	if (account == null) return emptyList()
+	return links.map { (serverId, vpsid) ->
+		VirtualizorLink(
+			serverId = serverId,
+			vpsid = vpsid,
+			host = account.host,
+			port = account.port,
+			encryptedApiKey = account.encryptedApiKey,
+			encryptedApiPass = account.encryptedApiPass,
+			certPinSha256 = account.certPinSha256
+		)
 	}
 }
 

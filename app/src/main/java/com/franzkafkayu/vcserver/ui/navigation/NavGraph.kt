@@ -48,7 +48,6 @@ sealed class Screen(val route: String) {
     }
 
     object Settings : Screen("settings")
-    object VirtualizorAccount : Screen("virtualizor_account")
     object About : Screen("about")
     object PrivacyPolicy : Screen("privacy_policy")
 }
@@ -69,8 +68,7 @@ fun NavGraph(
     terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences,
     settingsService: com.franzkafkayu.vcserver.services.SettingsService,
     exportImportService: com.franzkafkayu.vcserver.services.DatabaseExportImportService,
-    sftpFileTransferService: com.franzkafkayu.vcserver.services.SftpFileTransferService,
-    virtualizor: com.franzkafkayu.vcserver.services.VirtualizorCoordinator
+    sftpFileTransferService: com.franzkafkayu.vcserver.services.SftpFileTransferService
 ) {
     NavHost(
         navController = navController,
@@ -232,35 +230,6 @@ fun NavGraph(
                 },
                 onAboutClick = {
                     navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.About.route)
-                },
-                onVirtualizorAccountClick = {
-                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.VirtualizorAccount.route)
-                }
-            )
-        }
-        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.VirtualizorAccount.route) {
-            val accountViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.VirtualizorAccountViewModel>(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        return com.franzkafkayu.vcserver.ui.viewmodels.VirtualizorAccountViewModel(
-                            virtualizor,
-                            serverManagementService
-                        ) as T
-                    }
-                }
-            )
-            com.franzkafkayu.vcserver.ui.screens.VirtualizorAccountScreen(
-                viewModel = accountViewModel,
-                onBackClick = { navController.popBackStack() },
-                onAddServer = { vpsid, host ->
-                    addServerViewModel.prepareVirtualizorServer(vpsid, host)
-                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.AddServer.route)
-                },
-                onOpenServer = { serverId ->
-                    navController.navigate(
-                        com.franzkafkayu.vcserver.ui.navigation.Screen.EditServer.createRoute(serverId)
-                    )
                 }
             )
         }

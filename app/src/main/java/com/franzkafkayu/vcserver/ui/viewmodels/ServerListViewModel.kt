@@ -98,11 +98,6 @@ class ServerListViewModel(
 				publishVendors()
 			}
 		}
-		viewModelScope.launch {
-			virtualizor.observeAccount().collect { account ->
-				_uiState.value = _uiState.value.copy(hasVirtualizorAccount = account != null)
-			}
-		}
 	}
 
 	private var bandwagonIds: Set<Long> = emptySet()
@@ -341,11 +336,7 @@ class ServerListViewModel(
 				}
 			}
 			VendorKind.VIRTUALIZOR -> {
-				if (_uiState.value.hasVirtualizorAccount) {
-					loadVirtualizorInstances(prompt.serverId)
-				} else {
-					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.VirtualizorSecrets(prompt.serverId))
-				}
+				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.VirtualizorSecrets(prompt.serverId))
 			}
 		}
 	}
@@ -408,8 +399,15 @@ class ServerListViewModel(
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.VirtualizorSecrets ?: return
 		val parsedPort = port.toIntOrNull() ?: return
 		viewModelScope.launch {
-			when (val result = virtualizor.saveAccount(host, parsedPort, apiKey, apiPass, confirmedPin)) {
-				VirtualizorAccountResult.Success -> loadVirtualizorInstances(prompt.serverId)
+			when (val result = virtualizor.previewInstances(host, parsedPort, apiKey, apiPass, confirmedPin)) {
+				VirtualizorAccountResult.Success -> loadVirtualizorInstances(
+					prompt.serverId,
+					host,
+					parsedPort,
+					apiKey,
+					apiPass,
+					confirmedPin
+				)
 				is VirtualizorAccountResult.NeedsCertificatePin -> {
 					_uiState.value = _uiState.value.copy(
 						vendorPrompt = prompt.copy(pendingPin = result.sha256)
@@ -428,7 +426,15 @@ class ServerListViewModel(
 	fun bindVirtualizorInstance(vpsid: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.VirtualizorPick ?: return
 		viewModelScope.launch {
-			when (val result = virtualizor.bind(prompt.serverId, vpsid)) {
+			when (val result = virtualizor.bind(
+				prompt.serverId,
+				vpsid,
+				prompt.host,
+				prompt.port,
+				prompt.apiKey,
+				prompt.apiPass,
+				prompt.certPinSha256
+			)) {
 				VirtualizorBindResult.Success -> {
 					_uiState.value = _uiState.value.copy(
 						vendorPrompt = null,
@@ -438,7 +444,6 @@ class ServerListViewModel(
 				}
 				VirtualizorBindResult.OtherVendor -> notice(R.string.vendor_already_bound)
 				VirtualizorBindResult.InstanceInUse -> notice(R.string.virtualizor_instance_in_use)
-				VirtualizorBindResult.NoAccount -> notice(R.string.virtualizor_no_account)
 				is VirtualizorBindResult.Failed -> {
 					_uiState.value = _uiState.value.copy(
 						noticeMessageRes = R.string.virtualizor_account_failed,
@@ -498,9 +503,16 @@ class ServerListViewModel(
 		}
 	}
 
-	private fun loadVirtualizorInstances(serverId: Long) {
+	private fun loadVirtualizorInstances(
+		serverId: Long,
+		host: String,
+		port: Int,
+		apiKey: String,
+		apiPass: String,
+		certPinSha256: String?
+	) {
 		viewModelScope.launch {
-			val listed = virtualizor.listInstances()
+			val listed = virtualizor.listInstances(host, port, apiKey, apiPass, certPinSha256)
 			if (!listed.ok) {
 				_uiState.value = _uiState.value.copy(
 					noticeMessageRes = R.string.virtualizor_list_failed,
@@ -508,10 +520,22 @@ class ServerListViewModel(
 				)
 				return@launch
 			}
-			val taken = virtualizorLinkRows.map { it.vpsid }.toSet()
+			val taken = virtualizorLinkRows
+				.filter { it.host == host.trim() && it.port == port }
+				.map { it.vpsid }
+				.toSet()
 			val available = listed.instances.filter { it.id !in taken }
 			_uiState.value = _uiState.value.copy(
-				vendorPrompt = VendorPrompt.VirtualizorPick(serverId, available, virtualizorIds)
+				vendorPrompt = VendorPrompt.VirtualizorPick(
+					serverId = serverId,
+					instances = available,
+					boundServerIds = virtualizorIds,
+					host = host.trim(),
+					port = port,
+					apiKey = apiKey.trim(),
+					apiPass = apiPass.trim(),
+					certPinSha256 = certPinSha256
+				)
 			)
 		}
 	}
@@ -561,13 +585,12 @@ class ServerListViewModel(
 					showCloudconePower(cloudcone.power(instanceId, action, confirmed = true))
 				}
 				VendorKind.VIRTUALIZOR -> {
-					val vpsid = virtualizorVpsid(serverId) ?: return@launch
 					val action = when (stop) {
 						null -> VirtualizorPowerAction.START
 						true -> VirtualizorPowerAction.STOP
 						false -> VirtualizorPowerAction.RESTART
 					}
-					showVirtualizorPower(virtualizor.power(vpsid, action, confirmed = true))
+					showVirtualizorPower(virtualizor.power(serverId, action, confirmed = true))
 				}
 			}
 		}
@@ -576,11 +599,6 @@ class ServerListViewModel(
 	private suspend fun cloudconeInstanceId(serverId: Long): String? {
 		return cloudconeLinkRows.find { it.serverId == serverId }?.instanceId
 			?: cloudcone.observeLinks().first().find { it.serverId == serverId }?.instanceId
-	}
-
-	private suspend fun virtualizorVpsid(serverId: Long): String? {
-		return virtualizorLinkRows.find { it.serverId == serverId }?.vpsid
-			?: virtualizor.observeLinks().first().find { it.serverId == serverId }?.vpsid
 	}
 
 	private fun queryServiceInfo(serverId: Long, vendor: VendorKind?) {
@@ -743,8 +761,7 @@ class ServerListViewModel(
 	private fun queryBandwidth(serverId: Long, vendor: VendorKind?) {
 		if (vendor != VendorKind.VIRTUALIZOR) return
 		viewModelScope.launch {
-			val vpsid = virtualizorVpsid(serverId) ?: return@launch
-			when (val result = virtualizor.bandwidth(vpsid)) {
+			when (val result = virtualizor.bandwidth(serverId)) {
 				is VirtualizorTrafficResult.Known -> {
 					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Bandwidth(result.bandwidth))
 				}
@@ -781,8 +798,7 @@ class ServerListViewModel(
 					}
 				}
 				VendorKind.VIRTUALIZOR -> {
-					val vpsid = virtualizorVpsid(serverId) ?: return@launch
-					when (val result = virtualizor.status(vpsid)) {
+					when (val result = virtualizor.status(serverId)) {
 						is VirtualizorStatusResult.Known -> {
 							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Status(result.powerStatus))
 						}
@@ -1092,7 +1108,6 @@ data class ServerListUiState(
 	val noticeMessageArg: String? = null,
 	val serverVendors: Map<Long, VendorKind> = emptyMap(),
 	val hasCloudconeAccount: Boolean = false,
-	val hasVirtualizorAccount: Boolean = false,
 	val vendorPrompt: VendorPrompt? = null
 )
 
@@ -1109,7 +1124,12 @@ sealed class VendorPrompt {
 	data class VirtualizorPick(
 		val serverId: Long,
 		val instances: List<VirtualizorVps>,
-		val boundServerIds: Set<Long>
+		val boundServerIds: Set<Long>,
+		val host: String,
+		val port: Int,
+		val apiKey: String,
+		val apiPass: String,
+		val certPinSha256: String?
 	) : VendorPrompt()
 	data class ConfirmStop(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
 	data class ConfirmRestart(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
