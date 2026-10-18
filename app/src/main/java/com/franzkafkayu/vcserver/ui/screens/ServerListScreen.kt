@@ -985,6 +985,8 @@ private fun VendorPromptDialog(
 			var port by remember(prompt.serverId) { mutableStateOf("4083") }
 			var apiKey by remember(prompt.serverId) { mutableStateOf("") }
 			var apiPass by remember(prompt.serverId) { mutableStateOf("") }
+			var apiKeyVisible by remember(prompt.serverId) { mutableStateOf(false) }
+			var apiPassVisible by remember(prompt.serverId) { mutableStateOf(false) }
 			AlertDialog(
 				onDismissRequest = { viewModel.dismissVendorPrompt() },
 				title = { Text(stringResource(R.string.virtualizor_account_title)) },
@@ -1010,14 +1012,34 @@ private fun VendorPromptDialog(
 								onValueChange = { apiKey = it },
 								label = { Text(stringResource(R.string.virtualizor_api_key)) },
 								singleLine = true,
-								visualTransformation = PasswordVisualTransformation()
+								visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+								trailingIcon = {
+									IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+										Icon(
+											imageVector = if (apiKeyVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+											contentDescription = stringResource(
+												if (apiKeyVisible) R.string.hide_password else R.string.show_password
+											)
+										)
+									}
+								}
 							)
 							OutlinedTextField(
 								value = apiPass,
 								onValueChange = { apiPass = it },
 								label = { Text(stringResource(R.string.virtualizor_api_pass)) },
 								singleLine = true,
-								visualTransformation = PasswordVisualTransformation()
+								visualTransformation = if (apiPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+								trailingIcon = {
+									IconButton(onClick = { apiPassVisible = !apiPassVisible }) {
+										Icon(
+											imageVector = if (apiPassVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+											contentDescription = stringResource(
+												if (apiPassVisible) R.string.hide_password else R.string.show_password
+											)
+										)
+									}
+								}
 							)
 						}
 					}
