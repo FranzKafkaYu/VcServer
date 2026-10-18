@@ -98,7 +98,14 @@ fun TerminalScreen(
 		snackbarHost = { SnackbarHost(snackbarHostState) },
 		topBar = {
 			TopAppBar(
-				title = { Text(stringResource(R.string.terminal) + " - " + viewModel.server.name) },
+				title = {
+					Text(
+						text = viewModel.server.name,
+						modifier = Modifier.fillMaxWidth(),
+						maxLines = 1,
+						overflow = TextOverflow.Ellipsis
+					)
+				},
 				navigationIcon = {
 					IconButton(onClick = onBackClick) {
 						Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cancel))
@@ -197,7 +204,8 @@ fun TerminalScreen(
 						IconButton(onClick = { viewModel.newTab() }) {
 							Icon(
 								Icons.Default.Add,
-								contentDescription = stringResource(R.string.terminal_new_tab)
+								contentDescription = stringResource(R.string.terminal_new_tab),
+								tint = Color.White
 							)
 						}
 					}
