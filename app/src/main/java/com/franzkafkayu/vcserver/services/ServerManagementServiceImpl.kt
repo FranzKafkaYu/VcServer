@@ -15,7 +15,10 @@ import kotlinx.coroutines.flow.first
 class ServerManagementServiceImpl(
 	private val serverRepository: ServerRepository,
 	private val sshAuthenticationService: SshAuthenticationService,
-	private val secureStorage: SecureStorage
+	private val secureStorage: SecureStorage,
+	private val bandwagon: BandwagonPowerCoordinator,
+	private val cloudcone: CloudconeCoordinator,
+	private val virtualizor: VirtualizorCoordinator
 ) : ServerManagementService {
 	override fun getAllServers(): Flow<List<Server>> {
 		return serverRepository.getAllServers()
@@ -244,9 +247,11 @@ class ServerManagementServiceImpl(
 			server.encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }
 			server.encryptedPrivateKey?.let { secureStorage.deleteEncryptedFile(it) }
 			server.encryptedProxyPassword?.let { secureStorage.deleteEncryptedFile(it) }
-			
-			// 从数据库删除
+
 			serverRepository.deleteServer(server)
+			bandwagon.onServerDeleted(server.id)
+			cloudcone.onServerDeleted(server.id)
+			virtualizor.onServerDeleted(server.id)
 			Result.success(Unit)
 		} catch (e: Exception) {
 			Result.failure(e)
@@ -321,6 +326,7 @@ class ServerManagementServiceImpl(
 				updatedAt = now
 			)
 			val id = serverRepository.insertServer(duplicate)
+			// 搬瓦工绑定按 serverId 存放，不随 SSH 配置复制
 			Result.success(id)
 		} catch (e: Exception) {
 			encryptedPassword?.let { secureStorage.deleteEncryptedFile(it) }

@@ -64,4 +64,9 @@ class SettingsServiceImpl(
 	override suspend fun resetToDefaults() {
 		settingsRepository.resetToDefaults()
 	}
+
+	companion object {
+		internal const val RESET_DELETES_CLOUDCONE_ACCOUNT = false
+		internal const val RESET_DELETES_VIRTUALIZOR_ACCOUNT = false
+	}
 }

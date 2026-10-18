@@ -41,10 +41,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
-import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.models.Server
+import com.franzkafkayu.vcserver.services.VendorKind
+import com.franzkafkayu.vcserver.services.VendorMenu
+import com.franzkafkayu.vcserver.services.VendorMenuEntry
+import com.franzkafkayu.vcserver.services.vendorMenu
 import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
-import com.franzkafkayu.vcserver.ui.screens.GroupHeader
+import com.franzkafkayu.vcserver.ui.viewmodels.VendorPrompt
+import com.franzkafkayu.vcserver.utils.AppError
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 /**
  * 服务器列表界面
@@ -74,7 +79,10 @@ fun ServerListScreen(
 		}
 	}
 
-	val noticeText = uiState.noticeMessageRes?.let { stringResource(it) }
+	val noticeText = uiState.noticeMessageRes?.let { res ->
+		val arg = uiState.noticeMessageArg
+		if (arg != null) stringResource(res, arg) else stringResource(res)
+	}
 	LaunchedEffect(noticeText) {
 		noticeText?.let { message ->
 			snackbarHostState.showSnackbar(
@@ -277,6 +285,8 @@ fun ServerListScreen(
 			)
 		}
 
+		VendorPromptDialog(uiState.vendorPrompt, viewModel)
+
 		// 批量删除确认对话框
 		if (uiState.showBatchDeleteConfirm) {
 			AlertDialog(
@@ -416,6 +426,11 @@ fun ServerListScreen(
 										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
 										onPinClick = { viewModel.toggleServerPinned(server) },
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
+										vendorMenu = vendorMenu(
+											selectionMode = uiState.isSelectionMode,
+											vendor = uiState.serverVendors[server.id]
+										),
+										onVendorAction = { entry -> viewModel.onVendorMenu(server.id, entry) },
 										isConnecting = uiState.connectingServerId == server.id
 									)
 									}
@@ -479,6 +494,11 @@ fun ServerListScreen(
 										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
 										onPinClick = { viewModel.toggleServerPinned(server) },
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
+										vendorMenu = vendorMenu(
+											selectionMode = uiState.isSelectionMode,
+											vendor = uiState.serverVendors[server.id]
+										),
+										onVendorAction = { entry -> viewModel.onVendorMenu(server.id, entry) },
 										isConnecting = uiState.connectingServerId == server.id
 									)
 									}
@@ -581,6 +601,8 @@ fun ServerItem(
 	onDeleteClick: () -> Unit,
 	onPinClick: () -> Unit = {},
 	onCopyClick: () -> Unit = {},
+	vendorMenu: VendorMenu = vendorMenu(selectionMode = false, vendor = null),
+	onVendorAction: (VendorMenuEntry) -> Unit = {},
 	isConnecting: Boolean = false
 ) {
 	Card(
@@ -614,7 +636,9 @@ fun ServerItem(
 					onEditClick = onEditClick,
 					onDeleteClick = onDeleteClick,
 					onPinClick = onPinClick,
-					onCopyClick = onCopyClick
+					onCopyClick = onCopyClick,
+					vendorMenu = vendorMenu,
+					onVendorAction = onVendorAction
 				)
 			}
 		}
@@ -630,7 +654,9 @@ private fun ServerItemActions(
 	onEditClick: () -> Unit,
 	onDeleteClick: () -> Unit,
 	onPinClick: () -> Unit,
-	onCopyClick: () -> Unit
+	onCopyClick: () -> Unit,
+	vendorMenu: VendorMenu,
+	onVendorAction: (VendorMenuEntry) -> Unit
 ) {
 	var showMoreMenu by remember { mutableStateOf(false) }
 	CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
@@ -703,6 +729,15 @@ private fun ServerItemActions(
 							onCopyClick()
 						}
 					)
+					vendorMenu.entries.forEach { entry ->
+						DropdownMenuItem(
+							text = { Text(vendorMenuLabel(vendorMenu.vendor, entry)) },
+							onClick = {
+								showMoreMenu = false
+								onVendorAction(entry)
+							}
+						)
+					}
 				}
 			}
 		}
@@ -764,4 +799,338 @@ private fun listErrorMessage(error: AppError): String {
 		"CONNECTION_FAILED" -> stringResource(R.string.connection_failed)
 		else -> error.message
 	}
+}
+
+@Composable
+private fun vendorMenuLabel(vendor: VendorKind?, entry: VendorMenuEntry): String {
+	val vendorName = when (vendor) {
+		VendorKind.BANDWAGON -> stringResource(R.string.vendor_bandwagon)
+		VendorKind.CLOUDCONE -> stringResource(R.string.vendor_cloudcone)
+		VendorKind.VIRTUALIZOR -> stringResource(R.string.vendor_virtualizor)
+		null -> ""
+	}
+	return when (entry) {
+		VendorMenuEntry.BIND -> stringResource(R.string.vendor_bind)
+		VendorMenuEntry.START -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_start))
+		VendorMenuEntry.STOP -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_stop))
+		VendorMenuEntry.RESTART -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_restart))
+		VendorMenuEntry.STATUS -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_status))
+		VendorMenuEntry.SERVICE_INFO -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_service_info))
+		VendorMenuEntry.BANDWIDTH -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.virtualizor_bandwidth))
+		VendorMenuEntry.UNBIND -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_unbind))
+	}
+}
+
+@Composable
+private fun VendorPromptDialog(
+	prompt: VendorPrompt?,
+	viewModel: ServerListViewModel
+) {
+	when (prompt) {
+		null -> Unit
+		is VendorPrompt.Choose -> {
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.vendor_choose_title)) },
+				text = {
+					Column {
+						TextButton(onClick = { viewModel.chooseVendor(VendorKind.BANDWAGON) }) {
+							Text(stringResource(R.string.vendor_bandwagon))
+						}
+						TextButton(onClick = { viewModel.chooseVendor(VendorKind.CLOUDCONE) }) {
+							Text(stringResource(R.string.vendor_cloudcone))
+						}
+						TextButton(onClick = { viewModel.chooseVendor(VendorKind.VIRTUALIZOR) }) {
+							Text(stringResource(R.string.vendor_virtualizor))
+						}
+					}
+				},
+				confirmButton = {},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.Bandwagon -> {
+			var veid by remember(prompt.serverId) { mutableStateOf("") }
+			var apiKey by remember(prompt.serverId) { mutableStateOf("") }
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.bandwagon_bind_title)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+						OutlinedTextField(
+							value = veid,
+							onValueChange = { veid = it },
+							label = { Text(stringResource(R.string.bandwagon_veid)) },
+							singleLine = true
+						)
+						OutlinedTextField(
+							value = apiKey,
+							onValueChange = { apiKey = it },
+							label = { Text(stringResource(R.string.bandwagon_api_key)) },
+							singleLine = true,
+							visualTransformation = PasswordVisualTransformation()
+						)
+					}
+				},
+				confirmButton = {
+					TextButton(
+						onClick = { viewModel.submitBandwagonBind(veid, apiKey) },
+						enabled = veid.isNotBlank() && apiKey.isNotBlank()
+					) {
+						Text(stringResource(R.string.confirm))
+					}
+				},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.CloudconeSecrets -> {
+			var apiKey by remember(prompt.serverId) { mutableStateOf("") }
+			var hash by remember(prompt.serverId) { mutableStateOf("") }
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.cloudcone_account_title)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+						OutlinedTextField(
+							value = apiKey,
+							onValueChange = { apiKey = it },
+							label = { Text(stringResource(R.string.cloudcone_api_key)) },
+							singleLine = true,
+							visualTransformation = PasswordVisualTransformation()
+						)
+						OutlinedTextField(
+							value = hash,
+							onValueChange = { hash = it },
+							label = { Text(stringResource(R.string.cloudcone_hash)) },
+							singleLine = true,
+							visualTransformation = PasswordVisualTransformation()
+						)
+					}
+				},
+				confirmButton = {
+					TextButton(
+						onClick = { viewModel.submitCloudconeAccount(apiKey, hash) },
+						enabled = apiKey.isNotBlank() && hash.isNotBlank()
+					) {
+						Text(stringResource(R.string.confirm))
+					}
+				},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.VirtualizorSecrets -> {
+			var host by remember(prompt.serverId) { mutableStateOf("") }
+			var port by remember(prompt.serverId) { mutableStateOf("4083") }
+			var apiKey by remember(prompt.serverId) { mutableStateOf("") }
+			var apiPass by remember(prompt.serverId) { mutableStateOf("") }
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.virtualizor_account_title)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+						if (prompt.pendingPin != null) {
+							Text(stringResource(R.string.virtualizor_pin_confirm, prompt.pendingPin))
+						} else {
+							OutlinedTextField(
+								value = host,
+								onValueChange = { host = it },
+								label = { Text(stringResource(R.string.virtualizor_host)) },
+								singleLine = true
+							)
+							OutlinedTextField(
+								value = port,
+								onValueChange = { port = it },
+								label = { Text(stringResource(R.string.virtualizor_port)) },
+								singleLine = true
+							)
+							OutlinedTextField(
+								value = apiKey,
+								onValueChange = { apiKey = it },
+								label = { Text(stringResource(R.string.virtualizor_api_key)) },
+								singleLine = true,
+								visualTransformation = PasswordVisualTransformation()
+							)
+							OutlinedTextField(
+								value = apiPass,
+								onValueChange = { apiPass = it },
+								label = { Text(stringResource(R.string.virtualizor_api_pass)) },
+								singleLine = true,
+								visualTransformation = PasswordVisualTransformation()
+							)
+						}
+					}
+				},
+				confirmButton = {
+					TextButton(
+						onClick = {
+							viewModel.submitVirtualizorAccount(host, port, apiKey, apiPass, prompt.pendingPin)
+						},
+						enabled = prompt.pendingPin != null || (host.isNotBlank() && apiKey.isNotBlank() && apiPass.isNotBlank())
+					) {
+						Text(stringResource(R.string.confirm))
+					}
+				},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.VirtualizorPick -> {
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.virtualizor_pick_instance)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+						if (prompt.instances.isEmpty()) {
+							Text(stringResource(R.string.virtualizor_no_free_instance))
+						}
+						prompt.instances.forEach { instance ->
+							TextButton(onClick = { viewModel.bindVirtualizorInstance(instance.id) }) {
+								val address = instance.address
+								Text(
+									if (address.isNullOrBlank()) instance.id else "${instance.id} · $address"
+								)
+							}
+						}
+					}
+				},
+				confirmButton = {},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.CloudconePick -> {
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.cloudcone_pick_instance)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+						if (prompt.instances.isEmpty()) {
+							Text(stringResource(R.string.cloudcone_no_free_instance))
+						}
+						prompt.instances.forEach { instance ->
+							TextButton(onClick = { viewModel.bindCloudconeInstance(instance.id) }) {
+								val address = instance.address
+								Text(
+									if (address.isNullOrBlank()) instance.id else "${instance.id} · $address"
+								)
+							}
+						}
+					}
+				},
+				confirmButton = {},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.ConfirmStop -> BandwagonConfirmDialog(
+			message = stringResource(R.string.vendor_confirm_stop, vendorName(prompt.vendor)),
+			onConfirm = { viewModel.confirmVendorPower() },
+			onDismiss = { viewModel.dismissVendorPrompt() }
+		)
+		is VendorPrompt.ConfirmRestart -> BandwagonConfirmDialog(
+			message = stringResource(R.string.vendor_confirm_restart, vendorName(prompt.vendor)),
+			onConfirm = { viewModel.confirmVendorPower() },
+			onDismiss = { viewModel.dismissVendorPrompt() }
+		)
+		is VendorPrompt.ConfirmUnbind -> BandwagonConfirmDialog(
+			message = stringResource(
+				when (prompt.vendor) {
+					VendorKind.CLOUDCONE -> R.string.cloudcone_confirm_unbind
+					VendorKind.VIRTUALIZOR -> R.string.virtualizor_confirm_unbind
+					VendorKind.BANDWAGON -> R.string.bandwagon_confirm_unbind
+				}
+			),
+			onConfirm = { viewModel.confirmVendorUnbind() },
+			onDismiss = { viewModel.dismissVendorPrompt() }
+		)
+		is VendorPrompt.Status -> BandwagonConfirmDialog(
+			message = stringResource(R.string.bandwagon_status_value, prompt.text),
+			onConfirm = { viewModel.dismissVendorPrompt() },
+			onDismiss = { viewModel.dismissVendorPrompt() },
+			confirmOnly = true
+		)
+		VendorPrompt.StatusUnknown -> BandwagonConfirmDialog(
+			message = stringResource(R.string.bandwagon_status_unknown),
+			onConfirm = { viewModel.dismissVendorPrompt() },
+			onDismiss = { viewModel.dismissVendorPrompt() },
+			confirmOnly = true
+		)
+		is VendorPrompt.ServiceInfo -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			text = { BandwagonServiceInfoPanel(prompt.info) },
+			confirmButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.confirm))
+				}
+			}
+		)
+		is VendorPrompt.Bandwidth -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			text = { VirtualizorBandwidthPanel(prompt.bandwidth) },
+			confirmButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.confirm))
+				}
+			}
+		)
+	}
+}
+
+@Composable
+private fun vendorName(vendor: VendorKind): String {
+	return stringResource(
+		when (vendor) {
+			VendorKind.CLOUDCONE -> R.string.vendor_cloudcone
+			VendorKind.VIRTUALIZOR -> R.string.vendor_virtualizor
+			VendorKind.BANDWAGON -> R.string.vendor_bandwagon
+		}
+	)
+}
+
+@Composable
+private fun BandwagonConfirmDialog(
+	message: String,
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit,
+	confirmOnly: Boolean = false
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		text = { Text(message) },
+		confirmButton = {
+			TextButton(onClick = onConfirm) {
+				Text(stringResource(R.string.confirm))
+			}
+		},
+		dismissButton = if (confirmOnly) {
+			null
+		} else {
+			{
+				TextButton(onClick = onDismiss) {
+					Text(stringResource(R.string.cancel))
+				}
+			}
+		}
+	)
 }

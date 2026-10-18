@@ -17,7 +17,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.data.AppDatabase
 import com.franzkafkayu.vcserver.repositories.ServerRepositoryImpl
 import com.franzkafkayu.vcserver.repositories.SettingsRepositoryImpl
+import com.franzkafkayu.vcserver.services.BandwagonPowerCoordinator
+import com.franzkafkayu.vcserver.services.CloudconeCoordinator
 import com.franzkafkayu.vcserver.services.DatabaseExportImportServiceImpl
+import com.franzkafkayu.vcserver.services.HttpBandwagonClient
+import com.franzkafkayu.vcserver.services.HttpCloudconeClient
+import com.franzkafkayu.vcserver.services.HttpVirtualizorClient
+import com.franzkafkayu.vcserver.services.RoomBandwagonLinkStore
+import com.franzkafkayu.vcserver.services.RoomCloudconeAccountStore
+import com.franzkafkayu.vcserver.services.RoomCloudconeLinkStore
+import com.franzkafkayu.vcserver.services.RoomVirtualizorAccountStore
+import com.franzkafkayu.vcserver.services.RoomVirtualizorLinkStore
+import com.franzkafkayu.vcserver.services.SecureBandwagonKeyStore
+import com.franzkafkayu.vcserver.services.VirtualizorCoordinator
 import com.franzkafkayu.vcserver.services.ServerManagementServiceImpl
 import com.franzkafkayu.vcserver.services.ServerMonitoringServiceImpl
 import com.franzkafkayu.vcserver.services.SettingsServiceImpl
@@ -35,6 +47,7 @@ import com.franzkafkayu.vcserver.ui.viewmodels.AddServerViewModel
 import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
 import com.franzkafkayu.vcserver.utils.LocaleHelper
 import com.franzkafkayu.vcserver.utils.SecureStorage
+import com.franzkafkayu.vcserver.utils.SshConnectionPool
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
@@ -82,12 +95,48 @@ class MainActivity : ComponentActivity() {
 				AppDatabase.MIGRATION_3_4,
 				AppDatabase.MIGRATION_4_5,
 				AppDatabase.MIGRATION_5_6,
-				AppDatabase.MIGRATION_6_7
+				AppDatabase.MIGRATION_6_7,
+				AppDatabase.MIGRATION_7_8,
+				AppDatabase.MIGRATION_8_9,
+				AppDatabase.MIGRATION_9_10
 			)
 			.build()
 
 		val secureStorage = SecureStorage(applicationContext)
 		val serverRepository = ServerRepositoryImpl(database.serverDao())
+		val bandwagonStore = RoomBandwagonLinkStore(database.bandwagonLinkDao())
+		val cloudconeAccounts = RoomCloudconeAccountStore(database.cloudconeAccountDao())
+		val cloudconeLinks = RoomCloudconeLinkStore(database.cloudconeLinkDao())
+		val virtualizorAccounts = RoomVirtualizorAccountStore(database.virtualizorAccountDao())
+		val virtualizorLinks = RoomVirtualizorLinkStore(database.virtualizorLinkDao())
+		val vendorKeys = SecureBandwagonKeyStore(secureStorage)
+		val bandwagon = BandwagonPowerCoordinator(
+			store = bandwagonStore,
+			client = HttpBandwagonClient(),
+			keys = vendorKeys,
+			blockedByOtherVendor = { serverId ->
+				cloudconeLinks.getByServerId(serverId) != null || virtualizorLinks.getByServerId(serverId) != null
+			},
+			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
+		)
+		val cloudcone = CloudconeCoordinator(
+			accounts = cloudconeAccounts,
+			links = cloudconeLinks,
+			bandwagonLinks = bandwagonStore,
+			virtualizorLinks = virtualizorLinks,
+			client = HttpCloudconeClient(),
+			keys = vendorKeys,
+			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
+		)
+		val virtualizor = VirtualizorCoordinator(
+			accounts = virtualizorAccounts,
+			links = virtualizorLinks,
+			bandwagonLinks = bandwagonStore,
+			cloudconeLinks = cloudconeLinks,
+			client = HttpVirtualizorClient(),
+			keys = vendorKeys,
+			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
+		)
 		val serverGroupRepository = com.franzkafkayu.vcserver.repositories.ServerGroupRepositoryImpl(
 			database.serverGroupDao(),
 			database.serverDao()
@@ -97,7 +146,10 @@ class MainActivity : ComponentActivity() {
 		val serverManagementService = ServerManagementServiceImpl(
 			serverRepository,
 			sshAuthService,
-			secureStorage
+			secureStorage,
+			bandwagon,
+			cloudcone,
+			virtualizor
 		)
 		val serverMonitoringService = ServerMonitoringServiceImpl(
 			sshAuthService,
@@ -118,9 +170,22 @@ class MainActivity : ComponentActivity() {
 		// 初始化 SFTP 文件传输服务
 		val sftpFileTransferService = SftpFileTransferServiceImpl(applicationContext)
 
-		val serverListViewModel = ServerListViewModel(serverManagementService, serverMonitoringService, serverGroupRepository)
+		val serverListViewModel = ServerListViewModel(
+			serverManagementService,
+			serverMonitoringService,
+			serverGroupRepository,
+			bandwagon,
+			cloudcone,
+			virtualizor
+		)
 		val serverGroupManagementViewModel = com.franzkafkayu.vcserver.ui.viewmodels.ServerGroupManagementViewModel(serverGroupRepository)
-		val addServerViewModel = AddServerViewModel(serverManagementService, settingsService, serverGroupRepository)
+		val addServerViewModel = AddServerViewModel(
+			serverManagementService,
+			settingsService,
+			serverGroupRepository,
+			cloudcone = cloudcone,
+			virtualizor = virtualizor
+		)
 
 		setContent {
 			// 获取主题设置
@@ -144,7 +209,8 @@ class MainActivity : ComponentActivity() {
 						terminalPreferences = terminalPreferences,
 						settingsService = settingsService,
 						exportImportService = exportImportService,
-						sftpFileTransferService = sftpFileTransferService
+						sftpFileTransferService = sftpFileTransferService,
+						virtualizor = virtualizor
 					)
 				}
 			}

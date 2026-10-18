@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.models.ProxyType
 import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
+import com.franzkafkayu.vcserver.services.CloudconeCoordinator
 import com.franzkafkayu.vcserver.services.ServerManagementService
+import com.franzkafkayu.vcserver.services.VirtualizorCoordinator
 import com.franzkafkayu.vcserver.services.SettingsService
 import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.utils.toAppError
@@ -22,8 +24,12 @@ class AddServerViewModel(
 	private val serverManagementService: ServerManagementService,
 	private val settingsService: SettingsService? = null,
 	private val serverGroupRepository: ServerGroupRepository? = null,
-	private val serverId: Long? = null // 如果�?null，则为新增模式；否则为编辑模�?
+	private val serverId: Long? = null,
+	private val cloudcone: CloudconeCoordinator? = null,
+	private val virtualizor: VirtualizorCoordinator? = null
 ) : ViewModel() {
+	private var pendingCloudconeInstanceId: String? = null
+	private var pendingVirtualizorVpsid: String? = null
 	private val _uiState = MutableStateFlow(
 		AddServerUiState(isEditMode = serverId != null, editingServerId = serverId)
 	)
@@ -115,6 +121,28 @@ class AddServerViewModel(
 	/**
 	 * 更新主机地址
 	 */
+	fun prepareCloudconeServer(instanceId: String, host: String?) {
+		pendingCloudconeInstanceId = instanceId
+		if (!host.isNullOrBlank() && _uiState.value.host.isBlank()) {
+			_uiState.value = _uiState.value.copy(host = host)
+		}
+	}
+
+	fun clearPendingCloudcone() {
+		pendingCloudconeInstanceId = null
+	}
+
+	fun prepareVirtualizorServer(vpsid: String, host: String?) {
+		pendingVirtualizorVpsid = vpsid
+		if (!host.isNullOrBlank() && _uiState.value.host.isBlank()) {
+			_uiState.value = _uiState.value.copy(host = host)
+		}
+	}
+
+	fun clearPendingVirtualizor() {
+		pendingVirtualizorVpsid = null
+	}
+
 	fun updateHost(host: String) {
 		_uiState.value = _uiState.value.copy(host = host)
 	}
@@ -359,7 +387,19 @@ class AddServerViewModel(
 					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
 					jumpHostId = if (state.jumpEnabled) state.jumpHostId else null,
 					testConnection = false
-				).map { Unit }
+				).map { newId ->
+					val pending = pendingCloudconeInstanceId
+					if (pending != null) {
+						cloudcone?.bind(newId, pending)
+						pendingCloudconeInstanceId = null
+					}
+					val pendingVz = pendingVirtualizorVpsid
+					if (pendingVz != null) {
+						virtualizor?.bind(newId, pendingVz)
+						pendingVirtualizorVpsid = null
+					}
+					Unit
+				}
 			}
 
 			result.fold(

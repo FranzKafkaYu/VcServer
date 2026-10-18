@@ -6,7 +6,31 @@ import com.franzkafkayu.vcserver.ssh.SshClientSession
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerGroup
 import com.franzkafkayu.vcserver.repositories.ServerGroupRepository
+import com.franzkafkayu.vcserver.services.BandwagonBindResult
+import com.franzkafkayu.vcserver.services.BandwagonPowerAction
+import com.franzkafkayu.vcserver.services.BandwagonPowerCoordinator
+import com.franzkafkayu.vcserver.services.BandwagonPowerResult
+import com.franzkafkayu.vcserver.services.BandwagonStatusResult
+import com.franzkafkayu.vcserver.services.BandwagonServiceInfo
+import com.franzkafkayu.vcserver.services.BandwagonServiceInfoResult
+import com.franzkafkayu.vcserver.services.CloudconeBindResult
+import com.franzkafkayu.vcserver.services.CloudconeCoordinator
+import com.franzkafkayu.vcserver.services.CloudconeInstance
+import com.franzkafkayu.vcserver.services.CloudconePowerAction
+import com.franzkafkayu.vcserver.services.CloudconePowerResult
+import com.franzkafkayu.vcserver.services.CloudconeStatusResult
+import com.franzkafkayu.vcserver.services.VirtualizorAccountResult
+import com.franzkafkayu.vcserver.services.VirtualizorBindResult
+import com.franzkafkayu.vcserver.services.VirtualizorCoordinator
+import com.franzkafkayu.vcserver.services.VirtualizorPowerAction
+import com.franzkafkayu.vcserver.services.VirtualizorPowerResult
+import com.franzkafkayu.vcserver.services.VirtualizorStatusResult
+import com.franzkafkayu.vcserver.services.VirtualizorTrafficResult
+import com.franzkafkayu.vcserver.services.VirtualizorBandwidth
+import com.franzkafkayu.vcserver.services.VirtualizorVps
 import com.franzkafkayu.vcserver.services.ServerManagementService
+import com.franzkafkayu.vcserver.services.VendorKind
+import com.franzkafkayu.vcserver.services.VendorMenuEntry
 import com.franzkafkayu.vcserver.services.ServerMonitoringService
 import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.utils.toAppError
@@ -14,6 +38,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import com.franzkafkayu.vcserver.R
@@ -26,13 +51,61 @@ import com.franzkafkayu.vcserver.utils.ServerFilter
 class ServerListViewModel(
 	private val serverManagementService: ServerManagementService,
 	private val serverMonitoringService: ServerMonitoringService,
-	private val serverGroupRepository: ServerGroupRepository
+	private val serverGroupRepository: ServerGroupRepository,
+	private val bandwagon: BandwagonPowerCoordinator,
+	private val cloudcone: CloudconeCoordinator,
+	private val virtualizor: VirtualizorCoordinator
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(ServerListUiState())
 	val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
 
 	init {
 		loadServers()
+		viewModelScope.launch {
+			bandwagon.observeBoundServerIds().collect { ids ->
+				bandwagonIds = ids
+				publishVendors()
+			}
+		}
+		viewModelScope.launch {
+			cloudcone.observeLinks().collect { links ->
+				cloudconeLinkRows = links
+				cloudconeIds = links.map { it.serverId }.toSet()
+				publishVendors()
+			}
+		}
+		viewModelScope.launch {
+			cloudcone.observeAccount().collect { account ->
+				_uiState.value = _uiState.value.copy(hasCloudconeAccount = account != null)
+			}
+		}
+		viewModelScope.launch {
+			virtualizor.observeLinks().collect { links ->
+				virtualizorLinkRows = links
+				virtualizorIds = links.map { it.serverId }.toSet()
+				publishVendors()
+			}
+		}
+		viewModelScope.launch {
+			virtualizor.observeAccount().collect { account ->
+				_uiState.value = _uiState.value.copy(hasVirtualizorAccount = account != null)
+			}
+		}
+	}
+
+	private var bandwagonIds: Set<Long> = emptySet()
+	private var cloudconeIds: Set<Long> = emptySet()
+	private var cloudconeLinkRows: List<com.franzkafkayu.vcserver.models.CloudconeLink> = emptyList()
+	private var virtualizorIds: Set<Long> = emptySet()
+	private var virtualizorLinkRows: List<com.franzkafkayu.vcserver.models.VirtualizorLink> = emptyList()
+
+	private fun publishVendors() {
+		val vendors = buildMap {
+			bandwagonIds.forEach { put(it, VendorKind.BANDWAGON) }
+			cloudconeIds.forEach { put(it, VendorKind.CLOUDCONE) }
+			virtualizorIds.forEach { put(it, VendorKind.VIRTUALIZOR) }
+		}
+		_uiState.value = _uiState.value.copy(serverVendors = vendors)
 	}
 
 	/**
@@ -200,7 +273,399 @@ class ServerListViewModel(
 	}
 
 	fun clearNotice() {
-		_uiState.value = _uiState.value.copy(noticeMessageRes = null)
+		_uiState.value = _uiState.value.copy(noticeMessageRes = null, noticeMessageArg = null)
+	}
+
+	fun onVendorMenu(serverId: Long, entry: VendorMenuEntry) {
+		val vendor = _uiState.value.serverVendors[serverId]
+		when (entry) {
+			VendorMenuEntry.BIND -> {
+				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Choose(serverId))
+			}
+			VendorMenuEntry.START -> startPower(serverId, vendor)
+			VendorMenuEntry.STOP -> {
+				if (vendor != null) {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ConfirmStop(serverId, vendor))
+				}
+			}
+			VendorMenuEntry.RESTART -> {
+				if (vendor != null) {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ConfirmRestart(serverId, vendor))
+				}
+			}
+			VendorMenuEntry.STATUS -> queryStatus(serverId, vendor)
+			VendorMenuEntry.SERVICE_INFO -> queryServiceInfo(serverId, vendor)
+			VendorMenuEntry.BANDWIDTH -> queryBandwidth(serverId, vendor)
+			VendorMenuEntry.UNBIND -> {
+				if (vendor != null) {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ConfirmUnbind(serverId, vendor))
+				}
+			}
+		}
+	}
+
+	fun dismissVendorPrompt() {
+		_uiState.value = _uiState.value.copy(vendorPrompt = null)
+	}
+
+	fun chooseVendor(kind: VendorKind) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.Choose ?: return
+		when (kind) {
+			VendorKind.BANDWAGON -> {
+				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Bandwagon(prompt.serverId))
+			}
+			VendorKind.CLOUDCONE -> {
+				if (_uiState.value.hasCloudconeAccount) {
+					loadCloudconeInstances(prompt.serverId)
+				} else {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.CloudconeSecrets(prompt.serverId))
+				}
+			}
+			VendorKind.VIRTUALIZOR -> {
+				if (_uiState.value.hasVirtualizorAccount) {
+					loadVirtualizorInstances(prompt.serverId)
+				} else {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.VirtualizorSecrets(prompt.serverId))
+				}
+			}
+		}
+	}
+
+	fun submitBandwagonBind(veid: String, apiKey: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.Bandwagon ?: return
+		viewModelScope.launch {
+			when (val result = bandwagon.bind(prompt.serverId, veid, apiKey)) {
+				BandwagonBindResult.Success -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = null,
+						noticeMessageRes = R.string.bandwagon_bind_success,
+						noticeMessageArg = null
+					)
+				}
+				BandwagonBindResult.VeidInUse -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.bandwagon_veid_in_use,
+						noticeMessageArg = null
+					)
+				}
+				BandwagonBindResult.OtherVendor -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.vendor_already_bound,
+						noticeMessageArg = null
+					)
+				}
+				is BandwagonBindResult.Failed -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.bandwagon_bind_failed,
+						noticeMessageArg = result.message
+					)
+				}
+			}
+		}
+	}
+
+	fun submitCloudconeAccount(apiKey: String, hash: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.CloudconeSecrets ?: return
+		viewModelScope.launch {
+			when (val result = cloudcone.saveAccount(apiKey, hash)) {
+				com.franzkafkayu.vcserver.services.CloudconeAccountResult.Success -> loadCloudconeInstances(prompt.serverId)
+				is com.franzkafkayu.vcserver.services.CloudconeAccountResult.Failed -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.cloudcone_account_failed,
+						noticeMessageArg = result.message
+					)
+				}
+			}
+		}
+	}
+
+	fun submitVirtualizorAccount(
+		host: String,
+		port: String,
+		apiKey: String,
+		apiPass: String,
+		confirmedPin: String? = null
+	) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.VirtualizorSecrets ?: return
+		val parsedPort = port.toIntOrNull() ?: return
+		viewModelScope.launch {
+			when (val result = virtualizor.saveAccount(host, parsedPort, apiKey, apiPass, confirmedPin)) {
+				VirtualizorAccountResult.Success -> loadVirtualizorInstances(prompt.serverId)
+				is VirtualizorAccountResult.NeedsCertificatePin -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = prompt.copy(pendingPin = result.sha256)
+					)
+				}
+				is VirtualizorAccountResult.Failed -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.virtualizor_account_failed,
+						noticeMessageArg = result.message
+					)
+				}
+			}
+		}
+	}
+
+	fun bindVirtualizorInstance(vpsid: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.VirtualizorPick ?: return
+		viewModelScope.launch {
+			when (val result = virtualizor.bind(prompt.serverId, vpsid)) {
+				VirtualizorBindResult.Success -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = null,
+						noticeMessageRes = R.string.virtualizor_bind_success,
+						noticeMessageArg = null
+					)
+				}
+				VirtualizorBindResult.OtherVendor -> notice(R.string.vendor_already_bound)
+				VirtualizorBindResult.InstanceInUse -> notice(R.string.virtualizor_instance_in_use)
+				VirtualizorBindResult.NoAccount -> notice(R.string.virtualizor_no_account)
+				is VirtualizorBindResult.Failed -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.virtualizor_account_failed,
+						noticeMessageArg = result.message
+					)
+				}
+			}
+		}
+	}
+
+	fun bindCloudconeInstance(instanceId: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.CloudconePick ?: return
+		viewModelScope.launch {
+			when (val result = cloudcone.bind(prompt.serverId, instanceId)) {
+				CloudconeBindResult.Success -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = null,
+						noticeMessageRes = R.string.cloudcone_bind_success,
+						noticeMessageArg = null
+					)
+				}
+				CloudconeBindResult.OtherVendor -> notice(R.string.vendor_already_bound)
+				CloudconeBindResult.InstanceInUse -> notice(R.string.cloudcone_instance_in_use)
+				CloudconeBindResult.NoAccount -> notice(R.string.cloudcone_no_account)
+				is CloudconeBindResult.Failed -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.cloudcone_account_failed,
+						noticeMessageArg = result.message
+					)
+				}
+			}
+		}
+	}
+
+	fun confirmVendorPower() {
+		val prompt = _uiState.value.vendorPrompt ?: return
+		when (prompt) {
+			is VendorPrompt.ConfirmStop -> dispatchPower(prompt.serverId, prompt.vendor, stop = true)
+			is VendorPrompt.ConfirmRestart -> dispatchPower(prompt.serverId, prompt.vendor, stop = false)
+			else -> Unit
+		}
+	}
+
+	fun confirmVendorUnbind() {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ConfirmUnbind ?: return
+		viewModelScope.launch {
+			when (prompt.vendor) {
+				VendorKind.BANDWAGON -> bandwagon.unbind(prompt.serverId)
+				VendorKind.CLOUDCONE -> cloudcone.unbind(prompt.serverId)
+				VendorKind.VIRTUALIZOR -> virtualizor.unbind(prompt.serverId)
+			}
+			_uiState.value = _uiState.value.copy(
+				vendorPrompt = null,
+				noticeMessageRes = R.string.bandwagon_unbound,
+				noticeMessageArg = null
+			)
+		}
+	}
+
+	private fun loadVirtualizorInstances(serverId: Long) {
+		viewModelScope.launch {
+			val listed = virtualizor.listInstances()
+			if (!listed.ok) {
+				_uiState.value = _uiState.value.copy(
+					noticeMessageRes = R.string.virtualizor_list_failed,
+					noticeMessageArg = listed.message
+				)
+				return@launch
+			}
+			val taken = virtualizorLinkRows.map { it.vpsid }.toSet()
+			val available = listed.instances.filter { it.id !in taken }
+			_uiState.value = _uiState.value.copy(
+				vendorPrompt = VendorPrompt.VirtualizorPick(serverId, available, virtualizorIds)
+			)
+		}
+	}
+
+	private fun loadCloudconeInstances(serverId: Long) {
+		viewModelScope.launch {
+			val listed = cloudcone.listInstances()
+			if (!listed.ok) {
+				_uiState.value = _uiState.value.copy(
+					noticeMessageRes = R.string.cloudcone_list_failed,
+					noticeMessageArg = listed.message
+				)
+				return@launch
+			}
+			val taken = cloudconeLinkRows.map { it.instanceId }.toSet()
+			val available = listed.instances.filter { it.id !in taken }
+			_uiState.value = _uiState.value.copy(
+				vendorPrompt = VendorPrompt.CloudconePick(serverId, available, cloudconeIds)
+			)
+		}
+	}
+
+	private fun startPower(serverId: Long, vendor: VendorKind?) {
+		if (vendor == null) return
+		dispatchPower(serverId, vendor, stop = null)
+	}
+
+	private fun dispatchPower(serverId: Long, vendor: VendorKind, stop: Boolean?) {
+		viewModelScope.launch {
+			_uiState.value = _uiState.value.copy(vendorPrompt = null)
+			when (vendor) {
+				VendorKind.BANDWAGON -> {
+					val action = when (stop) {
+						null -> BandwagonPowerAction.START
+						true -> BandwagonPowerAction.STOP
+						false -> BandwagonPowerAction.RESTART
+					}
+					showBandwagonPower(bandwagon.power(serverId, action, confirmed = true))
+				}
+				VendorKind.CLOUDCONE -> {
+					val instanceId = cloudconeInstanceId(serverId) ?: return@launch
+					val action = when (stop) {
+						null -> CloudconePowerAction.BOOT
+						true -> CloudconePowerAction.SHUTDOWN
+						false -> CloudconePowerAction.REBOOT
+					}
+					showCloudconePower(cloudcone.power(instanceId, action, confirmed = true))
+				}
+				VendorKind.VIRTUALIZOR -> {
+					val vpsid = virtualizorVpsid(serverId) ?: return@launch
+					val action = when (stop) {
+						null -> VirtualizorPowerAction.START
+						true -> VirtualizorPowerAction.STOP
+						false -> VirtualizorPowerAction.RESTART
+					}
+					showVirtualizorPower(virtualizor.power(vpsid, action, confirmed = true))
+				}
+			}
+		}
+	}
+
+	private suspend fun cloudconeInstanceId(serverId: Long): String? {
+		return cloudconeLinkRows.find { it.serverId == serverId }?.instanceId
+			?: cloudcone.observeLinks().first().find { it.serverId == serverId }?.instanceId
+	}
+
+	private suspend fun virtualizorVpsid(serverId: Long): String? {
+		return virtualizorLinkRows.find { it.serverId == serverId }?.vpsid
+			?: virtualizor.observeLinks().first().find { it.serverId == serverId }?.vpsid
+	}
+
+	private fun queryServiceInfo(serverId: Long, vendor: VendorKind?) {
+		if (vendor != VendorKind.BANDWAGON) return
+		viewModelScope.launch {
+			when (val result = bandwagon.serviceInfo(serverId)) {
+				is BandwagonServiceInfoResult.Known -> {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ServiceInfo(result.info))
+				}
+				BandwagonServiceInfoResult.NotBound -> notice(R.string.bandwagon_not_bound)
+				is BandwagonServiceInfoResult.Failed -> noticeArg(R.string.bandwagon_service_info_failed, result.message)
+			}
+		}
+	}
+
+	private fun queryBandwidth(serverId: Long, vendor: VendorKind?) {
+		if (vendor != VendorKind.VIRTUALIZOR) return
+		viewModelScope.launch {
+			val vpsid = virtualizorVpsid(serverId) ?: return@launch
+			when (val result = virtualizor.bandwidth(vpsid)) {
+				is VirtualizorTrafficResult.Known -> {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Bandwidth(result.bandwidth))
+				}
+				VirtualizorTrafficResult.Unknown -> notice(R.string.virtualizor_bandwidth_unknown)
+				VirtualizorTrafficResult.NoAccount -> notice(R.string.virtualizor_no_account)
+				is VirtualizorTrafficResult.Failed -> noticeArg(R.string.virtualizor_bandwidth_failed, result.message)
+			}
+		}
+	}
+
+	private fun queryStatus(serverId: Long, vendor: VendorKind?) {
+		if (vendor == null) return
+		viewModelScope.launch {
+			when (vendor) {
+				VendorKind.BANDWAGON -> when (val result = bandwagon.status(serverId)) {
+					is BandwagonStatusResult.Known -> {
+						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Status(result.veStatus))
+					}
+					BandwagonStatusResult.Unknown -> {
+						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.StatusUnknown)
+					}
+					is BandwagonStatusResult.Failed -> noticeArg(R.string.bandwagon_status_failed, result.message)
+				}
+				VendorKind.CLOUDCONE -> {
+					val instanceId = cloudconeInstanceId(serverId) ?: return@launch
+					when (val result = cloudcone.status(instanceId)) {
+						is CloudconeStatusResult.Known -> {
+							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Status(result.powerStatus))
+						}
+						CloudconeStatusResult.Unknown -> {
+							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.StatusUnknown)
+						}
+						is CloudconeStatusResult.Failed -> noticeArg(R.string.cloudcone_status_failed, result.message)
+					}
+				}
+				VendorKind.VIRTUALIZOR -> {
+					val vpsid = virtualizorVpsid(serverId) ?: return@launch
+					when (val result = virtualizor.status(vpsid)) {
+						is VirtualizorStatusResult.Known -> {
+							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Status(result.powerStatus))
+						}
+						VirtualizorStatusResult.Unknown -> {
+							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.StatusUnknown)
+						}
+						is VirtualizorStatusResult.Failed -> noticeArg(R.string.virtualizor_status_failed, result.message)
+					}
+				}
+			}
+		}
+	}
+
+	private fun showBandwagonPower(result: BandwagonPowerResult) {
+		when (result) {
+			BandwagonPowerResult.Accepted -> notice(R.string.bandwagon_power_accepted)
+			is BandwagonPowerResult.Failed -> noticeArg(R.string.bandwagon_power_failed, result.message)
+			BandwagonPowerResult.NotBound -> notice(R.string.bandwagon_not_bound)
+			BandwagonPowerResult.NeedsConfirmation -> Unit
+		}
+	}
+
+	private fun showCloudconePower(result: CloudconePowerResult) {
+		when (result) {
+			CloudconePowerResult.Accepted -> notice(R.string.bandwagon_power_accepted)
+			is CloudconePowerResult.Failed -> noticeArg(R.string.bandwagon_power_failed, result.message)
+			CloudconePowerResult.NoAccount -> notice(R.string.cloudcone_no_account)
+			CloudconePowerResult.NeedsConfirmation -> Unit
+		}
+	}
+
+	private fun showVirtualizorPower(result: VirtualizorPowerResult) {
+		when (result) {
+			VirtualizorPowerResult.Accepted -> notice(R.string.bandwagon_power_accepted)
+			is VirtualizorPowerResult.Failed -> noticeArg(R.string.bandwagon_power_failed, result.message)
+			VirtualizorPowerResult.NoAccount -> notice(R.string.virtualizor_no_account)
+			VirtualizorPowerResult.NeedsConfirmation -> Unit
+		}
+	}
+
+	private fun notice(res: Int) {
+		_uiState.value = _uiState.value.copy(noticeMessageRes = res, noticeMessageArg = null)
+	}
+
+	private fun noticeArg(res: Int, arg: String?) {
+		_uiState.value = _uiState.value.copy(noticeMessageRes = res, noticeMessageArg = arg ?: "")
 	}
 
 	fun confirmDeleteServer() {
@@ -460,5 +925,34 @@ data class ServerListUiState(
 	val searchQuery: String = "", // 筛选关键词
 	val isSearchActive: Boolean = false, // 搜索栏是否展开
 	val searchSyntaxError: String? = null, // 查询语法错误提示
-	val noticeMessageRes: Int? = null
+	val noticeMessageRes: Int? = null,
+	val noticeMessageArg: String? = null,
+	val serverVendors: Map<Long, VendorKind> = emptyMap(),
+	val hasCloudconeAccount: Boolean = false,
+	val hasVirtualizorAccount: Boolean = false,
+	val vendorPrompt: VendorPrompt? = null
 )
+
+sealed class VendorPrompt {
+	data class Choose(val serverId: Long) : VendorPrompt()
+	data class Bandwagon(val serverId: Long) : VendorPrompt()
+	data class CloudconeSecrets(val serverId: Long) : VendorPrompt()
+	data class CloudconePick(
+		val serverId: Long,
+		val instances: List<CloudconeInstance>,
+		val boundServerIds: Set<Long>
+	) : VendorPrompt()
+	data class VirtualizorSecrets(val serverId: Long, val pendingPin: String? = null) : VendorPrompt()
+	data class VirtualizorPick(
+		val serverId: Long,
+		val instances: List<VirtualizorVps>,
+		val boundServerIds: Set<Long>
+	) : VendorPrompt()
+	data class ConfirmStop(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
+	data class ConfirmRestart(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
+	data class ConfirmUnbind(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
+	data class Status(val text: String) : VendorPrompt()
+	data object StatusUnknown : VendorPrompt()
+	data class Bandwidth(val bandwidth: VirtualizorBandwidth) : VendorPrompt()
+	data class ServiceInfo(val info: BandwagonServiceInfo) : VendorPrompt()
+}
