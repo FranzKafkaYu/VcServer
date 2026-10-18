@@ -61,6 +61,25 @@
 	<string name="bandwagon_migrate_failed">Migration failed: %1$s</string>
 	<string name="bandwagon_migrate_host_updated">SSH host updated to %1$s</string>
 	<string name="bandwagon_migrate_use_host">Use as SSH host: %1$s</string>
+	<string name="bandwagon_reset_root">Reset root password</string>
+	<string name="bandwagon_reset_confirm">Reset the root password? The current root password will stop working immediately.</string>
+	<string name="bandwagon_reset_success">New root password (save it now):</string>
+	<string name="bandwagon_reset_copy">Copy password</string>
+	<string name="bandwagon_reset_save_ssh">Save as SSH password</string>
+	<string name="bandwagon_reset_password_saved">SSH password updated</string>
+	<string name="bandwagon_reset_failed">Failed to reset password: %1$s</string>
+	<string name="bandwagon_usage">Usage stats</string>
+	<string name="bandwagon_usage_title">Usage stats</string>
+	<string name="bandwagon_usage_failed">Failed to load usage: %1$s</string>
+	<string name="bandwagon_usage_day">Day</string>
+	<string name="bandwagon_usage_week">Week</string>
+	<string name="bandwagon_usage_month">Month</string>
+	<string name="bandwagon_usage_year">Year</string>
+	<string name="bandwagon_usage_max">Max</string>
+	<string name="bandwagon_usage_bytes_title">Network I/O (Bytes transferred)</string>
+	<string name="bandwagon_usage_cpu_title">CPU Usage, 100% = 1 Core</string>
+	<string name="bandwagon_usage_in">In</string>
+	<string name="bandwagon_usage_out">Out</string>
 	<string name="bandwagon_info_hostname">Hostname</string>
 	<string name="bandwagon_info_location">Location</string>
 	<string name="bandwagon_info_plan">Plan</string>

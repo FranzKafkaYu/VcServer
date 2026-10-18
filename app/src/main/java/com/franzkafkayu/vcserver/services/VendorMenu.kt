@@ -14,6 +14,8 @@ enum class VendorMenuEntry {
 	STATUS,
 	SERVICE_INFO,
 	MIGRATE,
+	RESET_ROOT,
+	USAGE,
 	BANDWIDTH,
 	UNBIND
 }
@@ -35,6 +37,8 @@ fun vendorMenu(selectionMode: Boolean, vendor: VendorKind?): VendorMenu {
 	if (vendor == VendorKind.BANDWAGON) {
 		entries += VendorMenuEntry.SERVICE_INFO
 		entries += VendorMenuEntry.MIGRATE
+		entries += VendorMenuEntry.RESET_ROOT
+		entries += VendorMenuEntry.USAGE
 	}
 	if (vendor == VendorKind.VIRTUALIZOR) {
 		entries += VendorMenuEntry.BANDWIDTH

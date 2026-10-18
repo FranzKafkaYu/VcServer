@@ -61,6 +61,25 @@
 	<string name="bandwagon_migrate_failed">迁移失败：%1$s</string>
 	<string name="bandwagon_migrate_host_updated">已将 SSH 地址改为 %1$s</string>
 	<string name="bandwagon_migrate_use_host">用作 SSH 地址：%1$s</string>
+	<string name="bandwagon_reset_root">重置 root 密码</string>
+	<string name="bandwagon_reset_confirm">确定重置 root 密码？当前 root 密码将立即失效。</string>
+	<string name="bandwagon_reset_success">新 root 密码（请立即保存）：</string>
+	<string name="bandwagon_reset_copy">复制密码</string>
+	<string name="bandwagon_reset_save_ssh">写入 SSH 密码</string>
+	<string name="bandwagon_reset_password_saved">已写入 SSH 密码</string>
+	<string name="bandwagon_reset_failed">重置密码失败：%1$s</string>
+	<string name="bandwagon_usage">用量统计</string>
+	<string name="bandwagon_usage_title">用量统计</string>
+	<string name="bandwagon_usage_failed">查询用量失败：%1$s</string>
+	<string name="bandwagon_usage_day">Day</string>
+	<string name="bandwagon_usage_week">Week</string>
+	<string name="bandwagon_usage_month">Month</string>
+	<string name="bandwagon_usage_year">Year</string>
+	<string name="bandwagon_usage_max">Max</string>
+	<string name="bandwagon_usage_bytes_title">Network I/O（传输量）</string>
+	<string name="bandwagon_usage_cpu_title">CPU 用量（100% = 1 核）</string>
+	<string name="bandwagon_usage_in">入站</string>
+	<string name="bandwagon_usage_out">出站</string>
 	<string name="bandwagon_info_hostname">主机名</string>
 	<string name="bandwagon_info_location">机房</string>
 	<string name="bandwagon_info_plan">套餐</string>

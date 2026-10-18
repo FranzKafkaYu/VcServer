@@ -31,12 +31,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.yield
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -659,6 +662,25 @@ private fun ServerItemActions(
 	onVendorAction: (VendorMenuEntry) -> Unit
 ) {
 	var showMoreMenu by remember { mutableStateOf(false) }
+	var queuedPin by remember { mutableStateOf(false) }
+	var queuedCopy by remember { mutableStateOf(false) }
+	var queuedVendor by remember { mutableStateOf<VendorMenuEntry?>(null) }
+	LaunchedEffect(showMoreMenu) {
+		if (showMoreMenu) return@LaunchedEffect
+		yield()
+		if (queuedPin) {
+			queuedPin = false
+			onPinClick()
+		}
+		if (queuedCopy) {
+			queuedCopy = false
+			onCopyClick()
+		}
+		queuedVendor?.let { entry ->
+			queuedVendor = null
+			onVendorAction(entry)
+		}
+	}
 	CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
 		Row(
 			verticalAlignment = Alignment.CenterVertically
@@ -718,23 +740,23 @@ private fun ServerItemActions(
 							)
 						},
 						onClick = {
+							queuedPin = true
 							showMoreMenu = false
-							onPinClick()
 						}
 					)
 					DropdownMenuItem(
 						text = { Text(stringResource(R.string.copy_server)) },
 						onClick = {
+							queuedCopy = true
 							showMoreMenu = false
-							onCopyClick()
 						}
 					)
 					vendorMenu.entries.forEach { entry ->
 						DropdownMenuItem(
 							text = { Text(vendorMenuLabel(vendorMenu.vendor, entry)) },
 							onClick = {
+								queuedVendor = entry
 								showMoreMenu = false
-								onVendorAction(entry)
 							}
 						)
 					}
@@ -817,6 +839,8 @@ private fun vendorMenuLabel(vendor: VendorKind?, entry: VendorMenuEntry): String
 		VendorMenuEntry.STATUS -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_status))
 		VendorMenuEntry.SERVICE_INFO -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_service_info))
 		VendorMenuEntry.MIGRATE -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_migrate))
+		VendorMenuEntry.RESET_ROOT -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_reset_root))
+		VendorMenuEntry.USAGE -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_usage))
 		VendorMenuEntry.BANDWIDTH -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.virtualizor_bandwidth))
 		VendorMenuEntry.UNBIND -> stringResource(R.string.vendor_labeled_action, vendorName, stringResource(R.string.bandwagon_unbind))
 	}
@@ -1108,6 +1132,55 @@ private fun VendorPromptDialog(
 				BandwagonMigrateResultPanel(
 					start = prompt.start,
 					onUseHost = { viewModel.applyMigrateHost(it) }
+				)
+			},
+			confirmButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.confirm))
+				}
+			}
+		)
+		is VendorPrompt.ConfirmResetRoot -> BandwagonConfirmDialog(
+			message = stringResource(R.string.bandwagon_reset_confirm),
+			onConfirm = { viewModel.confirmResetRoot() },
+			onDismiss = { viewModel.dismissVendorPrompt() }
+		)
+		is VendorPrompt.ResetRootResult -> {
+			val clipboard = LocalClipboardManager.current
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.bandwagon_reset_root)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+						Text(stringResource(R.string.bandwagon_reset_success))
+						Text(prompt.password, style = MaterialTheme.typography.bodyLarge)
+					}
+				},
+				confirmButton = {
+					TextButton(onClick = { viewModel.applyResetRootPassword() }) {
+						Text(stringResource(R.string.bandwagon_reset_save_ssh))
+					}
+				},
+				dismissButton = {
+					Row {
+						TextButton(onClick = { clipboard.setText(AnnotatedString(prompt.password)) }) {
+							Text(stringResource(R.string.bandwagon_reset_copy))
+						}
+						TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+							Text(stringResource(R.string.confirm))
+						}
+					}
+				}
+			)
+		}
+		is VendorPrompt.UsageStats -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			title = { Text(stringResource(R.string.bandwagon_usage_title)) },
+			text = {
+				BandwagonUsagePanel(
+					stats = prompt.stats,
+					range = prompt.range,
+					onRange = { viewModel.setUsageRange(it) }
 				)
 			},
 			confirmButton = {

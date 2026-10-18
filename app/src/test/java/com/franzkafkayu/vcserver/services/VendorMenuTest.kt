@@ -30,6 +30,8 @@ class VendorMenuTest {
 				VendorMenuEntry.STATUS,
 				VendorMenuEntry.SERVICE_INFO,
 				VendorMenuEntry.MIGRATE,
+				VendorMenuEntry.RESET_ROOT,
+				VendorMenuEntry.USAGE,
 				VendorMenuEntry.UNBIND
 			),
 			menu.entries
@@ -72,6 +74,19 @@ class VendorMenuTest {
 		)
 		assertTrue(
 			VendorMenuEntry.MIGRATE !in vendorMenu(selectionMode = false, vendor = VendorKind.VIRTUALIZOR).entries
+		)
+		assertTrue(
+			vendorMenu(selectionMode = true, vendor = VendorKind.BANDWAGON).entries.isEmpty()
+		)
+	}
+
+	@Test
+	fun otherVendorsDoNotOfferResetOrUsage() {
+		assertTrue(
+			VendorMenuEntry.RESET_ROOT !in vendorMenu(selectionMode = false, vendor = VendorKind.CLOUDCONE).entries
+		)
+		assertTrue(
+			VendorMenuEntry.USAGE !in vendorMenu(selectionMode = false, vendor = VendorKind.VIRTUALIZOR).entries
 		)
 		assertTrue(
 			vendorMenu(selectionMode = true, vendor = VendorKind.BANDWAGON).entries.isEmpty()

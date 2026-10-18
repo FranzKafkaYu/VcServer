@@ -77,6 +77,8 @@ class BandwagonResponseParserTest {
 		assertNull(parsed.info)
 		assertNull(parsed.migrateLocations)
 		assertNull(parsed.migrateStart)
+		assertNull(parsed.password)
+		assertNull(parsed.usage)
 	}
 
 	@Test
@@ -120,5 +122,118 @@ class BandwagonResponseParserTest {
 			"""{"error":7,"message":"busy","notificationEmail":"x","newIps":["1.1.1.1"]}"""
 		)
 		assertNull(parsed.migrateStart)
+	}
+
+	@Test
+	fun resetPasswordReadsField() {
+		val parsed = parseBandwagonResponse("""{"error":0,"password":"n3w-secret"}""")
+		assertEquals("n3w-secret", parsed.password)
+	}
+
+	@Test
+	fun usageObjectSeriesAndRangeSlice() {
+		val parsed = parseBandwagonResponse(
+			"""
+			{"error":0,"data":{
+			"cpu_usage":[[1700000000,1.5],[1700003600,2.0]],
+			"network_in_bytes":[[1700000000,100],[1700003600,1100]],
+			"network_out_bytes":[[1700000000,50],[1700003600,250]]
+			}}
+			""".trimIndent()
+		)
+		val usage = parsed.usage!!
+		assertEquals(2, usage.cpuUsage.size)
+		assertEquals(2.0, usage.cpuUsage[1].value, 0.0)
+		assertEquals(1, usage.networkInBps.size)
+		assertEquals(1000.0 * 8.0 / 3600.0, usage.networkInBps[0].value, 0.001)
+		val sliced = sliceBandwagonUsage(usage, BandwagonUsageRange.DAY, nowSec = 1700003600L)
+		assertEquals(2, sliced.cpuUsage.size)
+		val empty = sliceBandwagonUsage(usage, BandwagonUsageRange.DAY, nowSec = 1800000000L)
+		assertTrue(empty.cpuUsage.isEmpty())
+	}
+
+	@Test
+	fun usageRowArrayReadsCpuAndNetwork() {
+		val parsed = parseBandwagonResponse(
+			"""{"error":0,"data":[[1700000000,3,10,20],[1700000060,4,40,80]]}"""
+		)
+		val usage = parsed.usage!!
+		assertEquals(3.0, usage.cpuUsage[0].value, 0.0)
+		assertEquals(10.0, usage.networkInBytes[0].value, 0.0)
+		assertEquals(20.0, usage.networkOutBytes[0].value, 0.0)
+		assertTrue(usage.networkInBps.isNotEmpty())
+	}
+
+	@Test
+	fun missingUsageStaysNull() {
+		val parsed = parseBandwagonResponse("""{"error":0}""")
+		assertNull(parsed.usage)
+		assertNull(parsed.password)
+	}
+
+	@Test
+	fun usageObjectMapOfTimestamps() {
+		val parsed = parseBandwagonResponse(
+			"""
+			{"error":0,"data":{
+			"cpu_usage":{"1700000000":1.5,"1700003600":2.0},
+			"network_in_bytes":{"1700000000":100,"1700003600":1100},
+			"network_out_bytes":{"1700000000":50,"1700003600":250}
+			}}
+			""".trimIndent()
+		)
+		val usage = parsed.usage!!
+		assertEquals(2, usage.cpuUsage.size)
+		assertEquals(1.5, usage.cpuUsage[0].value, 0.0)
+		assertEquals(2, usage.networkInBytes.size)
+		assertTrue(usage.networkInBps.isNotEmpty())
+	}
+
+	@Test
+	fun usageRootLevelSeriesWithoutDataWrapper() {
+		val parsed = parseBandwagonResponse(
+			"""{"error":0,"cpu_usage":{"1700000000":3.0},"network_in_bytes":{"1700000000":9}}"""
+		)
+		val usage = parsed.usage!!
+		assertEquals(3.0, usage.cpuUsage[0].value, 0.0)
+		assertEquals(9.0, usage.networkInBytes[0].value, 0.0)
+	}
+
+	@Test
+	fun usageArrayOfNamedObjects() {
+		val parsed = parseBandwagonResponse(
+			"""{"error":0,"data":[{"timestamp":1700000000,"cpu_usage":1,"network_in_bytes":10,"network_out_bytes":20}]}"""
+		)
+		val usage = parsed.usage!!
+		assertEquals(1.0, usage.cpuUsage[0].value, 0.0)
+		assertEquals(10.0, usage.networkInBytes[0].value, 0.0)
+	}
+
+	@Test
+	fun usageTimestampKeyedObjectsWithShortFieldNames() {
+		val parsed = parseBandwagonResponse(
+			"""
+			{"error":0,"data":{
+			"1700000000":{"cpu":1.5,"net_in":100,"net_out":50},
+			"1700003600":{"cpu":2.0,"net_in":1100,"net_out":250}
+			}}
+			""".trimIndent()
+		)
+		val usage = parsed.usage!!
+		assertEquals(2, usage.cpuUsage.size)
+		assertEquals(1.5, usage.cpuUsage[0].value, 0.0)
+		assertEquals(1100.0, usage.networkInBytes[1].value, 0.0)
+		assertTrue(usage.networkInBps.isNotEmpty())
+	}
+
+	@Test
+	fun usageNamedSeriesWithShortAliases() {
+		val parsed = parseBandwagonResponse(
+			"""{"error":0,"data":{"cpu":{"1700000000":4},"net_in":{"1700000000":8},"net_out":{"1700000000":3}}}"""
+		)
+		val usage = parsed.usage!!
+		assertEquals(4.0, usage.cpuUsage[0].value, 0.0)
+		assertEquals(8.0, usage.networkInBytes[0].value, 0.0)
+		assertEquals(3.0, usage.networkOutBytes[0].value, 0.0)
 	}
 }

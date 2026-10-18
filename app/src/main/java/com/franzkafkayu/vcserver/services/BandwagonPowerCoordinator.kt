@@ -111,6 +111,19 @@ sealed class BandwagonMigrateStartResult {
 	data class Failed(val message: String) : BandwagonMigrateStartResult()
 }
 
+sealed class BandwagonResetRootResult {
+	data class Accepted(val password: String) : BandwagonResetRootResult()
+	data object NeedsConfirmation : BandwagonResetRootResult()
+	data object NotBound : BandwagonResetRootResult()
+	data class Failed(val message: String) : BandwagonResetRootResult()
+}
+
+sealed class BandwagonUsageResult {
+	data class Known(val stats: BandwagonUsageStats) : BandwagonUsageResult()
+	data object NotBound : BandwagonUsageResult()
+	data class Failed(val message: String) : BandwagonUsageResult()
+}
+
 class BandwagonPowerCoordinator(
 	private val store: BandwagonLinkStore,
 	private val client: BandwagonClient,
@@ -288,6 +301,51 @@ class BandwagonPowerCoordinator(
 		val start = result.migrateStart ?: BandwagonMigrateStart(notificationEmail = null, newIps = emptyList())
 		closeSessions(serverId)
 		return BandwagonMigrateStartResult.Accepted(start)
+	}
+
+	suspend fun resetRootPassword(serverId: Long, confirmed: Boolean): BandwagonResetRootResult {
+		if (!confirmed) return BandwagonResetRootResult.NeedsConfirmation
+		val link = store.getByServerId(serverId) ?: return BandwagonResetRootResult.NotBound
+		val result = try {
+			client.call(
+				HttpBandwagonClient.ACTION_RESET_ROOT,
+				link.veid,
+				keys.decrypt(link.encryptedApiKey),
+				HttpBandwagonClient.TIMEOUT_POWER_MS
+			)
+		} catch (e: Exception) {
+			return BandwagonResetRootResult.Failed(e.message ?: "request failed")
+		}
+		if (result.error != 0) {
+			return BandwagonResetRootResult.Failed(result.message ?: "error ${result.error}")
+		}
+		val password = result.password?.takeIf { it.isNotBlank() }
+			?: return BandwagonResetRootResult.Failed("empty password")
+		return BandwagonResetRootResult.Accepted(password)
+	}
+
+	suspend fun usageStats(serverId: Long): BandwagonUsageResult {
+		val link = store.getByServerId(serverId) ?: return BandwagonUsageResult.NotBound
+		val result = try {
+			client.call(
+				HttpBandwagonClient.ACTION_USAGE,
+				link.veid,
+				keys.decrypt(link.encryptedApiKey),
+				HttpBandwagonClient.TIMEOUT_USAGE_MS
+			)
+		} catch (e: Exception) {
+			return BandwagonUsageResult.Failed(e.message ?: "request failed")
+		}
+		if (result.error != 0) {
+			return BandwagonUsageResult.Failed(result.message ?: "error ${result.error}")
+		}
+		val usage = result.usage ?: return BandwagonUsageResult.Failed("empty stats")
+		if (usage.isEmpty()) return BandwagonUsageResult.Failed("empty stats")
+		return BandwagonUsageResult.Known(usage)
+	}
+
+	fun closeBoundSessions(serverId: Long) {
+		closeSessions(serverId)
 	}
 
 	private fun BandwagonPowerAction.endpoint(): String {

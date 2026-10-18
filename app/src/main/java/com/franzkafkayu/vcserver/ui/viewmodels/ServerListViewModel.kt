@@ -18,6 +18,11 @@ import com.franzkafkayu.vcserver.services.BandwagonMigrateLocations
 import com.franzkafkayu.vcserver.services.BandwagonMigrateLocationsResult
 import com.franzkafkayu.vcserver.services.BandwagonMigrateStart
 import com.franzkafkayu.vcserver.services.BandwagonMigrateStartResult
+import com.franzkafkayu.vcserver.services.BandwagonResetRootResult
+import com.franzkafkayu.vcserver.services.BandwagonUsageRange
+import com.franzkafkayu.vcserver.services.BandwagonUsageResult
+import com.franzkafkayu.vcserver.services.BandwagonUsageStats
+import com.franzkafkayu.vcserver.models.AuthType
 import com.franzkafkayu.vcserver.services.CloudconeBindResult
 import com.franzkafkayu.vcserver.services.CloudconeCoordinator
 import com.franzkafkayu.vcserver.services.CloudconeInstance
@@ -301,6 +306,12 @@ class ServerListViewModel(
 			VendorMenuEntry.STATUS -> queryStatus(serverId, vendor)
 			VendorMenuEntry.SERVICE_INFO -> queryServiceInfo(serverId, vendor)
 			VendorMenuEntry.MIGRATE -> queryMigrateLocations(serverId, vendor)
+			VendorMenuEntry.RESET_ROOT -> {
+				if (vendor == VendorKind.BANDWAGON) {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ConfirmResetRoot(serverId))
+				}
+			}
+			VendorMenuEntry.USAGE -> queryUsage(serverId, vendor)
 			VendorMenuEntry.BANDWIDTH -> queryBandwidth(serverId, vendor)
 			VendorMenuEntry.UNBIND -> {
 				if (vendor != null) {
@@ -625,6 +636,80 @@ class ServerListViewModel(
 				}
 			}
 		}
+	}
+
+	fun confirmResetRoot() {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ConfirmResetRoot ?: return
+		viewModelScope.launch {
+			when (val result = bandwagon.resetRootPassword(prompt.serverId, confirmed = true)) {
+				is BandwagonResetRootResult.Accepted -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = VendorPrompt.ResetRootResult(prompt.serverId, result.password)
+					)
+				}
+				BandwagonResetRootResult.NeedsConfirmation -> Unit
+				BandwagonResetRootResult.NotBound -> {
+					dismissVendorPrompt()
+					notice(R.string.bandwagon_not_bound)
+				}
+				is BandwagonResetRootResult.Failed -> {
+					dismissVendorPrompt()
+					noticeArg(R.string.bandwagon_reset_failed, result.message)
+				}
+			}
+		}
+	}
+
+	fun applyResetRootPassword() {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ResetRootResult ?: return
+		val server = _uiState.value.servers.find { it.id == prompt.serverId } ?: return
+		viewModelScope.launch {
+			serverManagementService.updateServer(
+				serverId = server.id,
+				name = server.name,
+				host = server.host,
+				port = server.port,
+				username = server.username,
+				authType = AuthType.PASSWORD,
+				password = prompt.password,
+				privateKey = null,
+				keyPassphrase = null,
+				groupId = server.groupId,
+				proxyEnabled = server.proxyEnabled,
+				proxyType = server.proxyType,
+				proxyHost = server.proxyHost,
+				proxyPort = server.proxyPort,
+				proxyUsername = server.proxyUsername,
+				proxyPassword = null,
+				jumpHostId = server.jumpHostId
+			).onSuccess {
+				bandwagon.closeBoundSessions(server.id)
+				dismissVendorPrompt()
+				notice(R.string.bandwagon_reset_password_saved)
+			}.onFailure { error ->
+				noticeArg(R.string.bandwagon_reset_failed, error.message ?: "")
+			}
+		}
+	}
+
+	private fun queryUsage(serverId: Long, vendor: VendorKind?) {
+		if (vendor != VendorKind.BANDWAGON) return
+		viewModelScope.launch {
+			when (val result = bandwagon.usageStats(serverId)) {
+				is BandwagonUsageResult.Known -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = VendorPrompt.UsageStats(result.stats, BandwagonUsageRange.DAY)
+					)
+				}
+				BandwagonUsageResult.NotBound -> notice(R.string.bandwagon_not_bound)
+				is BandwagonUsageResult.Failed -> noticeArg(R.string.bandwagon_usage_failed, result.message)
+			}
+		}
+	}
+
+	fun setUsageRange(range: BandwagonUsageRange) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.UsageStats ?: return
+		_uiState.value = _uiState.value.copy(vendorPrompt = prompt.copy(range = range))
 	}
 
 	fun applyMigrateHost(ip: String) {
@@ -1023,4 +1108,7 @@ sealed class VendorPrompt {
 	data class MigratePick(val serverId: Long, val locations: BandwagonMigrateLocations) : VendorPrompt()
 	data class ConfirmMigrate(val serverId: Long, val location: BandwagonMigrateLocation) : VendorPrompt()
 	data class MigrateResult(val serverId: Long, val start: BandwagonMigrateStart) : VendorPrompt()
+	data class ConfirmResetRoot(val serverId: Long) : VendorPrompt()
+	data class ResetRootResult(val serverId: Long, val password: String) : VendorPrompt()
+	data class UsageStats(val stats: BandwagonUsageStats, val range: BandwagonUsageRange) : VendorPrompt()
 }

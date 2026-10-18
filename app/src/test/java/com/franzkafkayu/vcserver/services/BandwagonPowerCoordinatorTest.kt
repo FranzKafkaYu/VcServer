@@ -198,6 +198,60 @@ class BandwagonPowerCoordinatorTest {
 	}
 
 	@Test
+	fun resetRootNeedsConfirmationAndKeepsBindingOnFailure() = runBlocking {
+		val harness = Harness()
+		val unbound = harness.coordinator.resetRootPassword(1L, confirmed = true)
+		assertTrue(unbound is BandwagonResetRootResult.NotBound)
+		assertTrue(harness.client.calls.isEmpty())
+
+		harness.store.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "key"))
+		harness.keys.live["key"] = "secret"
+		val pending = harness.coordinator.resetRootPassword(1L, confirmed = false)
+		assertTrue(pending is BandwagonResetRootResult.NeedsConfirmation)
+		assertTrue(harness.client.calls.isEmpty())
+
+		harness.client.next = BandwagonCallResult(error = 0, message = null, veStatus = null, password = "fresh")
+		val accepted = harness.coordinator.resetRootPassword(1L, confirmed = true)
+		assertTrue(accepted is BandwagonResetRootResult.Accepted)
+		assertEquals("fresh", (accepted as BandwagonResetRootResult.Accepted).password)
+		assertEquals(listOf(HttpBandwagonClient.ACTION_RESET_ROOT), harness.client.calls)
+		assertTrue(harness.closed.isEmpty())
+
+		harness.client.next = BandwagonCallResult(error = 1, message = "busy", veStatus = null)
+		val failed = harness.coordinator.resetRootPassword(1L, confirmed = true)
+		assertTrue(failed is BandwagonResetRootResult.Failed)
+		assertEquals("200", harness.store.getByServerId(1L)?.veid)
+	}
+
+	@Test
+	fun usageStatsRequiresBindingAndKeepsLinkOnFailure() = runBlocking {
+		val harness = Harness()
+		val unbound = harness.coordinator.usageStats(1L)
+		assertTrue(unbound is BandwagonUsageResult.NotBound)
+		assertTrue(harness.client.calls.isEmpty())
+
+		harness.store.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "key"))
+		harness.keys.live["key"] = "secret"
+		harness.client.next = BandwagonCallResult(
+			error = 0,
+			message = null,
+			veStatus = null,
+			usage = BandwagonUsageStats(
+				cpuUsage = listOf(BandwagonUsagePoint(1L, 2.0))
+			)
+		)
+		val known = harness.coordinator.usageStats(1L)
+		assertTrue(known is BandwagonUsageResult.Known)
+		assertEquals(2.0, (known as BandwagonUsageResult.Known).stats.cpuUsage[0].value, 0.0)
+		assertEquals(listOf(HttpBandwagonClient.ACTION_USAGE), harness.client.calls)
+
+		harness.client.next = BandwagonCallResult(error = 1, message = "busy", veStatus = null)
+		val failed = harness.coordinator.usageStats(1L)
+		assertTrue(failed is BandwagonUsageResult.Failed)
+		assertEquals("200", harness.store.getByServerId(1L)?.veid)
+	}
+
+	@Test
 	fun duplicateDoesNotCopyLink() = runBlocking {
 		val harness = Harness()
 		harness.store.upsert(BandwagonLink(serverId = 1L, veid = "200", encryptedApiKey = "key"))
