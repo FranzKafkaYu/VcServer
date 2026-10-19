@@ -68,6 +68,7 @@ class VirtualizorCoordinator(
 	private val links: VirtualizorLinkStore,
 	private val bandwagonLinks: BandwagonLinkStore,
 	private val cloudconeLinks: CloudconeLinkStore,
+	private val greencloudLinks: GreencloudLinkStore,
 	private val client: VirtualizorClient,
 	private val keys: BandwagonKeyStore,
 	private val closeSessions: (Long) -> Unit
@@ -125,6 +126,7 @@ class VirtualizorCoordinator(
 	): VirtualizorBindResult {
 		if (bandwagonLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
 		if (cloudconeLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
+		if (greencloudLinks.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
 		if (links.getByServerId(serverId) != null) return VirtualizorBindResult.OtherVendor
 		val trimmedHost = host.trim()
 		val occupied = links.getByPanelVps(trimmedHost, port, vpsid)

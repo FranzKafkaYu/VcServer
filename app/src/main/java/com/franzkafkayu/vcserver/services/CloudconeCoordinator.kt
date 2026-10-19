@@ -60,6 +60,7 @@ class CloudconeCoordinator(
 	private val links: CloudconeLinkStore,
 	private val bandwagonLinks: BandwagonLinkStore,
 	private val virtualizorLinks: VirtualizorLinkStore,
+	private val greencloudLinks: GreencloudLinkStore,
 	private val client: CloudconeClient,
 	private val keys: BandwagonKeyStore,
 	private val closeSessions: (Long) -> Unit
@@ -87,6 +88,7 @@ class CloudconeCoordinator(
 	): CloudconeBindResult {
 		if (bandwagonLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
 		if (virtualizorLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
+		if (greencloudLinks.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
 		if (links.getByServerId(serverId) != null) return CloudconeBindResult.OtherVendor
 		val occupied = links.getByInstanceId(instanceId)
 		if (occupied != null && occupied.serverId != serverId) return CloudconeBindResult.InstanceInUse

@@ -111,6 +111,7 @@
 	<string name="vendor_bandwagon">BandwagonHost</string>
 	<string name="vendor_cloudcone">CloudCone</string>
 	<string name="vendor_virtualizor">Virtualizor</string>
+	<string name="vendor_greencloud">GreenCloud</string>
 	<string name="vendor_choose_title">Choose vendor</string>
 	<string name="vendor_labeled_action">%1$s · %2$s</string>
 	<string name="vendor_already_bound">This server is already linked to another vendor</string>
@@ -144,6 +145,17 @@
 	<string name="cloudcone_linked">In the server list</string>
 	<string name="cloudcone_add_server">Add to server list</string>
 	<string name="cloudcone_open_server">Open server</string>
+	<string name="greencloud_account_title">GreenCloud account</string>
+	<string name="greencloud_api_token">API Token</string>
+	<string name="greencloud_account_failed">GreenCloud request failed: %1$s</string>
+	<string name="greencloud_no_account">No GreenCloud account</string>
+	<string name="greencloud_no_free_instance">No unbound instance</string>
+	<string name="greencloud_pick_instance">Choose instance</string>
+	<string name="greencloud_bind_success">GreenCloud linked</string>
+	<string name="greencloud_instance_in_use">This instance is already linked to another server</string>
+	<string name="greencloud_list_failed">Failed to load instances: %1$s</string>
+	<string name="greencloud_status_failed">Failed to query power status: %1$s</string>
+	<string name="greencloud_confirm_unbind">Unlinking removes this server from the instance. The SSH configuration stays.</string>
 	<string name="virtualizor_account_title">Virtualizor account</string>
 	<string name="virtualizor_account_entry">Panel host, keys, and VPS links</string>
 	<string name="virtualizor_host">Panel host</string>

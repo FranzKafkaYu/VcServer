@@ -22,9 +22,12 @@ import com.franzkafkayu.vcserver.services.CloudconeCoordinator
 import com.franzkafkayu.vcserver.services.DatabaseExportImportServiceImpl
 import com.franzkafkayu.vcserver.services.HttpBandwagonClient
 import com.franzkafkayu.vcserver.services.HttpCloudconeClient
+import com.franzkafkayu.vcserver.services.HttpGreencloudClient
 import com.franzkafkayu.vcserver.services.HttpVirtualizorClient
+import com.franzkafkayu.vcserver.services.GreencloudCoordinator
 import com.franzkafkayu.vcserver.services.RoomBandwagonLinkStore
 import com.franzkafkayu.vcserver.services.RoomCloudconeLinkStore
+import com.franzkafkayu.vcserver.services.RoomGreencloudLinkStore
 import com.franzkafkayu.vcserver.services.RoomVirtualizorLinkStore
 import com.franzkafkayu.vcserver.services.SecureBandwagonKeyStore
 import com.franzkafkayu.vcserver.services.VirtualizorCoordinator
@@ -98,7 +101,9 @@ class MainActivity : ComponentActivity() {
 				AppDatabase.MIGRATION_8_9,
 				AppDatabase.MIGRATION_9_10,
 				AppDatabase.MIGRATION_10_11,
-				AppDatabase.MIGRATION_11_12
+				AppDatabase.MIGRATION_11_12,
+				AppDatabase.MIGRATION_12_13,
+				AppDatabase.MIGRATION_13_14
 			)
 			.build()
 
@@ -107,13 +112,16 @@ class MainActivity : ComponentActivity() {
 		val bandwagonStore = RoomBandwagonLinkStore(database.bandwagonLinkDao())
 		val cloudconeLinks = RoomCloudconeLinkStore(database.cloudconeLinkDao())
 		val virtualizorLinks = RoomVirtualizorLinkStore(database.virtualizorLinkDao())
+		val greencloudLinks = RoomGreencloudLinkStore(database.greencloudLinkDao())
 		val vendorKeys = SecureBandwagonKeyStore(secureStorage)
 		val bandwagon = BandwagonPowerCoordinator(
 			store = bandwagonStore,
 			client = HttpBandwagonClient(),
 			keys = vendorKeys,
 			blockedByOtherVendor = { serverId ->
-				cloudconeLinks.getByServerId(serverId) != null || virtualizorLinks.getByServerId(serverId) != null
+				cloudconeLinks.getByServerId(serverId) != null ||
+					virtualizorLinks.getByServerId(serverId) != null ||
+					greencloudLinks.getByServerId(serverId) != null
 			},
 			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
 		)
@@ -121,6 +129,7 @@ class MainActivity : ComponentActivity() {
 			links = cloudconeLinks,
 			bandwagonLinks = bandwagonStore,
 			virtualizorLinks = virtualizorLinks,
+			greencloudLinks = greencloudLinks,
 			client = HttpCloudconeClient(),
 			keys = vendorKeys,
 			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
@@ -129,7 +138,17 @@ class MainActivity : ComponentActivity() {
 			links = virtualizorLinks,
 			bandwagonLinks = bandwagonStore,
 			cloudconeLinks = cloudconeLinks,
+			greencloudLinks = greencloudLinks,
 			client = HttpVirtualizorClient(),
+			keys = vendorKeys,
+			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
+		)
+		val greencloud = GreencloudCoordinator(
+			links = greencloudLinks,
+			bandwagonLinks = bandwagonStore,
+			cloudconeLinks = cloudconeLinks,
+			virtualizorLinks = virtualizorLinks,
+			client = HttpGreencloudClient(),
 			keys = vendorKeys,
 			closeSessions = { serverId -> SshConnectionPool.removeConnection(serverId) }
 		)
@@ -145,7 +164,8 @@ class MainActivity : ComponentActivity() {
 			secureStorage,
 			bandwagon,
 			cloudcone,
-			virtualizor
+			virtualizor,
+			greencloud
 		)
 		val serverMonitoringService = ServerMonitoringServiceImpl(
 			sshAuthService,
@@ -172,7 +192,8 @@ class MainActivity : ComponentActivity() {
 			serverGroupRepository,
 			bandwagon,
 			cloudcone,
-			virtualizor
+			virtualizor,
+			greencloud
 		)
 		val serverGroupManagementViewModel = com.franzkafkayu.vcserver.ui.viewmodels.ServerGroupManagementViewModel(serverGroupRepository)
 		val addServerViewModel = AddServerViewModel(

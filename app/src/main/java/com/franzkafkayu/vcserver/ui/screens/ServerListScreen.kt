@@ -832,6 +832,7 @@ private fun vendorMenuLabel(vendor: VendorKind?, entry: VendorMenuEntry): String
 		VendorKind.BANDWAGON -> stringResource(R.string.vendor_bandwagon)
 		VendorKind.CLOUDCONE -> stringResource(R.string.vendor_cloudcone)
 		VendorKind.VIRTUALIZOR -> stringResource(R.string.vendor_virtualizor)
+		VendorKind.GREENCLOUD -> stringResource(R.string.vendor_greencloud)
 		null -> ""
 	}
 	return when (entry) {
@@ -870,6 +871,9 @@ private fun VendorPromptDialog(
 						}
 						TextButton(onClick = { viewModel.chooseVendor(VendorKind.VIRTUALIZOR) }) {
 							Text(stringResource(R.string.vendor_virtualizor))
+						}
+						TextButton(onClick = { viewModel.chooseVendor(VendorKind.GREENCLOUD) }) {
+							Text(stringResource(R.string.vendor_greencloud))
 						}
 					}
 				},
@@ -1115,6 +1119,75 @@ private fun VendorPromptDialog(
 				}
 			)
 		}
+		is VendorPrompt.GreencloudSecrets -> {
+			var apiToken by remember(prompt.serverId) { mutableStateOf("") }
+			var tokenVisible by remember(prompt.serverId) { mutableStateOf(false) }
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.greencloud_account_title)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+						OutlinedTextField(
+							value = apiToken,
+							onValueChange = { apiToken = it },
+							label = { Text(stringResource(R.string.greencloud_api_token)) },
+							singleLine = true,
+							visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+							trailingIcon = {
+								IconButton(onClick = { tokenVisible = !tokenVisible }) {
+									Icon(
+										imageVector = if (tokenVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+										contentDescription = stringResource(
+											if (tokenVisible) R.string.hide_password else R.string.show_password
+										)
+									)
+								}
+							}
+						)
+					}
+				},
+				confirmButton = {
+					TextButton(
+						onClick = { viewModel.submitGreencloudAccount(apiToken) },
+						enabled = apiToken.isNotBlank()
+					) {
+						Text(stringResource(R.string.confirm))
+					}
+				},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
+		is VendorPrompt.GreencloudPick -> {
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissVendorPrompt() },
+				title = { Text(stringResource(R.string.greencloud_pick_instance)) },
+				text = {
+					Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+						if (prompt.instances.isEmpty()) {
+							Text(stringResource(R.string.greencloud_no_free_instance))
+						}
+						prompt.instances.forEach { instance ->
+							TextButton(onClick = { viewModel.bindGreencloudInstance(instance.id) }) {
+								val label = instance.label ?: instance.address
+								Text(
+									if (label.isNullOrBlank()) instance.id else "${instance.id} · $label"
+								)
+							}
+						}
+					}
+				},
+				confirmButton = {},
+				dismissButton = {
+					TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+						Text(stringResource(R.string.cancel))
+					}
+				}
+			)
+		}
 		is VendorPrompt.ConfirmStop -> BandwagonConfirmDialog(
 			message = stringResource(R.string.vendor_confirm_stop, vendorName(prompt.vendor)),
 			onConfirm = { viewModel.confirmVendorPower() },
@@ -1131,6 +1204,7 @@ private fun VendorPromptDialog(
 					VendorKind.CLOUDCONE -> R.string.cloudcone_confirm_unbind
 					VendorKind.VIRTUALIZOR -> R.string.virtualizor_confirm_unbind
 					VendorKind.BANDWAGON -> R.string.bandwagon_confirm_unbind
+					VendorKind.GREENCLOUD -> R.string.greencloud_confirm_unbind
 				}
 			),
 			onConfirm = { viewModel.confirmVendorUnbind() },
@@ -1275,6 +1349,7 @@ private fun vendorName(vendor: VendorKind): String {
 			VendorKind.CLOUDCONE -> R.string.vendor_cloudcone
 			VendorKind.VIRTUALIZOR -> R.string.vendor_virtualizor
 			VendorKind.BANDWAGON -> R.string.vendor_bandwagon
+			VendorKind.GREENCLOUD -> R.string.vendor_greencloud
 		}
 	)
 }

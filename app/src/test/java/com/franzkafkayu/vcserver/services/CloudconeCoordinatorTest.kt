@@ -157,6 +157,7 @@ class CloudconeCoordinatorTest {
 			links = links,
 			bandwagonLinks = bandwagon,
 			virtualizorLinks = MemoryVirtualizorLinkStore(),
+			greencloudLinks = MemoryGreencloudLinkStore(),
 			client = client,
 			keys = keys,
 			closeSessions = { closed += it }

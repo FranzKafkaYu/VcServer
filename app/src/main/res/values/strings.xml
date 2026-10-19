@@ -111,6 +111,7 @@
 	<string name="vendor_bandwagon">BandwagonHost</string>
 	<string name="vendor_cloudcone">CloudCone</string>
 	<string name="vendor_virtualizor">Virtualizor</string>
+	<string name="vendor_greencloud">GreenCloud</string>
 	<string name="vendor_choose_title">选择厂商</string>
 	<string name="vendor_labeled_action">%1$s · %2$s</string>
 	<string name="vendor_already_bound">这台服务器已经绑定了其他厂商</string>
@@ -144,6 +145,17 @@
 	<string name="cloudcone_linked">已加入服务器列表</string>
 	<string name="cloudcone_add_server">加入服务器列表</string>
 	<string name="cloudcone_open_server">打开服务器</string>
+	<string name="greencloud_account_title">GreenCloud 账号</string>
+	<string name="greencloud_api_token">API Token</string>
+	<string name="greencloud_account_failed">GreenCloud 请求失败：%1$s</string>
+	<string name="greencloud_no_account">还没有 GreenCloud 账号</string>
+	<string name="greencloud_no_free_instance">没有可绑定的实例</string>
+	<string name="greencloud_pick_instance">选择实例</string>
+	<string name="greencloud_bind_success">已绑定 GreenCloud</string>
+	<string name="greencloud_instance_in_use">该实例已绑定到其他服务器</string>
+	<string name="greencloud_list_failed">读取实例失败：%1$s</string>
+	<string name="greencloud_status_failed">查询电源状态失败：%1$s</string>
+	<string name="greencloud_confirm_unbind">解除绑定后，这台服务器不再关联该实例。SSH 配置会保留。</string>
 	<string name="virtualizor_account_title">Virtualizor 账号</string>
 	<string name="virtualizor_account_entry">面板地址、密钥与 VPS 绑定</string>
 	<string name="virtualizor_host">面板主机</string>

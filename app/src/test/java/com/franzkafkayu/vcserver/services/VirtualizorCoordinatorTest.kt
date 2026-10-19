@@ -68,6 +68,7 @@ class VirtualizorCoordinatorTest {
 			links = harness.cloudcone,
 			bandwagonLinks = harness.bandwagon,
 			virtualizorLinks = harness.vzLinks,
+			greencloudLinks = MemoryGreencloudLinkStore(),
 			client = object : CloudconeClient {
 				override suspend fun list(apiKey: String, hash: String) = throw AssertionError()
 				override suspend fun information(apiKey: String, hash: String, instanceId: String) = throw AssertionError()
@@ -155,6 +156,7 @@ class VirtualizorCoordinatorTest {
 			links = links,
 			bandwagonLinks = bandwagon,
 			cloudconeLinks = cloudcone,
+			greencloudLinks = MemoryGreencloudLinkStore(),
 			client = client,
 			keys = keys,
 			closeSessions = { closed += it }

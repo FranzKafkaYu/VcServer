@@ -105,4 +105,23 @@ class VendorMenuTest {
 			VendorMenuEntry.BANDWIDTH !in vendorMenu(selectionMode = false, vendor = VendorKind.CLOUDCONE).entries
 		)
 	}
+
+	@Test
+	fun greencloudBoundServerOffersPowerAndUnbindOnly() {
+		val menu = vendorMenu(selectionMode = false, vendor = VendorKind.GREENCLOUD)
+		assertEquals(VendorKind.GREENCLOUD, menu.vendor)
+		assertEquals(
+			listOf(
+				VendorMenuEntry.START,
+				VendorMenuEntry.STOP,
+				VendorMenuEntry.RESTART,
+				VendorMenuEntry.STATUS,
+				VendorMenuEntry.UNBIND
+			),
+			menu.entries
+		)
+		assertTrue(VendorMenuEntry.SERVICE_INFO !in menu.entries)
+		assertTrue(VendorMenuEntry.MIGRATE !in menu.entries)
+		assertTrue(VendorMenuEntry.BANDWIDTH !in menu.entries)
+	}
 }

@@ -7,6 +7,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.franzkafkayu.vcserver.data.dao.BandwagonLinkDao
 import com.franzkafkayu.vcserver.data.dao.CloudconeLinkDao
+import com.franzkafkayu.vcserver.data.dao.GreencloudLinkDao
 import com.franzkafkayu.vcserver.data.dao.ServerDao
 import com.franzkafkayu.vcserver.data.dao.ServerGroupDao
 import com.franzkafkayu.vcserver.data.dao.VirtualizorLinkDao
@@ -14,6 +15,7 @@ import com.franzkafkayu.vcserver.data.converters.AuthTypeConverter
 import com.franzkafkayu.vcserver.data.converters.ProxyTypeConverter
 import com.franzkafkayu.vcserver.models.BandwagonLink
 import com.franzkafkayu.vcserver.models.CloudconeLink
+import com.franzkafkayu.vcserver.models.GreencloudLink
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerGroup
 import com.franzkafkayu.vcserver.models.VirtualizorLink
@@ -27,9 +29,10 @@ import com.franzkafkayu.vcserver.models.VirtualizorLink
 		ServerGroup::class,
 		BandwagonLink::class,
 		CloudconeLink::class,
+		GreencloudLink::class,
 		VirtualizorLink::class
 	],
-	version = 12,
+	version = 14,
 	exportSchema = false
 )
 @TypeConverters(AuthTypeConverter::class, ProxyTypeConverter::class)
@@ -38,6 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun serverGroupDao(): ServerGroupDao
 	abstract fun bandwagonLinkDao(): BandwagonLinkDao
 	abstract fun cloudconeLinkDao(): CloudconeLinkDao
+	abstract fun greencloudLinkDao(): GreencloudLinkDao
 	abstract fun virtualizorLinkDao(): VirtualizorLinkDao
 
 	companion object {
@@ -234,6 +238,49 @@ abstract class AppDatabase : RoomDatabase() {
 				)
 				database.execSQL("DELETE FROM `cloudcone_links` WHERE encryptedApiKey = '' OR encryptedHash = ''")
 				database.execSQL("DROP TABLE IF EXISTS `cloudcone_account`")
+			}
+		}
+
+		val MIGRATION_12_13 = object : Migration(12, 13) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL(
+					"""
+					CREATE TABLE IF NOT EXISTS `greencloud_links` (
+						`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+						`serverId` INTEGER NOT NULL,
+						`instanceId` TEXT NOT NULL,
+						`encryptedApiToken` TEXT NOT NULL
+					)
+					""".trimIndent()
+				)
+				database.execSQL(
+					"CREATE UNIQUE INDEX IF NOT EXISTS `index_greencloud_links_serverId` ON `greencloud_links` (`serverId`)"
+				)
+				database.execSQL(
+					"CREATE UNIQUE INDEX IF NOT EXISTS `index_greencloud_links_instanceId` ON `greencloud_links` (`instanceId`)"
+				)
+			}
+		}
+
+		val MIGRATION_13_14 = object : Migration(13, 14) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("DROP TABLE IF EXISTS `greencloud_links`")
+				database.execSQL(
+					"""
+					CREATE TABLE IF NOT EXISTS `greencloud_links` (
+						`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+						`serverId` INTEGER NOT NULL,
+						`instanceId` TEXT NOT NULL,
+						`encryptedApiToken` TEXT NOT NULL
+					)
+					""".trimIndent()
+				)
+				database.execSQL(
+					"CREATE UNIQUE INDEX IF NOT EXISTS `index_greencloud_links_serverId` ON `greencloud_links` (`serverId`)"
+				)
+				database.execSQL(
+					"CREATE UNIQUE INDEX IF NOT EXISTS `index_greencloud_links_instanceId` ON `greencloud_links` (`instanceId`)"
+				)
 			}
 		}
 	}

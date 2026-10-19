@@ -18,7 +18,8 @@ class ServerManagementServiceImpl(
 	private val secureStorage: SecureStorage,
 	private val bandwagon: BandwagonPowerCoordinator,
 	private val cloudcone: CloudconeCoordinator,
-	private val virtualizor: VirtualizorCoordinator
+	private val virtualizor: VirtualizorCoordinator,
+	private val greencloud: GreencloudCoordinator
 ) : ServerManagementService {
 	override fun getAllServers(): Flow<List<Server>> {
 		return serverRepository.getAllServers()
@@ -252,6 +253,7 @@ class ServerManagementServiceImpl(
 			bandwagon.onServerDeleted(server.id)
 			cloudcone.onServerDeleted(server.id)
 			virtualizor.onServerDeleted(server.id)
+			greencloud.onServerDeleted(server.id)
 			Result.success(Unit)
 		} catch (e: Exception) {
 			Result.failure(e)

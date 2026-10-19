@@ -3,7 +3,8 @@ package com.franzkafkayu.vcserver.services
 enum class VendorKind {
 	BANDWAGON,
 	CLOUDCONE,
-	VIRTUALIZOR
+	VIRTUALIZOR,
+	GREENCLOUD
 }
 
 enum class VendorMenuEntry {

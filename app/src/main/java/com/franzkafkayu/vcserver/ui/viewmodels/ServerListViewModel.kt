@@ -40,6 +40,12 @@ import com.franzkafkayu.vcserver.services.VirtualizorStatusResult
 import com.franzkafkayu.vcserver.services.VirtualizorTrafficResult
 import com.franzkafkayu.vcserver.services.VirtualizorBandwidth
 import com.franzkafkayu.vcserver.services.VirtualizorVps
+import com.franzkafkayu.vcserver.services.GreencloudBindResult
+import com.franzkafkayu.vcserver.services.GreencloudCoordinator
+import com.franzkafkayu.vcserver.services.GreencloudInstance
+import com.franzkafkayu.vcserver.services.GreencloudPowerAction
+import com.franzkafkayu.vcserver.services.GreencloudPowerResult
+import com.franzkafkayu.vcserver.services.GreencloudStatusResult
 import com.franzkafkayu.vcserver.services.ServerManagementService
 import com.franzkafkayu.vcserver.services.VendorKind
 import com.franzkafkayu.vcserver.services.VendorMenuEntry
@@ -65,7 +71,8 @@ class ServerListViewModel(
 	private val serverGroupRepository: ServerGroupRepository,
 	private val bandwagon: BandwagonPowerCoordinator,
 	private val cloudcone: CloudconeCoordinator,
-	private val virtualizor: VirtualizorCoordinator
+	private val virtualizor: VirtualizorCoordinator,
+	private val greencloud: GreencloudCoordinator
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(ServerListUiState())
 	val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
@@ -92,6 +99,13 @@ class ServerListViewModel(
 				publishVendors()
 			}
 		}
+		viewModelScope.launch {
+			greencloud.observeLinks().collect { links ->
+				greencloudLinkRows = links
+				greencloudIds = links.map { it.serverId }.toSet()
+				publishVendors()
+			}
+		}
 	}
 
 	private var bandwagonIds: Set<Long> = emptySet()
@@ -99,12 +113,15 @@ class ServerListViewModel(
 	private var cloudconeLinkRows: List<com.franzkafkayu.vcserver.models.CloudconeLink> = emptyList()
 	private var virtualizorIds: Set<Long> = emptySet()
 	private var virtualizorLinkRows: List<com.franzkafkayu.vcserver.models.VirtualizorLink> = emptyList()
+	private var greencloudIds: Set<Long> = emptySet()
+	private var greencloudLinkRows: List<com.franzkafkayu.vcserver.models.GreencloudLink> = emptyList()
 
 	private fun publishVendors() {
 		val vendors = buildMap {
 			bandwagonIds.forEach { put(it, VendorKind.BANDWAGON) }
 			cloudconeIds.forEach { put(it, VendorKind.CLOUDCONE) }
 			virtualizorIds.forEach { put(it, VendorKind.VIRTUALIZOR) }
+			greencloudIds.forEach { put(it, VendorKind.GREENCLOUD) }
 		}
 		_uiState.value = _uiState.value.copy(serverVendors = vendors)
 	}
@@ -328,6 +345,9 @@ class ServerListViewModel(
 			VendorKind.VIRTUALIZOR -> {
 				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.VirtualizorSecrets(prompt.serverId))
 			}
+			VendorKind.GREENCLOUD -> {
+				_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.GreencloudSecrets(prompt.serverId))
+			}
 		}
 	}
 
@@ -367,6 +387,11 @@ class ServerListViewModel(
 	fun submitCloudconeAccount(apiKey: String, hash: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.CloudconeSecrets ?: return
 		loadCloudconeInstances(prompt.serverId, apiKey, hash)
+	}
+
+	fun submitGreencloudAccount(apiToken: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.GreencloudSecrets ?: return
+		loadGreencloudInstances(prompt.serverId, apiToken)
 	}
 
 	fun submitVirtualizorAccount(
@@ -457,6 +482,29 @@ class ServerListViewModel(
 		}
 	}
 
+	fun bindGreencloudInstance(instanceId: String) {
+		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.GreencloudPick ?: return
+		viewModelScope.launch {
+			when (val result = greencloud.bind(prompt.serverId, instanceId, prompt.apiToken)) {
+				GreencloudBindResult.Success -> {
+					_uiState.value = _uiState.value.copy(
+						vendorPrompt = null,
+						noticeMessageRes = R.string.greencloud_bind_success,
+						noticeMessageArg = null
+					)
+				}
+				GreencloudBindResult.OtherVendor -> notice(R.string.vendor_already_bound)
+				GreencloudBindResult.InstanceInUse -> notice(R.string.greencloud_instance_in_use)
+				is GreencloudBindResult.Failed -> {
+					_uiState.value = _uiState.value.copy(
+						noticeMessageRes = R.string.greencloud_account_failed,
+						noticeMessageArg = result.message
+					)
+				}
+			}
+		}
+	}
+
 	fun confirmVendorPower() {
 		val prompt = _uiState.value.vendorPrompt ?: return
 		when (prompt) {
@@ -473,6 +521,7 @@ class ServerListViewModel(
 				VendorKind.BANDWAGON -> bandwagon.unbind(prompt.serverId)
 				VendorKind.CLOUDCONE -> cloudcone.unbind(prompt.serverId)
 				VendorKind.VIRTUALIZOR -> virtualizor.unbind(prompt.serverId)
+				VendorKind.GREENCLOUD -> greencloud.unbind(prompt.serverId)
 			}
 			_uiState.value = _uiState.value.copy(
 				vendorPrompt = null,
@@ -543,6 +592,29 @@ class ServerListViewModel(
 		}
 	}
 
+	private fun loadGreencloudInstances(serverId: Long, apiToken: String) {
+		viewModelScope.launch {
+			val listed = greencloud.listInstances(apiToken)
+			if (!listed.ok) {
+				_uiState.value = _uiState.value.copy(
+					noticeMessageRes = R.string.greencloud_list_failed,
+					noticeMessageArg = listed.message
+				)
+				return@launch
+			}
+			val taken = greencloudLinkRows.map { it.instanceId }.toSet()
+			val available = listed.instances.filter { it.id !in taken }
+			_uiState.value = _uiState.value.copy(
+				vendorPrompt = VendorPrompt.GreencloudPick(
+					serverId = serverId,
+					instances = available,
+					boundServerIds = greencloudIds,
+					apiToken = apiToken.trim()
+				)
+			)
+		}
+	}
+
 	private fun startPower(serverId: Long, vendor: VendorKind?) {
 		if (vendor == null) return
 		dispatchPower(serverId, vendor, stop = null)
@@ -575,6 +647,14 @@ class ServerListViewModel(
 						false -> VirtualizorPowerAction.RESTART
 					}
 					showVirtualizorPower(virtualizor.power(serverId, action, confirmed = true))
+				}
+				VendorKind.GREENCLOUD -> {
+					val action = when (stop) {
+						null -> GreencloudPowerAction.START
+						true -> GreencloudPowerAction.STOP
+						false -> GreencloudPowerAction.RESTART
+					}
+					showGreencloudPower(greencloud.power(serverId, action, confirmed = true))
 				}
 			}
 		}
@@ -786,6 +866,17 @@ class ServerListViewModel(
 						is VirtualizorStatusResult.Failed -> noticeArg(R.string.virtualizor_status_failed, result.message)
 					}
 				}
+				VendorKind.GREENCLOUD -> {
+					when (val result = greencloud.status(serverId)) {
+						is GreencloudStatusResult.Known -> {
+							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Status(result.powerStatus))
+						}
+						GreencloudStatusResult.Unknown -> {
+							_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.StatusUnknown)
+						}
+						is GreencloudStatusResult.Failed -> noticeArg(R.string.greencloud_status_failed, result.message)
+					}
+				}
 			}
 		}
 	}
@@ -814,6 +905,15 @@ class ServerListViewModel(
 			is VirtualizorPowerResult.Failed -> noticeArg(R.string.bandwagon_power_failed, result.message)
 			VirtualizorPowerResult.NoAccount -> notice(R.string.virtualizor_no_account)
 			VirtualizorPowerResult.NeedsConfirmation -> Unit
+		}
+	}
+
+	private fun showGreencloudPower(result: GreencloudPowerResult) {
+		when (result) {
+			GreencloudPowerResult.Accepted -> notice(R.string.bandwagon_power_accepted)
+			is GreencloudPowerResult.Failed -> noticeArg(R.string.bandwagon_power_failed, result.message)
+			GreencloudPowerResult.NoAccount -> notice(R.string.greencloud_no_account)
+			GreencloudPowerResult.NeedsConfirmation -> Unit
 		}
 	}
 
@@ -1109,6 +1209,13 @@ sealed class VendorPrompt {
 		val apiKey: String,
 		val apiPass: String,
 		val certPinSha256: String?
+	) : VendorPrompt()
+	data class GreencloudSecrets(val serverId: Long) : VendorPrompt()
+	data class GreencloudPick(
+		val serverId: Long,
+		val instances: List<GreencloudInstance>,
+		val boundServerIds: Set<Long>,
+		val apiToken: String
 	) : VendorPrompt()
 	data class ConfirmStop(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
 	data class ConfirmRestart(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
