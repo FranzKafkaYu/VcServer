@@ -12,7 +12,7 @@ An Android SSH server manager: connect to remote hosts, watch status, transfer f
 
 ## 📱 Overview
 
-VcServer connects over SSH to run commands, monitor status, transfer files, and handle day-to-day ops. You can bind a server to a provider and use their panel API for power, info, relocate, and usage. Data stays on-device; secrets use Android Keystore.
+VcServer connects over SSH to run commands, monitor status, transfer files, and handle day-to-day ops. You can bind a server to a provider and use their API for power control, info query, relocate, and usage query. Data stays on-device; secrets use Android Keystore.
 
 ## 📸 Screenshots
 
