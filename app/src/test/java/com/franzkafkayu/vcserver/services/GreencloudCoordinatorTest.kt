@@ -32,6 +32,27 @@ class GreencloudCoordinatorTest {
 	}
 
 	@Test
+	fun instanceInfoUsesBoundToken() = runBlocking {
+		val harness = Harness()
+		assertTrue(harness.coordinator.bind(1L, "6b32", "token-a") is GreencloudBindResult.Success)
+		val result = harness.coordinator.instanceInfo(1L)
+		assertTrue(result is GreencloudInfoResult.Known)
+		assertEquals("Test VM", (result as GreencloudInfoResult.Known).info.name)
+	}
+
+	@Test
+	fun resetPasswordNeedsConfirmationThenReturnsPassword() = runBlocking {
+		val harness = Harness()
+		assertTrue(harness.coordinator.bind(1L, "6b32", "token-a") is GreencloudBindResult.Success)
+		assertTrue(harness.coordinator.resetPassword(1L, confirmed = false) is GreencloudResetResult.NeedsConfirmation)
+		assertTrue(harness.closed.isEmpty())
+		val accepted = harness.coordinator.resetPassword(1L, confirmed = true)
+		assertTrue(accepted is GreencloudResetResult.Accepted)
+		assertEquals("new-pass", (accepted as GreencloudResetResult.Accepted).password)
+		assertEquals(listOf(1L), harness.closed)
+	}
+
+	@Test
 	fun cloudconeOccupiedIsOtherVendor() = runBlocking {
 		val harness = Harness()
 		harness.cloudcone.insert(
@@ -75,6 +96,20 @@ private class FakeGreencloudClient : GreencloudClient {
 	) = GreencloudCallResult(ok = true, message = null, instances = emptyList())
 	override suspend fun status(apiToken: String, instanceId: String) =
 		GreencloudCallResult(ok = true, message = null, instances = emptyList(), powerStatus = "running")
+	var detailsResult = GreencloudCallResult(
+		ok = true,
+		message = null,
+		instances = emptyList(),
+		info = GreencloudInstanceInfo(name = "Test VM", cpu = "2 Core")
+	)
+	var resetResult = GreencloudCallResult(
+		ok = true,
+		message = null,
+		instances = emptyList(),
+		expectedPassword = "new-pass"
+	)
+	override suspend fun details(apiToken: String, instanceId: String) = detailsResult
+	override suspend fun resetPassword(apiToken: String, instanceId: String) = resetResult
 }
 
 internal class MemoryGreencloudLinkStore : GreencloudLinkStore {

@@ -156,6 +156,14 @@
 	<string name="greencloud_list_failed">Failed to load instances: %1$s</string>
 	<string name="greencloud_status_failed">Failed to query power status: %1$s</string>
 	<string name="greencloud_confirm_unbind">Unlinking removes this server from the instance. The SSH configuration stays.</string>
+	<string name="greencloud_not_bound">This server is not linked to GreenCloud</string>
+	<string name="greencloud_service_info_failed">Failed to query server info: %1$s</string>
+	<string name="greencloud_info_name">Name</string>
+	<string name="greencloud_info_suspended">Suspended</string>
+	<string name="greencloud_info_rescue">Rescue</string>
+	<string name="greencloud_info_vnc">VNC</string>
+	<string name="greencloud_info_yes">Yes</string>
+	<string name="greencloud_info_no">No</string>
 	<string name="virtualizor_account_title">Virtualizor account</string>
 	<string name="virtualizor_account_entry">Panel host, keys, and VPS links</string>
 	<string name="virtualizor_host">Panel host</string>

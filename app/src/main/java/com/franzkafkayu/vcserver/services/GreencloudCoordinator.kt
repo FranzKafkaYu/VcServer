@@ -50,6 +50,19 @@ sealed class GreencloudStatusResult {
 	data class Failed(val message: String) : GreencloudStatusResult()
 }
 
+sealed class GreencloudInfoResult {
+	data class Known(val info: GreencloudInstanceInfo) : GreencloudInfoResult()
+	data object NotBound : GreencloudInfoResult()
+	data class Failed(val message: String) : GreencloudInfoResult()
+}
+
+sealed class GreencloudResetResult {
+	data class Accepted(val password: String) : GreencloudResetResult()
+	data object NeedsConfirmation : GreencloudResetResult()
+	data object NotBound : GreencloudResetResult()
+	data class Failed(val message: String) : GreencloudResetResult()
+}
+
 class GreencloudCoordinator(
 	private val links: GreencloudLinkStore,
 	private val bandwagonLinks: BandwagonLinkStore,
@@ -144,6 +157,36 @@ class GreencloudCoordinator(
 			?: result.instances.firstOrNull()?.powerStatus
 		if (power.isNullOrBlank()) return GreencloudStatusResult.Unknown
 		return GreencloudStatusResult.Known(power)
+	}
+
+	suspend fun instanceInfo(serverId: Long): GreencloudInfoResult {
+		val session = session(serverId) ?: return GreencloudInfoResult.NotBound
+		val result = try {
+			client.details(session.apiToken, session.instanceId)
+		} catch (e: Exception) {
+			return GreencloudInfoResult.Failed(e.message ?: "request failed")
+		}
+		if (!result.ok) {
+			return GreencloudInfoResult.Failed(result.message ?: "request failed")
+		}
+		val info = result.info ?: return GreencloudInfoResult.Failed("empty info")
+		if (info.isEmpty()) return GreencloudInfoResult.Failed("empty info")
+		return GreencloudInfoResult.Known(info)
+	}
+
+	suspend fun resetPassword(serverId: Long, confirmed: Boolean): GreencloudResetResult {
+		if (!confirmed) return GreencloudResetResult.NeedsConfirmation
+		val session = session(serverId) ?: return GreencloudResetResult.NotBound
+		val result = try {
+			client.resetPassword(session.apiToken, session.instanceId)
+		} catch (e: Exception) {
+			return GreencloudResetResult.Failed(e.message ?: "request failed")
+		}
+		if (!result.ok) return GreencloudResetResult.Failed(result.message ?: "request failed")
+		val password = result.expectedPassword?.takeIf { it.isNotBlank() }
+			?: return GreencloudResetResult.Failed("empty password")
+		closeSessions(serverId)
+		return GreencloudResetResult.Accepted(password)
 	}
 
 	private suspend fun session(serverId: Long): GreencloudSession? {

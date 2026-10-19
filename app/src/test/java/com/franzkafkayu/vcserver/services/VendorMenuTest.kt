@@ -107,7 +107,7 @@ class VendorMenuTest {
 	}
 
 	@Test
-	fun greencloudBoundServerOffersPowerAndUnbindOnly() {
+	fun greencloudBoundServerOffersInfoAndReset() {
 		val menu = vendorMenu(selectionMode = false, vendor = VendorKind.GREENCLOUD)
 		assertEquals(VendorKind.GREENCLOUD, menu.vendor)
 		assertEquals(
@@ -116,11 +116,12 @@ class VendorMenuTest {
 				VendorMenuEntry.STOP,
 				VendorMenuEntry.RESTART,
 				VendorMenuEntry.STATUS,
+				VendorMenuEntry.SERVICE_INFO,
+				VendorMenuEntry.RESET_ROOT,
 				VendorMenuEntry.UNBIND
 			),
 			menu.entries
 		)
-		assertTrue(VendorMenuEntry.SERVICE_INFO !in menu.entries)
 		assertTrue(VendorMenuEntry.MIGRATE !in menu.entries)
 		assertTrue(VendorMenuEntry.BANDWIDTH !in menu.entries)
 	}

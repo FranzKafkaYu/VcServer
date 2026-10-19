@@ -46,6 +46,9 @@ import com.franzkafkayu.vcserver.services.GreencloudInstance
 import com.franzkafkayu.vcserver.services.GreencloudPowerAction
 import com.franzkafkayu.vcserver.services.GreencloudPowerResult
 import com.franzkafkayu.vcserver.services.GreencloudStatusResult
+import com.franzkafkayu.vcserver.services.GreencloudInfoResult
+import com.franzkafkayu.vcserver.services.GreencloudInstanceInfo
+import com.franzkafkayu.vcserver.services.GreencloudResetResult
 import com.franzkafkayu.vcserver.services.ServerManagementService
 import com.franzkafkayu.vcserver.services.VendorKind
 import com.franzkafkayu.vcserver.services.VendorMenuEntry
@@ -315,8 +318,8 @@ class ServerListViewModel(
 			VendorMenuEntry.SERVICE_INFO -> queryServiceInfo(serverId, vendor)
 			VendorMenuEntry.MIGRATE -> queryMigrateLocations(serverId, vendor)
 			VendorMenuEntry.RESET_ROOT -> {
-				if (vendor == VendorKind.BANDWAGON) {
-					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ConfirmResetRoot(serverId))
+				if (vendor == VendorKind.BANDWAGON || vendor == VendorKind.GREENCLOUD) {
+					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ConfirmResetRoot(serverId, vendor))
 				}
 			}
 			VendorMenuEntry.USAGE -> queryUsage(serverId, vendor)
@@ -680,6 +683,15 @@ class ServerListViewModel(
 					is CloudconeInfoResult.Failed -> noticeArg(R.string.cloudcone_service_info_failed, result.message)
 				}
 			}
+			VendorKind.GREENCLOUD -> viewModelScope.launch {
+				when (val result = greencloud.instanceInfo(serverId)) {
+					is GreencloudInfoResult.Known -> {
+						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.GreencloudInfo(result.info))
+					}
+					GreencloudInfoResult.NotBound -> notice(R.string.greencloud_not_bound)
+					is GreencloudInfoResult.Failed -> noticeArg(R.string.greencloud_service_info_failed, result.message)
+				}
+			}
 			else -> return
 		}
 	}
@@ -731,20 +743,38 @@ class ServerListViewModel(
 	fun confirmResetRoot() {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ConfirmResetRoot ?: return
 		viewModelScope.launch {
-			when (val result = bandwagon.resetRootPassword(prompt.serverId, confirmed = true)) {
-				is BandwagonResetRootResult.Accepted -> {
-					_uiState.value = _uiState.value.copy(
-						vendorPrompt = VendorPrompt.ResetRootResult(prompt.serverId, result.password)
-					)
+			when (prompt.vendor) {
+				VendorKind.GREENCLOUD -> when (val result = greencloud.resetPassword(prompt.serverId, confirmed = true)) {
+					is GreencloudResetResult.Accepted -> {
+						_uiState.value = _uiState.value.copy(
+							vendorPrompt = VendorPrompt.ResetRootResult(prompt.serverId, result.password)
+						)
+					}
+					GreencloudResetResult.NeedsConfirmation -> Unit
+					GreencloudResetResult.NotBound -> {
+						dismissVendorPrompt()
+						notice(R.string.greencloud_not_bound)
+					}
+					is GreencloudResetResult.Failed -> {
+						dismissVendorPrompt()
+						noticeArg(R.string.bandwagon_reset_failed, result.message)
+					}
 				}
-				BandwagonResetRootResult.NeedsConfirmation -> Unit
-				BandwagonResetRootResult.NotBound -> {
-					dismissVendorPrompt()
-					notice(R.string.bandwagon_not_bound)
-				}
-				is BandwagonResetRootResult.Failed -> {
-					dismissVendorPrompt()
-					noticeArg(R.string.bandwagon_reset_failed, result.message)
+				else -> when (val result = bandwagon.resetRootPassword(prompt.serverId, confirmed = true)) {
+					is BandwagonResetRootResult.Accepted -> {
+						_uiState.value = _uiState.value.copy(
+							vendorPrompt = VendorPrompt.ResetRootResult(prompt.serverId, result.password)
+						)
+					}
+					BandwagonResetRootResult.NeedsConfirmation -> Unit
+					BandwagonResetRootResult.NotBound -> {
+						dismissVendorPrompt()
+						notice(R.string.bandwagon_not_bound)
+					}
+					is BandwagonResetRootResult.Failed -> {
+						dismissVendorPrompt()
+						noticeArg(R.string.bandwagon_reset_failed, result.message)
+					}
 				}
 			}
 		}
@@ -1225,10 +1255,11 @@ sealed class VendorPrompt {
 	data class Bandwidth(val bandwidth: VirtualizorBandwidth) : VendorPrompt()
 	data class ServiceInfo(val info: BandwagonServiceInfo) : VendorPrompt()
 	data class CloudconeInfo(val info: CloudconeInstanceInfo) : VendorPrompt()
+	data class GreencloudInfo(val info: GreencloudInstanceInfo) : VendorPrompt()
 	data class MigratePick(val serverId: Long, val locations: BandwagonMigrateLocations) : VendorPrompt()
 	data class ConfirmMigrate(val serverId: Long, val location: BandwagonMigrateLocation) : VendorPrompt()
 	data class MigrateResult(val serverId: Long, val start: BandwagonMigrateStart) : VendorPrompt()
-	data class ConfirmResetRoot(val serverId: Long) : VendorPrompt()
+	data class ConfirmResetRoot(val serverId: Long, val vendor: VendorKind) : VendorPrompt()
 	data class ResetRootResult(val serverId: Long, val password: String) : VendorPrompt()
 	data class UsageStats(val stats: BandwagonUsageStats, val range: BandwagonUsageRange) : VendorPrompt()
 }

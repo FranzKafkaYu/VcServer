@@ -18,11 +18,43 @@ data class GreencloudInstance(
 	val label: String?
 )
 
+data class GreencloudInstanceInfo(
+	val name: String? = null,
+	val hostname: String? = null,
+	val ipAddresses: List<String> = emptyList(),
+	val cpu: String? = null,
+	val ram: String? = null,
+	val disk: String? = null,
+	val powerStatus: String? = null,
+	val trafficUsed: String? = null,
+	val trafficLimit: String? = null,
+	val rescue: Boolean? = null,
+	val suspended: Boolean? = null,
+	val vncEnabled: Boolean? = null
+) {
+	fun isEmpty(): Boolean {
+		return name == null &&
+			hostname == null &&
+			ipAddresses.isEmpty() &&
+			cpu == null &&
+			ram == null &&
+			disk == null &&
+			powerStatus == null &&
+			trafficUsed == null &&
+			trafficLimit == null &&
+			rescue == null &&
+			suspended == null &&
+			vncEnabled == null
+	}
+}
+
 data class GreencloudCallResult(
 	val ok: Boolean,
 	val message: String?,
 	val instances: List<GreencloudInstance>,
-	val powerStatus: String? = null
+	val powerStatus: String? = null,
+	val info: GreencloudInstanceInfo? = null,
+	val expectedPassword: String? = null
 )
 
 internal fun parseGreencloudBody(json: String, httpCode: Int = 200): GreencloudCallResult {
@@ -45,7 +77,11 @@ internal fun parseGreencloudBody(json: String, httpCode: Int = 200): GreencloudC
 		return GreencloudCallResult(ok = false, message = "invalid response", instances = emptyList())
 	}
 	if (element.isJsonArray) {
-		return GreencloudCallResult(ok = httpCode in 200..299, message = null, instances = instancesFrom(element.asJsonArray))
+		return GreencloudCallResult(
+			ok = httpCode in 200..299,
+			message = null,
+			instances = instancesFrom(element.asJsonArray)
+		)
 	}
 	if (!element.isJsonObject) {
 		return GreencloudCallResult(ok = false, message = "invalid response", instances = emptyList())
@@ -59,8 +95,16 @@ internal fun parseGreencloudBody(json: String, httpCode: Int = 200): GreencloudC
 		return GreencloudCallResult(ok = false, message = message ?: "request failed", instances = emptyList())
 	}
 	val instances = extractInstances(obj)
-	val power = powerFrom(obj) ?: instances.firstOrNull()?.powerStatus
-	return GreencloudCallResult(ok = true, message = message, instances = instances, powerStatus = power)
+	val info = extractInfo(obj)
+	val power = powerFrom(obj) ?: info?.powerStatus ?: instances.firstOrNull()?.powerStatus
+	return GreencloudCallResult(
+		ok = true,
+		message = message,
+		instances = instances,
+		powerStatus = power,
+		info = info,
+		expectedPassword = expectedPassword(obj)
+	)
 }
 
 private fun isFailure(obj: JsonObject): Boolean {
@@ -138,22 +182,115 @@ private fun powerFrom(obj: JsonObject): String? {
 	return firstText(obj, listOf("status", "state", "power", "power_status"))
 }
 
-private fun ipv4From(obj: JsonObject): String? {
-	val network = named(obj, "network")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
-	val primary = named(network, "primary")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
-	val ipv4 = named(primary, "ipv4") ?: return null
+private fun extractInfo(obj: JsonObject): GreencloudInstanceInfo? {
+	val source = named(obj, "data")?.takeIf { it.isJsonObject }?.asJsonObject ?: obj
+	if (!source.has("id") && !source.has("name") && !source.has("network")) return null
+	val info = infoFrom(source)
+	return if (info.isEmpty()) null else info
+}
+
+private fun infoFrom(obj: JsonObject): GreencloudInstanceInfo {
+	val ips = allIpv4(obj)
+	val disk = storageCapacity(obj)
+	return GreencloudInstanceInfo(
+		name = firstText(obj, listOf("name")),
+		hostname = firstText(obj, listOf("hostname")),
+		ipAddresses = ips,
+		cpu = firstText(obj, listOf("cpu")),
+		ram = firstText(obj, listOf("memory")),
+		disk = disk,
+		powerStatus = powerFrom(obj),
+		trafficUsed = trafficUsed(obj),
+		trafficLimit = trafficLimit(obj),
+		rescue = boolField(obj, "rescue"),
+		suspended = boolField(obj, "suspended"),
+		vncEnabled = boolField(obj, "vncEnabled")
+	)
+}
+
+private fun expectedPassword(obj: JsonObject): String? {
+	textField(obj, "expectedPassword")?.let { return it }
+	val data = named(obj, "data")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	return textField(data, "expectedPassword")
+}
+
+private fun ipv4From(obj: JsonObject): String? = allIpv4(obj).firstOrNull()
+
+private fun allIpv4(obj: JsonObject): List<String> {
+	val network = named(obj, "network")?.takeIf { it.isJsonObject }?.asJsonObject ?: return emptyList()
+	val out = mutableListOf<String>()
+	collectIpv4(named(network, "primary"), out)
+	collectIpv4(named(network, "secondary"), out)
+	return out
+}
+
+private fun collectIpv4(node: JsonElement?, out: MutableList<String>) {
+	if (node == null || !node.isJsonObject) return
+	val ipv4 = named(node.asJsonObject, "ipv4") ?: return
 	when {
-		ipv4.isJsonPrimitive -> return ipv4.asString.takeIf { it.isNotBlank() }
-		ipv4.isJsonArray -> {
-			ipv4.asJsonArray.forEach { el ->
-				when {
-					el.isJsonPrimitive -> el.asString.takeIf { it.isNotBlank() }?.let { return it }
-					el.isJsonObject -> firstText(el.asJsonObject, listOf("address", "ip", "ipv4"))?.let { return it }
-				}
+		ipv4.isJsonPrimitive -> ipv4.asString.takeIf { it.isNotBlank() }?.let { out += it }
+		ipv4.isJsonArray -> ipv4.asJsonArray.forEach { el ->
+			when {
+				el.isJsonPrimitive -> el.asString.takeIf { it.isNotBlank() }?.let { out += it }
+				el.isJsonObject -> firstText(el.asJsonObject, listOf("address", "ip", "ipv4"))?.let { out += it }
 			}
 		}
 	}
-	return null
+}
+
+private fun storageCapacity(obj: JsonObject): String? {
+	val storage = named(obj, "storage") ?: return null
+	if (!storage.isJsonArray) return null
+	val disks = storage.asJsonArray.mapNotNull { el -> if (el.isJsonObject) el.asJsonObject else null }
+	val primary = disks.firstOrNull { boolField(it, "primary") == true } ?: disks.firstOrNull()
+	return primary?.let { firstText(it, listOf("capacity")) }
+}
+
+private fun trafficUsed(obj: JsonObject): String? {
+	val state = named(obj, "state")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	val network = named(state, "network")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	val primary = named(network, "primary")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	val traffic = named(primary, "traffic")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	val total = numberField(traffic, "total") ?: return null
+	return formatBytes(total)
+}
+
+private fun trafficLimit(obj: JsonObject): String? {
+	val network = named(obj, "network")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	val primary = named(network, "primary")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+	return firstText(primary, listOf("limit"))
+}
+
+private fun boolField(obj: JsonObject, name: String): Boolean? {
+	val el = named(obj, name) ?: return null
+	if (!el.isJsonPrimitive) return null
+	val p = el.asJsonPrimitive
+	return when {
+		p.isBoolean -> p.asBoolean
+		p.isNumber -> p.asInt != 0
+		p.isString -> p.asString.equals("true", ignoreCase = true) || p.asString == "1"
+		else -> null
+	}
+}
+
+private fun numberField(obj: JsonObject, name: String): Long? {
+	val el = named(obj, name) ?: return null
+	if (!el.isJsonPrimitive) return null
+	val p = el.asJsonPrimitive
+	return when {
+		p.isNumber -> p.asLong
+		p.isString -> p.asString.toLongOrNull()
+		else -> null
+	}
+}
+
+private fun formatBytes(bytes: Long): String {
+	if (bytes < 1024) return "$bytes B"
+	val kb = bytes / 1024.0
+	if (kb < 1024) return String.format("%.1f KB", kb)
+	val mb = kb / 1024.0
+	if (mb < 1024) return String.format("%.1f MB", mb)
+	return String.format("%.2f GB", mb / 1024.0)
 }
 
 private fun named(obj: JsonObject, name: String): JsonElement? {
@@ -183,6 +320,8 @@ interface GreencloudClient {
 	suspend fun list(apiToken: String): GreencloudCallResult
 	suspend fun power(apiToken: String, instanceId: String, action: GreencloudPowerAction): GreencloudCallResult
 	suspend fun status(apiToken: String, instanceId: String): GreencloudCallResult
+	suspend fun details(apiToken: String, instanceId: String): GreencloudCallResult
+	suspend fun resetPassword(apiToken: String, instanceId: String): GreencloudCallResult
 }
 
 class HttpGreencloudClient : GreencloudClient {
@@ -205,6 +344,14 @@ class HttpGreencloudClient : GreencloudClient {
 
 	override suspend fun status(apiToken: String, instanceId: String): GreencloudCallResult {
 		return request(apiToken, "GET", "/server/$instanceId?state=true")
+	}
+
+	override suspend fun details(apiToken: String, instanceId: String): GreencloudCallResult {
+		return request(apiToken, "GET", "/server/$instanceId?state=true")
+	}
+
+	override suspend fun resetPassword(apiToken: String, instanceId: String): GreencloudCallResult {
+		return request(apiToken, "POST", "/server/$instanceId/resetPassword")
 	}
 
 	private suspend fun request(

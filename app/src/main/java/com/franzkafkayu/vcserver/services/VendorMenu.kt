@@ -44,6 +44,10 @@ fun vendorMenu(selectionMode: Boolean, vendor: VendorKind?): VendorMenu {
 	if (vendor == VendorKind.CLOUDCONE) {
 		entries += VendorMenuEntry.SERVICE_INFO
 	}
+	if (vendor == VendorKind.GREENCLOUD) {
+		entries += VendorMenuEntry.SERVICE_INFO
+		entries += VendorMenuEntry.RESET_ROOT
+	}
 	if (vendor == VendorKind.VIRTUALIZOR) {
 		entries += VendorMenuEntry.BANDWIDTH
 	}

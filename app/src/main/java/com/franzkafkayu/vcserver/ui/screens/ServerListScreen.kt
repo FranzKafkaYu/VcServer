@@ -1330,6 +1330,16 @@ private fun VendorPromptDialog(
 				}
 			}
 		)
+		is VendorPrompt.GreencloudInfo -> AlertDialog(
+			onDismissRequest = { viewModel.dismissVendorPrompt() },
+			title = { Text(stringResource(R.string.bandwagon_service_info)) },
+			text = { GreencloudInstanceInfoPanel(prompt.info) },
+			confirmButton = {
+				TextButton(onClick = { viewModel.dismissVendorPrompt() }) {
+					Text(stringResource(R.string.confirm))
+				}
+			}
+		)
 		is VendorPrompt.Bandwidth -> AlertDialog(
 			onDismissRequest = { viewModel.dismissVendorPrompt() },
 			text = { VirtualizorBandwidthPanel(prompt.bandwidth) },
