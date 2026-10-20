@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.franzkafkayu.vcserver.ssh.SshClientSession
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.models.ServerStatus
+import com.franzkafkayu.vcserver.models.mergeNetworkInfo
 import com.franzkafkayu.vcserver.services.ServerMonitoringService
 import com.franzkafkayu.vcserver.services.SftpDirectoryListing
 import com.franzkafkayu.vcserver.services.SftpFileTransferService
@@ -72,9 +73,12 @@ class ServerMonitoringViewModel(
 			val result = serverMonitoringService.getServerStatus(session)
 			result.fold(
 				onSuccess = { status ->
+					val merged = status.copy(
+						network = mergeNetworkInfo(_uiState.value.serverStatus?.network, status.network)
+					)
 					_uiState.value = _uiState.value.copy(
 						isLoading = false,
-						serverStatus = status,
+						serverStatus = merged,
 						error = null
 					)
 				},

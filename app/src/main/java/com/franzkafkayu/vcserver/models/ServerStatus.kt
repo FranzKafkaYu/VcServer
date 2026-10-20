@@ -89,3 +89,34 @@ data class NetworkInterfaceInfo(
 	val ipv6Addresses: List<String> = emptyList()
 )
 
+fun mergeNetworkInfo(previous: NetworkInfo?, incoming: NetworkInfo?): NetworkInfo? {
+	if (incoming == null) return previous
+	if (previous == null) return incoming
+	val interfaces = if (incoming.interfaces.isEmpty() && previous.interfaces.isNotEmpty()) {
+		previous.interfaces
+	} else {
+		mergeNetworkInterfaces(previous.interfaces, incoming.interfaces)
+	}
+	return NetworkInfo(
+		tcpConnections = incoming.tcpConnections,
+		udpConnections = incoming.udpConnections,
+		interfaces = interfaces
+	)
+}
+
+private fun mergeNetworkInterfaces(
+	previous: List<NetworkInterfaceInfo>,
+	incoming: List<NetworkInterfaceInfo>
+): List<NetworkInterfaceInfo> {
+	val previousByName = previous.associateBy { it.name }
+	val incomingNames = incoming.map { it.name }.toSet()
+	val mergedIncoming = incoming.map { nic ->
+		val old = previousByName[nic.name] ?: return@map nic
+		nic.copy(
+			ipv4Addresses = nic.ipv4Addresses.ifEmpty { old.ipv4Addresses },
+			ipv6Addresses = nic.ipv6Addresses.ifEmpty { old.ipv6Addresses }
+		)
+	}
+	return mergedIncoming + previous.filter { it.name !in incomingNames }
+}
+
