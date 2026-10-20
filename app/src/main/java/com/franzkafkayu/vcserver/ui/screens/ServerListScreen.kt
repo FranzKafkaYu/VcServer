@@ -68,7 +68,8 @@ fun ServerListScreen(
 	onAddServerClick: () -> Unit,
 	onEditServerClick: (Long) -> Unit,
 	onConnectClick: (Server, String) -> Unit,
-	onSettingsClick: () -> Unit
+	onSettingsClick: () -> Unit,
+	onTraceClick: (Server) -> Unit = {}
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 	val snackbarHostState = remember { SnackbarHostState() }
@@ -432,6 +433,7 @@ fun ServerListScreen(
 										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
 										onPinClick = { viewModel.toggleServerPinned(server) },
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
+										onTraceClick = { onTraceClick(server) },
 										vendorMenu = vendorMenu(
 											selectionMode = uiState.isSelectionMode,
 											vendor = uiState.serverVendors[server.id]
@@ -500,6 +502,7 @@ fun ServerListScreen(
 										onDeleteClick = { viewModel.showDeleteConfirmDialog(server) },
 										onPinClick = { viewModel.toggleServerPinned(server) },
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
+										onTraceClick = { onTraceClick(server) },
 										vendorMenu = vendorMenu(
 											selectionMode = uiState.isSelectionMode,
 											vendor = uiState.serverVendors[server.id]
@@ -607,6 +610,7 @@ fun ServerItem(
 	onDeleteClick: () -> Unit,
 	onPinClick: () -> Unit = {},
 	onCopyClick: () -> Unit = {},
+	onTraceClick: () -> Unit = {},
 	vendorMenu: VendorMenu = vendorMenu(selectionMode = false, vendor = null),
 	onVendorAction: (VendorMenuEntry) -> Unit = {},
 	isConnecting: Boolean = false
@@ -643,6 +647,7 @@ fun ServerItem(
 					onDeleteClick = onDeleteClick,
 					onPinClick = onPinClick,
 					onCopyClick = onCopyClick,
+					onTraceClick = onTraceClick,
 					vendorMenu = vendorMenu,
 					onVendorAction = onVendorAction
 				)
@@ -661,12 +666,14 @@ private fun ServerItemActions(
 	onDeleteClick: () -> Unit,
 	onPinClick: () -> Unit,
 	onCopyClick: () -> Unit,
+	onTraceClick: () -> Unit,
 	vendorMenu: VendorMenu,
 	onVendorAction: (VendorMenuEntry) -> Unit
 ) {
 	var showMoreMenu by remember { mutableStateOf(false) }
 	var queuedPin by remember { mutableStateOf(false) }
 	var queuedCopy by remember { mutableStateOf(false) }
+	var queuedTrace by remember { mutableStateOf(false) }
 	var queuedVendor by remember { mutableStateOf<VendorMenuEntry?>(null) }
 	LaunchedEffect(showMoreMenu) {
 		if (showMoreMenu) return@LaunchedEffect
@@ -678,6 +685,10 @@ private fun ServerItemActions(
 		if (queuedCopy) {
 			queuedCopy = false
 			onCopyClick()
+		}
+		if (queuedTrace) {
+			queuedTrace = false
+			onTraceClick()
 		}
 		queuedVendor?.let { entry ->
 			queuedVendor = null
@@ -751,6 +762,13 @@ private fun ServerItemActions(
 						text = { Text(stringResource(R.string.copy_server)) },
 						onClick = {
 							queuedCopy = true
+							showMoreMenu = false
+						}
+					)
+					DropdownMenuItem(
+						text = { Text(stringResource(R.string.traceroute_action)) },
+						onClick = {
+							queuedTrace = true
 							showMoreMenu = false
 						}
 					)

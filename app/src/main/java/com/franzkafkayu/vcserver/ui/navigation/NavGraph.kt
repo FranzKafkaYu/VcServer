@@ -50,6 +50,11 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object About : Screen("about")
     object PrivacyPolicy : Screen("privacy_policy")
+    data class Traceroute(val serverId: Long) : Screen("traceroute/{serverId}") {
+        companion object {
+            fun createRoute(serverId: Long) = "traceroute/$serverId"
+        }
+    }
 }
 
 /**
@@ -98,6 +103,11 @@ fun NavGraph(
                 },
                 onSettingsClick = {
                     navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.Settings.route)
+                },
+                onTraceClick = { server ->
+                    navController.navigate(
+                        com.franzkafkayu.vcserver.ui.navigation.Screen.Traceroute.createRoute(server.id)
+                    )
                 }
             )
         }
@@ -216,6 +226,24 @@ fun NavGraph(
                 }
             }
         }
+        composable(
+            route = "traceroute/{serverId}",
+            arguments = listOf(
+                navArgument("serverId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getLong("serverId") ?: 0L
+            val server = serverListViewModel.uiState.value.servers.find { it.id == serverId }
+            if (server != null) {
+                val tracerouteViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.TracerouteViewModel>(
+                    factory = TracerouteViewModelFactory(server.name, server.host, server.port)
+                )
+                com.franzkafkayu.vcserver.ui.screens.TracerouteScreen(
+                    viewModel = tracerouteViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+        }
         composable(com.franzkafkayu.vcserver.ui.navigation.Screen.Settings.route) {
             val settingsViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel>(
                 factory = com.franzkafkayu.vcserver.ui.navigation.SettingsViewModelFactory(
@@ -329,6 +357,20 @@ class EditServerViewModelFactory(
 /**
  * SettingsViewModel 工厂
  */
+class TracerouteViewModelFactory(
+    private val serverName: String,
+    private val host: String,
+    private val port: Int
+) : androidx.lifecycle.ViewModelProvider.Factory {
+    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.TracerouteViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return com.franzkafkayu.vcserver.ui.viewmodels.TracerouteViewModel(serverName, host, port) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
 class SettingsViewModelFactory(
     private val settingsService: com.franzkafkayu.vcserver.services.SettingsService,
     private val exportImportService: com.franzkafkayu.vcserver.services.DatabaseExportImportService
