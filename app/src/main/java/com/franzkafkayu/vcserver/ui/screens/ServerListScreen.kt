@@ -69,7 +69,8 @@ fun ServerListScreen(
 	onEditServerClick: (Long) -> Unit,
 	onConnectClick: (Server, String) -> Unit,
 	onSettingsClick: () -> Unit,
-	onTraceClick: (Server) -> Unit = {}
+	onTraceClick: (Server) -> Unit = {},
+	onPingClick: (Server) -> Unit = {}
 ) {
 	val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 	val snackbarHostState = remember { SnackbarHostState() }
@@ -108,6 +109,7 @@ fun ServerListScreen(
 	}
 	
 	Scaffold(
+		floatingActionButtonPosition = FabPosition.Center,
 		topBar = {
 			Column {
 				TopAppBar(
@@ -371,7 +373,7 @@ fun ServerListScreen(
 				else -> {
 					LazyColumn(
 						modifier = Modifier.fillMaxSize(),
-						contentPadding = PaddingValues(16.dp),
+						contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
 						verticalArrangement = Arrangement.spacedBy(8.dp)
 					) {
 						// 显示分组和分组下的服务器
@@ -434,6 +436,7 @@ fun ServerListScreen(
 										onPinClick = { viewModel.toggleServerPinned(server) },
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
 										onTraceClick = { onTraceClick(server) },
+										onPingClick = { onPingClick(server) },
 										vendorMenu = vendorMenu(
 											selectionMode = uiState.isSelectionMode,
 											vendor = uiState.serverVendors[server.id]
@@ -503,6 +506,7 @@ fun ServerListScreen(
 										onPinClick = { viewModel.toggleServerPinned(server) },
 										onCopyClick = { viewModel.duplicateServer(server, copiedName) },
 										onTraceClick = { onTraceClick(server) },
+										onPingClick = { onPingClick(server) },
 										vendorMenu = vendorMenu(
 											selectionMode = uiState.isSelectionMode,
 											vendor = uiState.serverVendors[server.id]
@@ -611,6 +615,7 @@ fun ServerItem(
 	onPinClick: () -> Unit = {},
 	onCopyClick: () -> Unit = {},
 	onTraceClick: () -> Unit = {},
+	onPingClick: () -> Unit = {},
 	vendorMenu: VendorMenu = vendorMenu(selectionMode = false, vendor = null),
 	onVendorAction: (VendorMenuEntry) -> Unit = {},
 	isConnecting: Boolean = false
@@ -648,6 +653,7 @@ fun ServerItem(
 					onPinClick = onPinClick,
 					onCopyClick = onCopyClick,
 					onTraceClick = onTraceClick,
+					onPingClick = onPingClick,
 					vendorMenu = vendorMenu,
 					onVendorAction = onVendorAction
 				)
@@ -667,6 +673,7 @@ private fun ServerItemActions(
 	onPinClick: () -> Unit,
 	onCopyClick: () -> Unit,
 	onTraceClick: () -> Unit,
+	onPingClick: () -> Unit,
 	vendorMenu: VendorMenu,
 	onVendorAction: (VendorMenuEntry) -> Unit
 ) {
@@ -674,6 +681,7 @@ private fun ServerItemActions(
 	var queuedPin by remember { mutableStateOf(false) }
 	var queuedCopy by remember { mutableStateOf(false) }
 	var queuedTrace by remember { mutableStateOf(false) }
+	var queuedPing by remember { mutableStateOf(false) }
 	var queuedVendor by remember { mutableStateOf<VendorMenuEntry?>(null) }
 	LaunchedEffect(showMoreMenu) {
 		if (showMoreMenu) return@LaunchedEffect
@@ -689,6 +697,10 @@ private fun ServerItemActions(
 		if (queuedTrace) {
 			queuedTrace = false
 			onTraceClick()
+		}
+		if (queuedPing) {
+			queuedPing = false
+			onPingClick()
 		}
 		queuedVendor?.let { entry ->
 			queuedVendor = null
@@ -769,6 +781,13 @@ private fun ServerItemActions(
 						text = { Text(stringResource(R.string.traceroute_action)) },
 						onClick = {
 							queuedTrace = true
+							showMoreMenu = false
+						}
+					)
+					DropdownMenuItem(
+						text = { Text(stringResource(R.string.ping_action)) },
+						onClick = {
+							queuedPing = true
 							showMoreMenu = false
 						}
 					)

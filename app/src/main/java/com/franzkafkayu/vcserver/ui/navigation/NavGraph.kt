@@ -55,6 +55,12 @@ sealed class Screen(val route: String) {
             fun createRoute(serverId: Long) = "traceroute/$serverId"
         }
     }
+
+    data class Ping(val serverId: Long) : Screen("ping/{serverId}") {
+        companion object {
+            fun createRoute(serverId: Long) = "ping/$serverId"
+        }
+    }
 }
 
 /**
@@ -107,6 +113,11 @@ fun NavGraph(
                 onTraceClick = { server ->
                     navController.navigate(
                         com.franzkafkayu.vcserver.ui.navigation.Screen.Traceroute.createRoute(server.id)
+                    )
+                },
+                onPingClick = { server ->
+                    navController.navigate(
+                        com.franzkafkayu.vcserver.ui.navigation.Screen.Ping.createRoute(server.id)
                     )
                 }
             )
@@ -244,6 +255,24 @@ fun NavGraph(
                 )
             }
         }
+        composable(
+            route = "ping/{serverId}",
+            arguments = listOf(
+                navArgument("serverId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getLong("serverId") ?: 0L
+            val server = serverListViewModel.uiState.value.servers.find { it.id == serverId }
+            if (server != null) {
+                val pingViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.PingViewModel>(
+                    factory = PingViewModelFactory(server.name, server.host)
+                )
+                com.franzkafkayu.vcserver.ui.screens.PingScreen(
+                    viewModel = pingViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+        }
         composable(com.franzkafkayu.vcserver.ui.navigation.Screen.Settings.route) {
             val settingsViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel>(
                 factory = com.franzkafkayu.vcserver.ui.navigation.SettingsViewModelFactory(
@@ -366,6 +395,19 @@ class TracerouteViewModelFactory(
         if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.TracerouteViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return com.franzkafkayu.vcserver.ui.viewmodels.TracerouteViewModel(serverName, host, port) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+class PingViewModelFactory(
+    private val serverName: String,
+    private val host: String
+) : androidx.lifecycle.ViewModelProvider.Factory {
+    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.PingViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return com.franzkafkayu.vcserver.ui.viewmodels.PingViewModel(serverName, host) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

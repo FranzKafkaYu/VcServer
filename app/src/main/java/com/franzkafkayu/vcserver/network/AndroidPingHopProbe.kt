@@ -27,6 +27,8 @@ fun isBogusDirectHit(ttl: Int, result: HopProbeResult, dest: String, destAddress
 	return isPublicUnicast(destAddress)
 }
 
+class PingCommandUnavailable : Exception()
+
 class AndroidTtlHopProbe {
 	private var sequence = 0
 	private var icmpFd: FileDescriptor? = null
@@ -63,6 +65,26 @@ class AndroidTtlHopProbe {
 	fun echoMs(target: InetAddress): Long? {
 		val dest = target.hostAddress ?: return null
 		return pingOnce(dest, emptyList())?.rttMs
+	}
+
+	fun pingSampleMs(target: InetAddress): Long? {
+		val dest = target.hostAddress ?: throw PingCommandUnavailable()
+		val flagSets = listOf(listOf("-c", "1", "-W", "1"), listOf("-c", "1"))
+		val bins = listOf(pingBin, "ping", "/system/bin/ping").distinct()
+		var sawOutput = false
+		for (bin in bins) {
+			for (flags in flagSets) {
+				val parsed = finishPing(bin, flags, dest) ?: continue
+				sawOutput = true
+				if (parsed.rttMs != null || parsed.hopAddress != null || parsed.reachedTarget) {
+					pingBin = bin
+					pingLeadFlags = flags
+					return parsed.rttMs
+				}
+			}
+		}
+		if (sawOutput) return null
+		throw PingCommandUnavailable()
 	}
 
 	suspend fun probe(target: InetAddress, ttl: Int): HopProbeResult = withContext(Dispatchers.IO) {
