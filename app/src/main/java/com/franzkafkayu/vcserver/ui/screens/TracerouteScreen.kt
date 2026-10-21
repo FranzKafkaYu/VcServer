@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.franzkafkayu.vcserver.R
+import com.franzkafkayu.vcserver.network.cumulativeHopMillis
 import com.franzkafkayu.vcserver.network.TraceHop
 import com.franzkafkayu.vcserver.ui.viewmodels.TracerouteViewModel
 
@@ -40,7 +41,8 @@ fun TracerouteScreen(
 	onBackClick: () -> Unit
 ) {
 	val state = viewModel.uiState.collectAsStateWithLifecycle().value
-	val maxRtt = state.hops.mapNotNull { it.rttMs }.maxOrNull()?.coerceAtLeast(1L) ?: 1L
+	val shownMs = cumulativeHopMillis(state.hops, state.hostEchoMs ?: state.tcpMs)
+	val maxRtt = shownMs.filterNotNull().maxOrNull()?.coerceAtLeast(1L) ?: 1L
 	Scaffold(
 		topBar = {
 			TopAppBar(
@@ -123,8 +125,8 @@ fun TracerouteScreen(
 						verticalArrangement = Arrangement.spacedBy(8.dp),
 						modifier = Modifier.fillMaxSize()
 					) {
-						items(state.hops, key = { it.ttl }) { hop ->
-							HopRow(hop = hop, maxRtt = maxRtt)
+						itemsIndexed(state.hops, key = { _, hop -> hop.ttl }) { index, hop ->
+							HopRow(hop = hop, shownMs = shownMs[index], maxRtt = maxRtt)
 						}
 					}
 				}
@@ -134,12 +136,12 @@ fun TracerouteScreen(
 }
 
 @Composable
-private fun HopRow(hop: TraceHop, maxRtt: Long) {
+private fun HopRow(hop: TraceHop, shownMs: Long?, maxRtt: Long) {
 	val label = when {
 		hop.timedOut -> stringResource(R.string.traceroute_hop_timeout)
 		else -> hop.address ?: stringResource(R.string.traceroute_hop_timeout)
 	}
-	val rttText = hop.rttMs?.let { stringResource(R.string.traceroute_rtt_ms, it) } ?: ""
+	val rttText = shownMs?.let { stringResource(R.string.traceroute_rtt_ms, it) } ?: ""
 	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
 		Row(
 			modifier = Modifier.fillMaxWidth(),
@@ -156,8 +158,8 @@ private fun HopRow(hop: TraceHop, maxRtt: Long) {
 				.height(8.dp)
 				.background(MaterialTheme.colorScheme.surfaceVariant)
 		) {
-			if (hop.rttMs != null && !hop.timedOut) {
-				val fraction = (hop.rttMs.toFloat() / maxRtt.toFloat()).coerceIn(0.05f, 1f)
+			if (shownMs != null && !hop.timedOut) {
+				val fraction = (shownMs.toFloat() / maxRtt.toFloat()).coerceIn(0.05f, 1f)
 				Box(
 					modifier = Modifier
 						.fillMaxHeight()

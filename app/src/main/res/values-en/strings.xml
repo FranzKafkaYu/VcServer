@@ -44,7 +44,7 @@
 	<string name="traceroute_action">Route test</string>
 	<string name="traceroute_title">Route test</string>
 	<string name="traceroute_target">%1$s (%2$s)</string>
-	<string name="traceroute_not_ssh">This is the path from this phone to the host, not SSH connectivity. Timed-out hops are common.</string>
+	<string name="traceroute_not_ssh">Each hop is the cumulative round trip from this phone. It never decreases, and the server is the highest.</string>
 	<string name="traceroute_host_echo">Host ICMP reply: %1$d ms</string>
 	<string name="traceroute_tcp_ms">SSH port reachable: %1$d ms</string>
 	<string name="traceroute_no_hops">Cannot list hops: without root the system does not deliver router TTL-exceeded packets to the app. If the host also ignores ping, every hop times out.</string>

@@ -88,6 +88,23 @@ class PhoneHostTracerouteTest {
 	}
 
 	@Test
+	fun cumulativeGrowsAndCapsAtDestination() {
+		val hops = listOf(
+			TraceHop(1, "a", 11, false, false),
+			TraceHop(2, "b", 9, false, false),
+			TraceHop(3, "c", 17, false, false),
+			TraceHop(7, null, null, true, false),
+			TraceHop(9, "d", 302, false, false),
+			TraceHop(16, "e", 403, false, false),
+			TraceHop(17, "dst", 201, false, true)
+		)
+		assertEquals(
+			listOf(11L, 11L, 17L, null, 201L, 201L, 201L),
+			cumulativeHopMillis(hops, 214)
+		)
+	}
+
+	@Test
 	fun parseTimeoutKeepsNullAddress() {
 		val parsed = parsePingHop("", "1.1.1.1")
 		assertEquals(null, parsed.hopAddress)

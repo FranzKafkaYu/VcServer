@@ -13,6 +13,21 @@ data class TraceHop(
 	val reachedTarget: Boolean
 )
 
+fun cumulativeHopMillis(hops: List<TraceHop>, endToEndMs: Long?): List<Long?> {
+	val destination = hops.lastOrNull { it.reachedTarget }?.rttMs ?: endToEndMs
+	var accumulated = 0L
+	return hops.map { hop ->
+		val raw = hop.rttMs
+		if (hop.timedOut || raw == null) {
+			null
+		} else {
+			val capped = if (destination != null && raw > destination) destination else raw
+			accumulated = maxOf(accumulated, capped)
+			accumulated
+		}
+	}
+}
+
 data class HopProbeResult(
 	val hopAddress: String?,
 	val rttMs: Long?,

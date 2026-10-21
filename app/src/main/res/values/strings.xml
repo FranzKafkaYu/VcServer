@@ -44,7 +44,7 @@
 	<string name="traceroute_action">路由测试</string>
 	<string name="traceroute_title">路由测试</string>
 	<string name="traceroute_target">%1$s（%2$s）</string>
-	<string name="traceroute_not_ssh">展示从本机到该主机的路径，不表示 SSH 可连接。中间跳超时很常见。</string>
+	<string name="traceroute_not_ssh">每跳是从手机到该点的累计往返时间，沿途只增不减，到达服务器时最大。</string>
 	<string name="traceroute_host_echo">主机 ICMP 应答：%1$d ms</string>
 	<string name="traceroute_tcp_ms">SSH 端口连通：%1$d ms</string>
 	<string name="traceroute_no_hops">无法列出中间跳：无 root 时系统不把路由器的 TTL 超时包交给应用；若主机也不回应 ping，就不会出现任何一跳。</string>
