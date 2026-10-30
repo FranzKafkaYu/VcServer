@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -180,30 +179,27 @@ private fun PingRow(
 				stats.jitterMs?.let { stringResource(R.string.ping_jitter, it) }
 					?: stringResource(R.string.ping_dash)
 			)
-			Row(
-				modifier = Modifier
-					.fillMaxWidth()
-					.height(28.dp),
-				horizontalArrangement = Arrangement.spacedBy(2.dp),
-				verticalAlignment = Alignment.Bottom
+			Column(
+				modifier = Modifier.fillMaxWidth(),
+				verticalArrangement = Arrangement.spacedBy(4.dp)
 			) {
 				samples.forEach { sample ->
 					val fraction = when (sample) {
-						is PingSample.Ok -> (sample.rttMs.toFloat() / maxRtt.toFloat()).coerceIn(0.15f, 1f)
+						is PingSample.Ok -> (sample.rttMs.toFloat() / maxRtt.toFloat()).coerceIn(0.08f, 1f)
 						PingSample.Failed -> 1f
 					}
 					val color = if (sample is PingSample.Ok) BarGreen else BarRed
 					Box(
 						modifier = Modifier
-							.weight(1f)
-							.fillMaxHeight()
-							.background(MaterialTheme.colorScheme.surfaceVariant),
-						contentAlignment = Alignment.BottomCenter
+							.fillMaxWidth()
+							.height(10.dp)
+							.background(MaterialTheme.colorScheme.surfaceVariant)
 					) {
 						Box(
 							modifier = Modifier
-								.fillMaxWidth()
-								.fillMaxHeight(fraction)
+								.fillMaxWidth(fraction)
+								.height(10.dp)
+								.align(Alignment.CenterStart)
 								.background(color)
 						)
 					}

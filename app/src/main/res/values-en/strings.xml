@@ -61,7 +61,7 @@
 	<string name="ping_sent">%1$d</string>
 	<string name="ping_sample_ms">%1$d</string>
 	<string name="ping_dash">–</string>
-	<string name="ping_jitter">%1$.2f</string>
+	<string name="ping_jitter">Jitter %1$.2f ms</string>
 	<string name="ping_remote_failed">Probe query failed</string>
 	<string name="ping_local_failed">This phone could not send ping</string>
 	<string name="ping_node_failed">This probe could not resolve the target</string>

@@ -61,7 +61,7 @@
 	<string name="ping_sent">%1$d</string>
 	<string name="ping_sample_ms">%1$d</string>
 	<string name="ping_dash">–</string>
-	<string name="ping_jitter">%1$.2f</string>
+	<string name="ping_jitter">抖动 %1$.2f ms</string>
 	<string name="ping_remote_failed">探测点查询失败</string>
 	<string name="ping_local_failed">本机无法发出 ping</string>
 	<string name="ping_node_failed">该探测点无法解析目标</string>

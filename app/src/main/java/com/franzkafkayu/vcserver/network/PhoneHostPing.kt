@@ -40,7 +40,8 @@ class HttpCheckHostClient : CheckHostClient {
 	}
 
 	override suspend fun result(requestId: String): String = withContext(Dispatchers.IO) {
-		val (code, body) = get("$API/check-result/$requestId", readTimeoutMs = 30_000)
+		val stamp = System.currentTimeMillis()
+		val (code, body) = get("$API/check-result/$requestId?_=$stamp", readTimeoutMs = 8_000)
 		logBody("path=check-result http=$code requestId=$requestId", body)
 		if (code !in 200..299) throw IllegalStateException("http $code")
 		body
@@ -49,11 +50,14 @@ class HttpCheckHostClient : CheckHostClient {
 	private fun get(url: String, readTimeoutMs: Int): Pair<Int, String> {
 		val connection = (URL(url).openConnection() as HttpURLConnection).apply {
 			requestMethod = "GET"
-			connectTimeout = 15_000
+			connectTimeout = 10_000
 			readTimeout = readTimeoutMs
+			useCaches = false
+			instanceFollowRedirects = true
 			setRequestProperty("Accept", "application/json")
 			setRequestProperty("Accept-Encoding", "identity")
-			setRequestProperty("User-Agent", "VcServer/1.0 (Android; +https://github.com/FranzKafkaYu/VcServer)")
+			setRequestProperty("Connection", "close")
+			setRequestProperty("User-Agent", USER_AGENT)
 		}
 		return try {
 			val code = connection.responseCode
@@ -76,13 +80,15 @@ class HttpCheckHostClient : CheckHostClient {
 	companion object {
 		private const val TAG = "CheckHostClient"
 		private const val API = "https://check-host.net"
+		private const val USER_AGENT =
+			"Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 		const val MAX_NODES = 5
 	}
 }
 
-private fun logRemote(message: String, error: Throwable) {
+private fun logRemote(message: String) {
 	try {
-		Log.w("CheckHostClient", message, error)
+		Log.w("CheckHostClient", message)
 	} catch (_: RuntimeException) {
 		// unit tests have no Android log
 	}
@@ -93,7 +99,7 @@ class PhoneHostPing(
 	private val localPing: suspend (InetAddress) -> Long?,
 	private val remote: CheckHostClient,
 	private val localCount: Int = 4,
-	private val pollDelayMs: Long = 2_500,
+	private val pollDelayMs: Long = 5_000,
 	private val pollBudgetMs: Long = 90_000,
 	private val sleeper: suspend (Long) -> Unit
 ) {
@@ -138,8 +144,9 @@ class PhoneHostPing(
 					gate.withLock { state.nodes = request.nodes }
 					publish(running = true)
 					val deadline = System.currentTimeMillis() + pollBudgetMs
-					sleeper(pollDelayMs)
-					while (true) {
+					var waitMs = pollDelayMs
+					sleeper(waitMs)
+					while (System.currentTimeMillis() < deadline) {
 						try {
 							val updated = applyCheckHostResult(
 								gate.withLock { state.nodes },
@@ -150,17 +157,24 @@ class PhoneHostPing(
 								updated.none { it.pending }
 							}
 							publish(running = true)
-							if (done || System.currentTimeMillis() >= deadline) break
+							if (done) break
+							waitMs = if (updated.all { it.pending }) {
+								(waitMs * 2).coerceAtMost(12_000L)
+							} else {
+								pollDelayMs
+							}
 						} catch (e: IOException) {
-							logRemote("check-result retry after I/O", e)
-							if (System.currentTimeMillis() >= deadline) break
+							waitMs = (waitMs * 2).coerceAtMost(12_000L)
+							logRemote("check-result timeout, retry in ${waitMs}ms: ${e.message}")
 						}
-						sleeper(pollDelayMs)
+						val remaining = deadline - System.currentTimeMillis()
+						if (remaining <= 0L) break
+						sleeper(minOf(waitMs, remaining))
 					}
 				} catch (e: kotlinx.coroutines.CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					logRemote("parse or request failed", e)
+					logRemote("parse or request failed: ${e.message}")
 					gate.withLock { state.remoteError = e.message ?: "request failed" }
 					publish(running = true)
 				}
