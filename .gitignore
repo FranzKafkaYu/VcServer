@@ -4,6 +4,7 @@
 .vscode/
 .gradle/
 app/build/
+app/.cxx
 local.properties
 
 # Keystore files (sensitive)

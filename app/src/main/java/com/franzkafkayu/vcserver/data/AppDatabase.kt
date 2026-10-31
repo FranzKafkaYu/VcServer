@@ -32,7 +32,7 @@ import com.franzkafkayu.vcserver.models.VirtualizorLink
 		GreencloudLink::class,
 		VirtualizorLink::class
 	],
-	version = 14,
+	version = 15,
 	exportSchema = false
 )
 @TypeConverters(AuthTypeConverter::class, ProxyTypeConverter::class)
@@ -281,6 +281,13 @@ abstract class AppDatabase : RoomDatabase() {
 				database.execSQL(
 					"CREATE UNIQUE INDEX IF NOT EXISTS `index_greencloud_links_instanceId` ON `greencloud_links` (`instanceId`)"
 				)
+			}
+		}
+
+		val MIGRATION_14_15 = object : Migration(14, 15) {
+			override fun migrate(database: SupportSQLiteDatabase) {
+				database.execSQL("ALTER TABLE servers ADD COLUMN useMosh INTEGER NOT NULL DEFAULT 0")
+				database.execSQL("ALTER TABLE servers ADD COLUMN moshUdpPort INTEGER")
 			}
 		}
 	}

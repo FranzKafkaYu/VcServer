@@ -1,8 +1,11 @@
 package com.franzkafkayu.vcserver.utils
 
+import com.franzkafkayu.vcserver.models.Server
+import com.franzkafkayu.vcserver.mosh.MoshBootstrap
+import com.franzkafkayu.vcserver.mosh.SshTerminalIo
+import com.franzkafkayu.vcserver.mosh.TerminalIo
 import com.franzkafkayu.vcserver.services.TerminalService
 import com.franzkafkayu.vcserver.ssh.SshClientSession
-import com.franzkafkayu.vcserver.ssh.SshShellChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
- * 按 sessionKey 持有多路 SshShellChannel，存活不依赖 TerminalViewModel。
+ * 按 sessionKey 持有多路终端 I/O，存活不依赖 TerminalViewModel。
  */
 object TerminalShellStore {
 	const val MAX_TABS = 4
@@ -33,11 +36,13 @@ object TerminalShellStore {
 		sessionKey: String,
 		session: SshClientSession,
 		terminalService: TerminalService,
+		server: Server,
 		cols: Int,
 		rows: Int
 	) {
 		val h = holder(sessionKey)
 		synchronized(h) {
+			h.server = server
 			if (h.tabs.isNotEmpty()) {
 				h.publishLocked()
 				return
@@ -50,11 +55,13 @@ object TerminalShellStore {
 		sessionKey: String,
 		session: SshClientSession,
 		terminalService: TerminalService,
+		server: Server,
 		cols: Int,
 		rows: Int
 	): Boolean {
 		val h = holder(sessionKey)
 		synchronized(h) {
+			h.server = server
 			if (h.tabs.size >= MAX_TABS) {
 				h.maxReached = true
 				h.publishLocked()
@@ -85,8 +92,8 @@ object TerminalShellStore {
 			removed.connectGeneration++
 			removed.isReconnecting = false
 			removed.collectJob?.cancel()
-			disconnectChannel(removed.channel)
-			removed.channel = null
+			disconnectIo(removed.io)
+			removed.io = null
 			h.maxReached = false
 			if (h.tabs.isEmpty()) {
 				h.scope.cancel()
@@ -113,7 +120,7 @@ object TerminalShellStore {
 				tab.closed = true
 				tab.connectGeneration++
 				tab.collectJob?.cancel()
-				disconnectChannel(tab.channel)
+				disconnectIo(tab.io)
 			}
 			h.tabs.clear()
 			h.scope.cancel()
@@ -127,10 +134,13 @@ object TerminalShellStore {
 		}
 	}
 
-	fun bindSession(sessionKey: String, session: SshClientSession) {
+	fun bindSession(sessionKey: String, session: SshClientSession, server: Server? = null) {
 		val h = holders[sessionKey] ?: return
 		synchronized(h) {
 			h.session = session
+			if (server != null) {
+				h.server = server
+			}
 		}
 	}
 
@@ -165,9 +175,9 @@ object TerminalShellStore {
 		tab.ptyCols = cols
 		tab.ptyRows = rows
 		tab.buffer.setSize(cols, rows)
-		tab.channel?.let { channel ->
+		tab.io?.let { io ->
 			try {
-				channel.resize(cols, rows)
+				io.resize(cols, rows)
 			} catch (_: Exception) {
 			}
 		}
@@ -188,11 +198,11 @@ object TerminalShellStore {
 		Thread(runnable, "shell-tab-close").apply { isDaemon = true }
 	}
 
-	private fun disconnectChannel(channel: SshShellChannel?) {
-		if (channel == null) return
+	private fun disconnectIo(io: TerminalIo?) {
+		if (io == null) return
 		closeExecutor.execute {
 			try {
-				channel.close()
+				io.close()
 			} catch (_: Exception) {
 			}
 		}
@@ -238,8 +248,8 @@ object TerminalShellStore {
 			generation = tab.connectGeneration
 			tab.isReconnecting = true
 			tab.collectJob?.cancel()
-			disconnectChannel(tab.channel)
-			tab.channel = null
+			disconnectIo(tab.io)
+			tab.io = null
 		}
 		h.scope.launch {
 			try {
@@ -251,27 +261,27 @@ object TerminalShellStore {
 					h.publishLocked()
 				}
 				val result = try {
-					terminalService.connectShell(session, rows = tab.ptyRows, cols = tab.ptyCols)
+					openIo(h, session, terminalService, tab.ptyCols, tab.ptyRows)
 				} catch (e: Exception) {
 					Result.failure(e)
 				}
 				result.fold(
-					onSuccess = { channel ->
+					onSuccess = { io ->
 						synchronized(h) {
 							if (tab.closed || tab.connectGeneration != generation || !h.tabs.contains(tab)) {
-								disconnectChannel(channel)
+								disconnectIo(io)
 								return@fold
 							}
-							tab.channel = channel
+							tab.io = io
 							tab.isConnecting = false
 							tab.isConnected = true
 							tab.error = null
 							h.publishLocked()
 						}
 						if (!tab.closed && tab.connectGeneration == generation) {
-							collectOutput(h, tab, channel, session, terminalService, generation)
+							collectOutput(h, tab, io, session, terminalService, generation)
 						} else {
-							disconnectChannel(channel)
+							disconnectIo(io)
 						}
 					},
 					onFailure = { exception ->
@@ -291,7 +301,7 @@ object TerminalShellStore {
 					if (tab.connectGeneration == generation) {
 						tab.isReconnecting = false
 						tab.isConnecting = false
-						if (tab.channel == null) {
+						if (tab.io == null) {
 							tab.isConnected = false
 						}
 						h.publishLocked()
@@ -301,19 +311,45 @@ object TerminalShellStore {
 		}
 	}
 
+	private suspend fun openIo(
+		h: SessionShells,
+		session: SshClientSession,
+		terminalService: TerminalService,
+		cols: Int,
+		rows: Int
+	): Result<TerminalIo> {
+		val server = h.server
+		if (server?.useMosh == true) {
+			return try {
+				Result.success(MoshBootstrap.start(session, server, cols, rows))
+			} catch (e: Exception) {
+				Result.failure(e)
+			}
+		}
+		return terminalService.connectShell(session, rows = rows, cols = cols).map { SshTerminalIo(it) }
+	}
+
 	private fun collectOutput(
 		h: SessionShells,
 		tab: ShellTab,
-		channel: SshShellChannel,
+		io: TerminalIo,
 		session: SshClientSession,
 		terminalService: TerminalService,
 		generation: Int
 	) {
 		tab.collectJob = h.scope.launch {
 			try {
-				terminalService.getOutputFlow(channel).collect { output ->
-					if (tab.closed || tab.connectGeneration != generation) return@collect
-					tab.buffer.writeBytes(output)
+				val buffer = ByteArray(4096)
+				val input = io.inputStream
+				while (!tab.closed && tab.connectGeneration == generation && io.isOpen()) {
+					val len = try {
+						input.read(buffer)
+					} catch (_: Exception) {
+						-1
+					}
+					if (len < 0) break
+					if (len == 0) continue
+					tab.buffer.writeBytes(buffer.copyOf(len))
 					synchronized(h) { h.publishLocked() }
 				}
 			} catch (_: Exception) {
@@ -335,6 +371,7 @@ object TerminalShellStore {
 		var activeId: String = ""
 		var maxReached: Boolean = false
 		var session: SshClientSession? = null
+		var server: Server? = null
 		val snapshot = MutableStateFlow(ShellSessionSnapshot())
 
 		fun nextTitleIndexLocked(): Int {
@@ -366,7 +403,7 @@ object TerminalShellStore {
 class ShellTab(
 	val id: String,
 	val titleIndex: Int,
-	var channel: SshShellChannel? = null,
+	var io: TerminalIo? = null,
 	val buffer: TerminalBuffer,
 	var ptyCols: Int,
 	var ptyRows: Int,

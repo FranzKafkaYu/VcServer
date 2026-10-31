@@ -51,7 +51,7 @@ class TerminalViewModel(
 				_uiState.value = _uiState.value.copy(fontSizeSp = savedFont)
 			} catch (_: Exception) {
 			}
-			TerminalShellStore.bindSession(sessionKey, session)
+			TerminalShellStore.bindSession(sessionKey, session, server)
 			if (!session.isConnected) {
 				reconnectSession()
 			} else {
@@ -59,6 +59,7 @@ class TerminalViewModel(
 					sessionKey,
 					session,
 					terminalService,
+					server,
 					ptyCols,
 					ptyRows
 				)
@@ -81,7 +82,7 @@ class TerminalViewModel(
 	}
 
 	fun newTab() {
-		if (!TerminalShellStore.newTab(sessionKey, session, terminalService, ptyCols, ptyRows)) {
+		if (!TerminalShellStore.newTab(sessionKey, session, terminalService, server, ptyCols, ptyRows)) {
 			_uiState.value = _uiState.value.copy(maxReached = true)
 		}
 	}
@@ -149,8 +150,8 @@ class TerminalViewModel(
 		}
 
 		val tab = TerminalShellStore.activeTab(sessionKey)
-		val channel = tab?.channel
-		if (tab == null || channel == null || !terminalService.isConnected(channel)) {
+		val io = tab?.io
+		if (tab == null || io == null || !io.isOpen()) {
 			if (session.isConnected) {
 				TerminalShellStore.reconnectActiveShell(sessionKey, session, terminalService)
 			} else {
@@ -171,7 +172,7 @@ class TerminalViewModel(
 				}
 
 				tab.inputMutex.withLock {
-					terminalService.sendCommand(channel, trimmed)
+					io.write((trimmed + "\n").toByteArray())
 				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
@@ -183,15 +184,15 @@ class TerminalViewModel(
 
 	fun sendRawInput(bytes: ByteArray) {
 		val tab = TerminalShellStore.activeTab(sessionKey) ?: return
-		val channel = tab.channel ?: return
-		if (!terminalService.isConnected(channel) || !session.isConnected) {
+		val io = tab.io ?: return
+		if (!io.isOpen()) {
 			return
 		}
 
 		viewModelScope.launch {
 			try {
 				tab.inputMutex.withLock {
-					terminalService.sendRawBytes(channel, bytes)
+					io.write(bytes)
 				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
@@ -215,14 +216,14 @@ class TerminalViewModel(
 
 	private fun sendControlChar(code: Int) {
 		val tab = TerminalShellStore.activeTab(sessionKey) ?: return
-		val channel = tab.channel ?: return
-		if (!terminalService.isConnected(channel) || !session.isConnected) {
+		val io = tab.io ?: return
+		if (!io.isOpen()) {
 			return
 		}
 		viewModelScope.launch {
 			try {
 				tab.inputMutex.withLock {
-					terminalService.sendControlChar(channel, code)
+					io.write(byteArrayOf(code.toByte()))
 				}
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
@@ -274,13 +275,14 @@ class TerminalViewModel(
 				onSuccess = { newSession ->
 					session = newSession
 					SessionManager.putSession(sessionKey, newSession)
-					TerminalShellStore.bindSession(sessionKey, newSession)
+					TerminalShellStore.bindSession(sessionKey, newSession, server)
 					isReconnectingSession = false
 					if (TerminalShellStore.observe(sessionKey).value.tabs.isEmpty()) {
 						TerminalShellStore.ensureFirstTab(
 							sessionKey,
 							newSession,
 							terminalService,
+							server,
 							ptyCols,
 							ptyRows
 						)

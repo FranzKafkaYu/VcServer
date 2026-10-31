@@ -17,7 +17,6 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /**
  * 已认证的 SSH 连接。UI 只持有本类型，不接触 sshj。
@@ -46,22 +45,70 @@ class SshClientSession internal constructor(
 	}
 
 	fun exec(command: String, timeoutMs: Long): String {
+		val captured = execCapture(command, timeoutMs)
+		if (captured.exitStatus != null && captured.exitStatus != 0) {
+			throw Exception("Command failed with exit status: ${captured.exitStatus}")
+		}
+		return captured.stdout.trim()
+	}
+
+	fun execCapture(command: String, timeoutMs: Long): SshExecCapture {
+		return execCapture(command, timeoutMs, null)
+	}
+
+	fun execCapture(
+		command: String,
+		timeoutMs: Long,
+		until: ((String) -> Boolean)?
+	): SshExecCapture {
 		val session = client.startSession()
 		var commandChannel: Session.Command? = null
 		try {
 			commandChannel = session.exec(command)
 			val commandRef = commandChannel
-			drainStderr(commandRef)
-			val output = readStdout(commandRef, timeoutMs)
+			val stdoutBuf = StringBuilder()
+			val stderrBuf = StringBuilder()
+			val stdoutFuture = readers.submit {
+				copyStream(commandRef.inputStream, stdoutBuf)
+			}
+			val stderrFuture = readers.submit {
+				copyStream(commandRef.errorStream, stderrBuf)
+			}
+			val deadline = System.currentTimeMillis() + timeoutMs
+			while (System.currentTimeMillis() < deadline) {
+				val combined = synchronized(stdoutBuf) { stdoutBuf.toString() } +
+					"\n" + synchronized(stderrBuf) { stderrBuf.toString() }
+				if (until != null && until(combined)) {
+					return SshExecCapture(
+						stdout = synchronized(stdoutBuf) { stdoutBuf.toString() },
+						stderr = synchronized(stderrBuf) { stderrBuf.toString() },
+						exitStatus = commandRef.exitStatus
+					)
+				}
+				if (until == null && stdoutFuture.isDone) {
+					break
+				}
+				if (stdoutFuture.isDone && stderrFuture.isDone) {
+					break
+				}
+				Thread.sleep(40)
+			}
+			if (until == null && !stdoutFuture.isDone) {
+				throw Exception("Command execution timeout after ${timeoutMs}ms")
+			}
 			try {
-				commandRef.join(2, TimeUnit.SECONDS)
+				stderrFuture.get(2, TimeUnit.SECONDS)
 			} catch (_: Exception) {
 			}
-			val status = commandRef.exitStatus
-			if (status != null && status != 0) {
-				throw Exception("Command failed with exit status: $status")
+			try {
+				commandRef.join(1, TimeUnit.SECONDS)
+			} catch (_: Exception) {
 			}
-			return output.trim()
+			return SshExecCapture(
+				stdout = synchronized(stdoutBuf) { stdoutBuf.toString() },
+				stderr = synchronized(stderrBuf) { stderrBuf.toString() },
+				exitStatus = commandRef.exitStatus
+			)
 		} finally {
 			try {
 				commandChannel?.close()
@@ -93,31 +140,18 @@ class SshClientSession internal constructor(
 		return SshSftp(client.newSFTPClient())
 	}
 
-	private fun drainStderr(command: Session.Command) {
-		val error = command.errorStream
-		readers.execute {
-			try {
-				val buffer = ByteArray(1024)
-				while (error.read(buffer) >= 0) {
-				}
+	private fun copyStream(stream: InputStream, sink: StringBuilder) {
+		val buffer = ByteArray(1024)
+		while (true) {
+			val n = try {
+				stream.read(buffer)
 			} catch (_: Exception) {
+				-1
 			}
-		}
-	}
-
-	private fun readStdout(command: Session.Command, timeoutMs: Long): String {
-		val future = readers.submit<String> {
-			command.inputStream.bufferedReader(Charsets.UTF_8).readText()
-		}
-		return try {
-			future.get(timeoutMs, TimeUnit.MILLISECONDS)
-		} catch (e: TimeoutException) {
-			future.cancel(true)
-			try {
-				command.close()
-			} catch (_: Exception) {
-			}
-			throw Exception("Command execution timeout after ${timeoutMs}ms", e)
+			if (n < 0) return
+			if (n == 0) continue
+			val chunk = String(buffer, 0, n, Charsets.UTF_8)
+			synchronized(sink) { sink.append(chunk) }
 		}
 	}
 
@@ -284,6 +318,12 @@ class SshSftp internal constructor(
 		)
 	}
 }
+
+data class SshExecCapture(
+	val stdout: String,
+	val stderr: String,
+	val exitStatus: Int?
+)
 
 internal fun SSHClient.disconnectQuietly() {
 	try {

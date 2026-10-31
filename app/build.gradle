@@ -54,6 +54,15 @@ android {
 			vectorDrawables {
 				useSupportLibrary true
 			}
+			ndk {
+				abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+			}
+		}
+		ndkVersion '27.0.12077973'
+		externalNativeBuild {
+			cmake {
+				path 'src/main/cpp/CMakeLists.txt'
+			}
 		}
 
 		// 签名配置（必须在 buildTypes 之前定义）

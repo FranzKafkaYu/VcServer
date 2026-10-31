@@ -240,7 +240,14 @@ fun TerminalScreen(
 					) {
 						Column(modifier = Modifier.weight(1f)) {
 							Text(
-								text = error.message,
+								text = when (error.message) {
+									"MOSH_JUMP_UNSUPPORTED" -> stringResource(R.string.error_mosh_jump_unsupported)
+									"MOSH_PROXY_UNSUPPORTED" -> stringResource(R.string.error_mosh_proxy_unsupported)
+									"MOSH_SERVER_MISSING" -> stringResource(R.string.error_mosh_server_missing)
+									"MOSH_PARSE_FAILED" -> stringResource(R.string.error_mosh_parse_failed)
+									"MOSH_UDP_FAILED" -> stringResource(R.string.error_mosh_udp_failed)
+									else -> error.message
+								},
 								color = MaterialTheme.colorScheme.onErrorContainer
 							)
 							// 如果是连接错误，显示重连提示

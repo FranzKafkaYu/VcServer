@@ -18,6 +18,9 @@ sealed class AppError {
  */
 fun Throwable.toAppError(): AppError {
 	return when (this) {
+		is com.franzkafkayu.vcserver.mosh.MoshException -> {
+			AppError.NetworkError(this.code)
+		}
 		is com.franzkafkayu.vcserver.services.SshConnectionException -> {
 			when (message) {
 				"SSH_ALGORITHM_NEGOTIATION_FAILED" ->

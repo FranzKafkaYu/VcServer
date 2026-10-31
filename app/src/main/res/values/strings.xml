@@ -478,6 +478,16 @@
 	<string name="validation_failed">验证失败</string>
 	<string name="secure_storage_failed">安全存储操作失败</string>
 	<string name="unknown_error">未知错误</string>
+	<string name="mosh_settings">Mosh</string>
+	<string name="enable_mosh">用 UDP 保持终端，适合弱网；需远端已安装 mosh-server</string>
+	<string name="mosh_udp_port">UDP 端口（可选）</string>
+	<string name="mosh_udp_port_optional">留空则使用远端默认范围</string>
+	<string name="error_mosh_port_invalid">Mosh UDP 端口须为 1–65535，或留空</string>
+	<string name="error_mosh_jump_unsupported">当前版本不支持经跳板使用 Mosh</string>
+	<string name="error_mosh_proxy_unsupported">当前版本不支持经代理使用 Mosh</string>
+	<string name="error_mosh_server_missing">远端未安装 mosh-server</string>
+	<string name="error_mosh_parse_failed">无法解析 mosh-server 输出</string>
+	<string name="error_mosh_udp_failed">UDP 连接失败，请检查防火墙是否放行 Mosh 端口</string>
 </resources>
 
 

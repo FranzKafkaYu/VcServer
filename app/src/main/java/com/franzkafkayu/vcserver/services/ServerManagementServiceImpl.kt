@@ -46,6 +46,8 @@ class ServerManagementServiceImpl(
 		proxyUsername: String?,
 		proxyPassword: String?,
 		jumpHostId: Long?,
+		useMosh: Boolean,
+		moshUdpPort: Int?,
 		testConnection: Boolean
 	): Result<Long> {
 		// 输入验证
@@ -125,6 +127,8 @@ class ServerManagementServiceImpl(
 			proxyUsername = proxyUsername,
 			encryptedProxyPassword = encryptedProxyPassword,
 			jumpHostId = jumpHostId,
+			useMosh = useMosh,
+			moshUdpPort = if (useMosh) moshUdpPort else null,
 			orderIndex = serverCount // 新服务器默认排在最后
 		)
 
@@ -168,7 +172,9 @@ class ServerManagementServiceImpl(
 		proxyPort: Int?,
 		proxyUsername: String?,
 		proxyPassword: String?,
-		jumpHostId: Long?
+		jumpHostId: Long?,
+		useMosh: Boolean,
+		moshUdpPort: Int?
 	): Result<Unit> {
 		return try {
 			val existingServer = serverRepository.getServerById(serverId)
@@ -229,6 +235,8 @@ class ServerManagementServiceImpl(
 				proxyUsername = proxyUsername,
 				encryptedProxyPassword = encryptedProxyPassword,
 				jumpHostId = jumpHostId,
+				useMosh = useMosh,
+				moshUdpPort = if (useMosh) moshUdpPort else null,
 				updatedAt = System.currentTimeMillis()
 			)
 

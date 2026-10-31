@@ -446,6 +446,47 @@ fun AddServerScreen(
 				}
 			}
 
+			Card {
+				Column(
+					modifier = Modifier.padding(16.dp),
+					verticalArrangement = Arrangement.spacedBy(16.dp)
+				) {
+					Row(
+						modifier = Modifier.fillMaxWidth(),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Column(modifier = Modifier.weight(1f)) {
+							Text(
+								text = stringResource(R.string.mosh_settings),
+								style = MaterialTheme.typography.titleMedium
+							)
+							Text(
+								text = stringResource(R.string.enable_mosh),
+								style = MaterialTheme.typography.bodySmall,
+								color = MaterialTheme.colorScheme.onSurfaceVariant
+							)
+						}
+						Switch(
+							checked = uiState.useMosh,
+							onCheckedChange = viewModel::updateUseMosh
+						)
+					}
+					if (uiState.useMosh) {
+						Divider()
+						OutlinedTextField(
+							value = uiState.moshUdpPort,
+							onValueChange = viewModel::updateMoshUdpPort,
+							label = { Text(stringResource(R.string.mosh_udp_port)) },
+							placeholder = { Text(stringResource(R.string.mosh_udp_port_optional)) },
+							keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+							modifier = Modifier.fillMaxWidth(),
+							singleLine = true
+						)
+					}
+				}
+			}
+
 			if (showJumpPicker) {
 				AlertDialog(
 					onDismissRequest = { showJumpPicker = false },
@@ -557,6 +598,7 @@ private fun getErrorLocalizedMessage(error: AppError): String {
 				"PRIVATE_KEY_EMPTY" -> stringResource(R.string.error_private_key_empty)
 				"JUMP_HOST_SELF" -> stringResource(R.string.error_jump_host_self)
 				"JUMP_HOST_REQUIRED" -> stringResource(R.string.error_jump_host_required)
+				"MOSH_PORT_INVALID" -> stringResource(R.string.error_mosh_port_invalid)
 				else -> error.message
 			}
 		}

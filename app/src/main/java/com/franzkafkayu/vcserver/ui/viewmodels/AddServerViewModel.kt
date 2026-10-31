@@ -98,6 +98,8 @@ class AddServerViewModel(
 					proxyPassword = "", // 代理密码不显示，需要重新输入
 					jumpHostId = server.jumpHostId,
 					jumpEnabled = server.jumpHostId != null,
+					useMosh = server.useMosh,
+					moshUdpPort = server.moshUdpPort?.toString() ?: "",
 					isLoading = false,
 					error = null
 				)
@@ -255,6 +257,29 @@ class AddServerViewModel(
 		)
 	}
 
+	fun updateUseMosh(enabled: Boolean) {
+		_uiState.value = _uiState.value.copy(useMosh = enabled)
+	}
+
+	fun updateMoshUdpPort(port: String) {
+		_uiState.value = _uiState.value.copy(moshUdpPort = port)
+	}
+
+	private fun parsedMoshPort(state: AddServerUiState): Result<Int?> {
+		if (!state.useMosh) {
+			return Result.success(null)
+		}
+		val raw = state.moshUdpPort.trim()
+		if (raw.isEmpty()) {
+			return Result.success(null)
+		}
+		val port = raw.toIntOrNull()
+		if (port == null || port !in 1..65535) {
+			return Result.failure(com.franzkafkayu.vcserver.services.ValidationException("MOSH_PORT_INVALID"))
+		}
+		return Result.success(port)
+	}
+
 	private fun missingJumpHost(): Boolean {
 		val state = _uiState.value
 		if (!state.jumpEnabled || state.jumpHostId != null) {
@@ -337,6 +362,14 @@ class AddServerViewModel(
 			// 解析代理设置
 			val proxyPort = state.proxyPort.toIntOrNull() ?: 8080
 			val proxyEnabled = state.proxyEnabled && state.proxyHost.isNotBlank() && state.proxyPort.toIntOrNull() in 1..65535
+			val moshPort = parsedMoshPort(state)
+			if (moshPort.isFailure) {
+				_uiState.value = _uiState.value.copy(
+					isSaving = false,
+					error = AppError.ValidationError("MOSH_PORT_INVALID")
+				)
+				return@launch
+			}
 
 			val result = if (serverId != null) {
 				// 编辑模式：更新服务器
@@ -357,7 +390,9 @@ class AddServerViewModel(
 					proxyPort = if (proxyEnabled) proxyPort else null,
 					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
 					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
-					jumpHostId = if (state.jumpEnabled) state.jumpHostId else null
+					jumpHostId = if (state.jumpEnabled) state.jumpHostId else null,
+					useMosh = state.useMosh,
+					moshUdpPort = moshPort.getOrNull()
 				)
 			} else {
 				// 新增模式：添加服务器
@@ -378,6 +413,8 @@ class AddServerViewModel(
 					proxyUsername = if (proxyEnabled) state.proxyUsername else null,
 					proxyPassword = if (proxyEnabled && state.proxyPassword.isNotEmpty()) state.proxyPassword else null,
 					jumpHostId = if (state.jumpEnabled) state.jumpHostId else null,
+					useMosh = state.useMosh,
+					moshUdpPort = moshPort.getOrNull(),
 					testConnection = false
 				).map { newId ->
 					val pending = pendingCloudconeInstanceId
@@ -464,6 +501,8 @@ class AddServerViewModel(
 	val servers: List<com.franzkafkayu.vcserver.models.Server> = emptyList(),
 	val jumpHostId: Long? = null,
 	val jumpEnabled: Boolean = false,
+	val useMosh: Boolean = false,
+	val moshUdpPort: String = "",
 	val editingServerId: Long? = null,
 	// 代理设置
 	val proxyEnabled: Boolean = false,

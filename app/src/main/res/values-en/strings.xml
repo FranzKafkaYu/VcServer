@@ -478,5 +478,15 @@
 	<string name="validation_failed">Validation failed</string>
 	<string name="secure_storage_failed">Secure storage operation failed</string>
 	<string name="unknown_error">Unknown error</string>
+	<string name="mosh_settings">Mosh</string>
+	<string name="enable_mosh">Keep the terminal over UDP on weak networks; the host must have mosh-server</string>
+	<string name="mosh_udp_port">UDP port (optional)</string>
+	<string name="mosh_udp_port_optional">Leave empty for the server default range</string>
+	<string name="error_mosh_port_invalid">Mosh UDP port must be 1–65535, or empty</string>
+	<string name="error_mosh_jump_unsupported">This version cannot use Mosh through a jump host</string>
+	<string name="error_mosh_proxy_unsupported">This version cannot use Mosh through a proxy</string>
+	<string name="error_mosh_server_missing">mosh-server is not installed on the remote host</string>
+	<string name="error_mosh_parse_failed">Could not parse mosh-server output</string>
+	<string name="error_mosh_udp_failed">UDP connection failed; allow the Mosh UDP port on the firewall</string>
 </resources>
 

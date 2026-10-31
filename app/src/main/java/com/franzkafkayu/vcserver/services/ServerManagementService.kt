@@ -39,6 +39,8 @@ interface ServerManagementService {
 		proxyUsername: String? = null,
 		proxyPassword: String? = null,
 		jumpHostId: Long? = null,
+		useMosh: Boolean = false,
+		moshUdpPort: Int? = null,
 		testConnection: Boolean = false
 	): Result<Long>
 
@@ -83,7 +85,9 @@ interface ServerManagementService {
 		proxyPort: Int? = null,
 		proxyUsername: String? = null,
 		proxyPassword: String? = null,
-		jumpHostId: Long? = null
+		jumpHostId: Long? = null,
+		useMosh: Boolean = false,
+		moshUdpPort: Int? = null
 	): Result<Unit>
 
 	/**
