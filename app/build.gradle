@@ -28,8 +28,17 @@ def minorVersion = 0
 def patchVersion = 2
 def buildDate = getBuildDate()
 def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
-def artifactStem = { String buildType ->
-	"${buildType}-${versionNameString}-${getGitCommitHash()}"
+def ndkAbiFilterList = ['armeabi-v7a', 'arm64-v8a', 'x86_64']
+def requestedAbi = (findProperty('abiFilter') ?: System.getenv('ABI_FILTER') ?: '').toString().trim()
+if (requestedAbi && !ndkAbiFilterList.contains(requestedAbi)) {
+	throw new GradleException("Unsupported abiFilter '${requestedAbi}'. Allowed: ${ndkAbiFilterList.join(', ')}")
+}
+def effectiveAbiFilters = requestedAbi ? [requestedAbi] : ndkAbiFilterList
+def fatAbiToken = { ->
+	effectiveAbiFilters.join('_')
+}
+def artifactStem = { String buildType, String abiToken ->
+	"${buildType}-${versionNameString}-${getGitCommitHash()}-${abiToken}"
 }
 
 android {
@@ -55,7 +64,7 @@ android {
 				useSupportLibrary true
 			}
 			ndk {
-				abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+				abiFilters.addAll(effectiveAbiFilters)
 			}
 		}
 		ndkVersion '27.0.12077973'
@@ -138,7 +147,9 @@ android {
 	
 	applicationVariants.all { variant ->
 		variant.outputs.all { output ->
-			outputFileName = "${artifactStem(variant.buildType.name)}.apk"
+			def outputAbi = output.getFilter(com.android.build.OutputFile.ABI)
+			def abiToken = (outputAbi != null && !outputAbi.isEmpty()) ? outputAbi : fatAbiToken()
+			outputFileName = "${artifactStem(variant.buildType.name, abiToken)}.apk"
 		}
 	}
 }
@@ -209,7 +220,7 @@ afterEvaluate {
 				if (!destDir.exists()) {
 					return
 				}
-				def target = new File(destDir, "${artifactStem(variant.buildType.name)}.aab")
+				def target = new File(destDir, "${artifactStem(variant.buildType.name, fatAbiToken())}.aab")
 				destDir.listFiles()?.findAll { it.name.endsWith('.aab') }?.each { src ->
 					if (src.canonicalFile == target.canonicalFile) {
 						return

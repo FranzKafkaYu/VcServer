@@ -13,8 +13,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86_64]
     permissions:
-      contents: write  # 创建并上传 GitHub Release
+      contents: write
 
     steps:
     - name: Checkout code
@@ -83,15 +87,14 @@ jobs:
         RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
         RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease -PabiFilter=${{ matrix.abi }}
       
     - name: Build Debug APK
       if: github.event.inputs.release_tag == ''
-      run: ./gradlew assembleDebug
+      run: ./gradlew assembleDebug -PabiFilter=${{ matrix.abi }}
       
-    - name: Find and upload APK
+    - name: Find APK
       run: |
-        # 判断构建类型并设置路径
         if [ -n "${{ github.event.inputs.release_tag }}" ]; then
           BUILD_TYPE="release"
           APK_DIR="app/build/outputs/apk/release"
@@ -99,15 +102,13 @@ jobs:
           BUILD_TYPE="debug"
           APK_DIR="app/build/outputs/apk/debug"
         fi
-        
-        # 查找 APK 文件（Gradle 已自动命名为 buildType-版本号-commit.apk）
-        APK_FILE=$(find "$APK_DIR" -name "*.apk" -type f | head -1)
-        
+        ABI="${{ matrix.abi }}"
+        APK_FILE=$(find "$APK_DIR" -name "*${ABI}.apk" -type f | head -1)
         if [ -z "$APK_FILE" ]; then
-          echo "ERROR: No APK file found in $APK_DIR"
+          echo "ERROR: No APK for ABI $ABI in $APK_DIR"
+          find "$APK_DIR" -name "*.apk" -type f || true
           exit 1
         fi
-        
         echo "Found APK: $APK_FILE"
         echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
         echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
@@ -115,12 +116,13 @@ jobs:
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.BUILD_TYPE }}-apk
+        name: ${{ env.BUILD_TYPE }}-apk-${{ matrix.abi }}
         path: ${{ env.APK_PATH }}
         retention-days: 30
+        if-no-files-found: error
 
     - name: Collect release notes
-      if: github.event.inputs.release_tag != ''
+      if: github.event.inputs.release_tag != '' && matrix.abi == 'arm64-v8a'
       env:
         RELEASE_TAG: ${{ github.event.inputs.release_tag }}
       run: |
@@ -151,11 +153,20 @@ jobs:
         fi
         echo "Wrote $NOTES ($(wc -c < "$NOTES") bytes), previous tag: ${PREV:-none}"
 
-    - name: Upload to release
+    - name: Upload APK to release
       uses: softprops/action-gh-release@v1
       if: github.event.inputs.release_tag != ''
       with:
         files: ${{ env.APK_PATH }}
+        tag_name: ${{ github.event.inputs.release_tag }}
+        name: Release ${{ github.event.inputs.release_tag }}
+        prerelease: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Write release notes
+      uses: softprops/action-gh-release@v1
+      if: github.event.inputs.release_tag != '' && matrix.abi == 'arm64-v8a'
+      with:
         tag_name: ${{ github.event.inputs.release_tag }}
         name: Release ${{ github.event.inputs.release_tag }}
         body_path: release-notes.md
