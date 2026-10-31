@@ -218,7 +218,7 @@ fun ServerListScreen(
 							// 显示语法错误
 							uiState.searchSyntaxError?.let { error ->
 								Text(
-									text = stringResource(R.string.search_syntax_error, error),
+									text = searchSyntaxMessage(error),
 									color = MaterialTheme.colorScheme.error,
 									style = MaterialTheme.typography.bodySmall,
 									modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -850,8 +850,32 @@ private fun ServerItemDetails(
 }
 
 @Composable
+private fun searchSyntaxMessage(error: String): String {
+	return when {
+		error == "EMPTY_QUERY" -> stringResource(R.string.search_query_empty)
+		error == "QUERY_SYNTAX" -> stringResource(R.string.search_syntax_error, "")
+		error.startsWith("UNSUPPORTED_FIELD:") ->
+			stringResource(R.string.search_unsupported_field, error.substringAfter(":"))
+		error.startsWith("REGEX_SYNTAX:") ->
+			stringResource(R.string.search_regex_error, error.substringAfter(":"))
+		error.startsWith("PARSE_FAILED:") ->
+			stringResource(R.string.search_parse_failed, error.substringAfter(":"))
+		else -> stringResource(R.string.search_syntax_error, error)
+	}
+}
+
+@Composable
 private fun listErrorMessage(error: AppError): String {
-	return when (error.message) {
+	val message = error.message
+	val partial = Regex("^DELETE_PARTIAL:(\\d+):(\\d+)$").matchEntire(message)
+	if (partial != null) {
+		return stringResource(
+			R.string.error_delete_partial,
+			partial.groupValues[1].toInt(),
+			partial.groupValues[2].toInt()
+		)
+	}
+	return when (message) {
 		"JUMP_HOST_IN_USE" -> stringResource(R.string.error_jump_host_in_use)
 		"JUMP_HOST_MISSING" -> stringResource(R.string.error_jump_host_missing)
 		"JUMP_HOST_FAILED" -> stringResource(R.string.error_jump_host_failed)
@@ -859,7 +883,8 @@ private fun listErrorMessage(error: AppError): String {
 		"TARGET_CONNECT_FAILED" -> stringResource(R.string.error_target_connect_failed)
 		"SSH_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_ssh_algorithm_negotiation)
 		"CONNECTION_FAILED" -> stringResource(R.string.connection_failed)
-		else -> error.message
+		"SERVER_NOT_FOUND" -> stringResource(R.string.error_server_not_found)
+		else -> message
 	}
 }
 

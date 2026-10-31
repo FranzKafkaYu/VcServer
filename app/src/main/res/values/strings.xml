@@ -266,6 +266,12 @@
 	<string name="terminal">终端</string>
 	<string name="terminal_output">终端输出</string>
 	<string name="command_input">命令输入</string>
+	<string name="command_mode">命令模式</string>
+	<string name="realtime_input_mode">实时输入模式</string>
+	<string name="fullscreen_input_placeholder">按键发送到全屏程序</string>
+	<string name="realtime_input_placeholder">实时输入模式（字符将实时发送）</string>
+	<string name="shell_not_connected">Shell 未连接</string>
+	<string name="shell_connection_closed">Shell 连接已关闭</string>
 	<string name="send_command">发送</string>
 	<string name="clear_output">清空输出</string>
 	<string name="auto_complete">补全</string>
@@ -474,7 +480,14 @@
 	<string name="search_results">找到 %d 个服务器</string>
 	<string name="search_no_results">未找到匹配的服务器</string>
 	<string name="search_syntax_error">查询语法错误: %1$s</string>
+	<string name="search_query_empty">查询字符串为空</string>
+	<string name="search_unsupported_field">不支持的字段: %1$s</string>
+	<string name="search_parse_failed">无法解析条件: %1$s</string>
 	<string name="search_regex_error">正则表达式语法错误: %1$s</string>
+	<string name="error_server_load_failed">无法加载服务器信息</string>
+	<string name="error_server_not_found">服务器不存在</string>
+	<string name="error_group_not_found">分组不存在</string>
+	<string name="error_delete_partial">成功删除 %1$d 个，失败 %2$d 个</string>
 	<string name="validation_failed">验证失败</string>
 	<string name="secure_storage_failed">安全存储操作失败</string>
 	<string name="unknown_error">未知错误</string>

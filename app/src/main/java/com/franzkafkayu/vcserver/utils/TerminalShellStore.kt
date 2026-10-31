@@ -359,7 +359,7 @@ object TerminalShellStore {
 					return@launch
 				}
 				tab.isConnected = false
-				tab.error = AppError.NetworkError("Shell connection closed")
+				tab.error = AppError.NetworkError("SHELL_CONNECTION_CLOSED")
 				h.publishLocked()
 			}
 		}

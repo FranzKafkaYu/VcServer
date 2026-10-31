@@ -223,11 +223,16 @@ private fun getErrorLocalizedMessage(error: AppError): String {
 		is AppError.DatabaseError -> {
 			if (error.message.contains("UNIQUE constraint", ignoreCase = true)) {
 				stringResource(R.string.error_group_name_exists)
+			} else if (error.message == "GROUP_NOT_FOUND") {
+				stringResource(R.string.error_group_not_found)
 			} else {
 				error.message
 			}
 		}
-		else -> error.message
+		else -> when (error.message) {
+			"GROUP_NOT_FOUND" -> stringResource(R.string.error_group_not_found)
+			else -> error.message
+		}
 	}
 }
 

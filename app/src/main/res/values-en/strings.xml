@@ -266,6 +266,12 @@
 	<string name="terminal">Terminal</string>
 	<string name="terminal_output">Terminal Output</string>
 	<string name="command_input">Command Input</string>
+	<string name="command_mode">Command mode</string>
+	<string name="realtime_input_mode">Realtime input</string>
+	<string name="fullscreen_input_placeholder">Keys go to the fullscreen program</string>
+	<string name="realtime_input_placeholder">Realtime input (characters are sent immediately)</string>
+	<string name="shell_not_connected">Shell is not connected</string>
+	<string name="shell_connection_closed">Shell connection closed</string>
 	<string name="send_command">Send</string>
 	<string name="clear_output">Clear Output</string>
 	<string name="auto_complete">Complete</string>
@@ -474,7 +480,14 @@
 	<string name="search_results">Found %d servers</string>
 	<string name="search_no_results">No matching servers found</string>
 	<string name="search_syntax_error">Query syntax error: %1$s</string>
+	<string name="search_query_empty">Query is empty</string>
+	<string name="search_unsupported_field">Unsupported field: %1$s</string>
+	<string name="search_parse_failed">Could not parse condition: %1$s</string>
 	<string name="search_regex_error">Regular expression syntax error: %1$s</string>
+	<string name="error_server_load_failed">Could not load server</string>
+	<string name="error_server_not_found">Server not found</string>
+	<string name="error_group_not_found">Group not found</string>
+	<string name="error_delete_partial">Deleted %1$d, failed %2$d</string>
 	<string name="validation_failed">Validation failed</string>
 	<string name="secure_storage_failed">Secure storage operation failed</string>
 	<string name="unknown_error">Unknown error</string>

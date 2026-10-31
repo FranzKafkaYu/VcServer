@@ -198,7 +198,7 @@ class ServerListViewModel(
 					// 解析失败，回退到简单文本搜索
 					Pair(
 						servers.filter { filter.matchesSimpleText(it, query) },
-						exception.message ?: "查询语法错误"
+						exception.message ?: "QUERY_SYNTAX"
 					)
 				}
 			)
@@ -1170,7 +1170,7 @@ class ServerListViewModel(
 				isSelectionMode = false,
 				selectedServerIds = emptySet(),
 				error = if (failCount > 0) {
-					AppError.NetworkError("成功删除 $successCount 个，失败 $failCount 个")
+					AppError.NetworkError("DELETE_PARTIAL:$successCount:$failCount")
 				} else {
 					null
 				}

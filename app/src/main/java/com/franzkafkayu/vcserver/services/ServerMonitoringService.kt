@@ -569,7 +569,7 @@ class ServerMonitoringServiceImpl(
 
 			Result.success(
 				DiskInfo(
-					filesystem = "总计",
+					filesystem = "TOTAL",
 					mountPoint = "",
 					total = totalFormatted,
 					used = usedFormatted,

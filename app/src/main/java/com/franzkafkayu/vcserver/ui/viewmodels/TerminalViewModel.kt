@@ -156,7 +156,7 @@ class TerminalViewModel(
 				TerminalShellStore.reconnectActiveShell(sessionKey, session, terminalService)
 			} else {
 				_uiState.value = _uiState.value.copy(
-					error = AppError.NetworkError("Shell is not connected")
+					error = AppError.NetworkError("SHELL_NOT_CONNECTED")
 				)
 			}
 			return

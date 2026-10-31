@@ -246,6 +246,8 @@ fun TerminalScreen(
 									"MOSH_SERVER_MISSING" -> stringResource(R.string.error_mosh_server_missing)
 									"MOSH_PARSE_FAILED" -> stringResource(R.string.error_mosh_parse_failed)
 									"MOSH_UDP_FAILED" -> stringResource(R.string.error_mosh_udp_failed)
+									"SHELL_NOT_CONNECTED" -> stringResource(R.string.shell_not_connected)
+									"SHELL_CONNECTION_CLOSED" -> stringResource(R.string.shell_connection_closed)
 									else -> error.message
 								},
 								color = MaterialTheme.colorScheme.onErrorContainer
@@ -513,7 +515,11 @@ fun TerminalScreen(
 							verticalAlignment = Alignment.CenterVertically
 						) {
 							Text(
-								text = if (realtimeInputMode) "实时输入模式" else "命令模式",
+								text = if (realtimeInputMode) {
+									stringResource(R.string.realtime_input_mode)
+								} else {
+									stringResource(R.string.command_mode)
+								},
 								style = MaterialTheme.typography.bodySmall,
 								color = MaterialTheme.colorScheme.onSurfaceVariant
 							)
@@ -576,8 +582,8 @@ fun TerminalScreen(
 							placeholder = { 
 								Text(
 									when {
-										uiState.alternateScreen -> "按键发送到全屏程序"
-										realtimeInputMode -> "实时输入模式（字符将实时发送）"
+										uiState.alternateScreen -> stringResource(R.string.fullscreen_input_placeholder)
+										realtimeInputMode -> stringResource(R.string.realtime_input_placeholder)
 										else -> stringResource(R.string.command_input)
 									}
 								)

@@ -178,7 +178,7 @@ class ServerManagementServiceImpl(
 	): Result<Unit> {
 		return try {
 			val existingServer = serverRepository.getServerById(serverId)
-				?: return Result.failure(Exception("服务器不存在"))
+				?: return Result.failure(Exception("SERVER_NOT_FOUND"))
 			if (jumpHostId != null && jumpHostId == serverId) {
 				return Result.failure(ValidationException("JUMP_HOST_SELF"))
 			}

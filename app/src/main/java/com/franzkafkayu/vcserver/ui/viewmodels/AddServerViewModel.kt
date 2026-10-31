@@ -106,7 +106,7 @@ class AddServerViewModel(
 			} else {
 				_uiState.value = _uiState.value.copy(
 					isLoading = false,
-					error = AppError.NetworkError("无法加载服务器信息")
+					error = AppError.NetworkError("SERVER_LOAD_FAILED")
 				)
 			}
 		}

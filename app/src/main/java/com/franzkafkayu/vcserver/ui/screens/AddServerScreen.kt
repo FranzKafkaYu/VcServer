@@ -610,9 +610,14 @@ private fun getErrorLocalizedMessage(error: AppError): String {
 				"JUMP_HOST_FAILED" -> stringResource(R.string.error_jump_host_failed)
 				"JUMP_ALGORITHM_NEGOTIATION_FAILED" -> stringResource(R.string.error_jump_algorithm_negotiation)
 				"TARGET_CONNECT_FAILED" -> stringResource(R.string.error_target_connect_failed)
+				"SERVER_LOAD_FAILED" -> stringResource(R.string.error_server_load_failed)
+				"SERVER_NOT_FOUND" -> stringResource(R.string.error_server_not_found)
 				else -> error.message
 			}
 		}
-		else -> error.message
+		else -> when (error.message) {
+			"SERVER_NOT_FOUND" -> stringResource(R.string.error_server_not_found)
+			else -> error.message
+		}
 	}
 }

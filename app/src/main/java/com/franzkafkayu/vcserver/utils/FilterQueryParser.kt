@@ -26,7 +26,7 @@ class FilterQueryParser {
 	fun parse(query: String): Result<FilterCondition> {
 		val trimmed = query.trim()
 		if (trimmed.isEmpty()) {
-			return Result.failure(IllegalArgumentException("查询字符串为空"))
+			return Result.failure(IllegalArgumentException("EMPTY_QUERY"))
 		}
 		
 		return try {
@@ -154,7 +154,7 @@ class FilterQueryParser {
 			val value = fieldMatch.groupValues[2]
 			
 			if (field !in SUPPORTED_FIELDS) {
-				throw IllegalArgumentException("不支持的字段: $field")
+				throw IllegalArgumentException("UNSUPPORTED_FIELD:$field")
 			}
 			
 			// 检查是否是正则表达式
@@ -168,7 +168,7 @@ class FilterQueryParser {
 				try {
 					java.util.regex.Pattern.compile(regexPattern)
 				} catch (e: PatternSyntaxException) {
-					throw IllegalArgumentException("正则表达式语法错误: ${e.message}")
+					throw IllegalArgumentException("REGEX_SYNTAX:${e.message}")
 				}
 				
 				return FilterCondition.FieldMatch(
@@ -186,6 +186,6 @@ class FilterQueryParser {
 			}
 		}
 		
-		throw IllegalArgumentException("无法解析条件: $trimmed")
+		throw IllegalArgumentException("PARSE_FAILED:$trimmed")
 	}
 }

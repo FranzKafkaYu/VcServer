@@ -91,7 +91,7 @@ class ServerGroupRepositoryImpl(
 	override suspend fun deleteGroup(groupId: Long): Result<Unit> {
 		return try {
 			val group = serverGroupDao.getGroupById(groupId)
-				?: return Result.failure(Exception("分组不存在"))
+				?: return Result.failure(Exception("GROUP_NOT_FOUND"))
 
 			// 将属于该分组的服务器设为未分组
 			serverDao.ungroupServersByGroupId(groupId)
