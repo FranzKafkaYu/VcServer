@@ -154,7 +154,7 @@ jobs:
         echo "Wrote $NOTES ($(wc -c < "$NOTES") bytes), previous tag: ${PREV:-none}"
 
     - name: Upload APK to release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       if: github.event.inputs.release_tag != ''
       with:
         files: ${{ env.APK_PATH }}
@@ -164,7 +164,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Write release notes
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       if: github.event.inputs.release_tag != '' && matrix.abi == 'arm64-v8a'
       with:
         tag_name: ${{ github.event.inputs.release_tag }}
