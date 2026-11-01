@@ -30,7 +30,7 @@ VcServer connects over SSH to run commands, monitor status, transfer files, and 
 - Add by IP/hostname and port; password or key auth
 - List, edit, delete, pin, swipe-delete, copy
 - Connection test before save
-- HTTP / SOCKS proxy and SSH jump host
+- HTTP / SOCKS proxy and SSH jump host and Mosh  
 
 ### 📊 Monitoring
 - CPU, memory, disk, OS, uptime
@@ -38,8 +38,9 @@ VcServer connects over SSH to run commands, monitor status, transfer files, and 
 - Configurable auto-refresh
 
 ### 🏭 Provider binding
-- Each SSH server can bind to **one** vendor (BandwagonHost, CloudCone, Virtualizor, and others)
+- Each SSH server can bind to **one** vendor (BandwagonHost, CloudCone, Virtualizor, GreenCloud)
 - Unbind keeps the saved SSH configuration
+- Step-by-step: [Vendor binding](docs/vendor-binding.en.md)
 
 ### 💻 Terminal
 - Interactive SSH; command history and local common-command completion

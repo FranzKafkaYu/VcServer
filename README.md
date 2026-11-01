@@ -30,7 +30,7 @@ VcServer 通过 SSH 连接远程服务器，执行命令、监控状态、传输
 - 按 IP/域名、端口添加；密码或密钥认证
 - 列表查看、编辑、删除、置顶、滑动删除、复制
 - 添加前可测连通
-- HTTP / SOCKS 代理与 SSH 跳板
+- HTTP / SOCKS 代理与 SSH 跳板以及Mosh  
 
 ### 📊 状态监控
 - CPU、内存、磁盘、系统信息、运行时长
@@ -38,8 +38,9 @@ VcServer 通过 SSH 连接远程服务器，执行命令、监控状态、传输
 - 可配置自动刷新间隔
 
 ### 🏭 服务器厂商绑定
-- 每台 SSH 服务器可绑定 **一家** 厂商（BandwagonHost、CloudCone 或 Virtualizor等）
+- 每台 SSH 服务器可绑定 **一家** 厂商（BandwagonHost、CloudCone、Virtualizor、GreenCloud）
 - 解除绑定不影响已保存的 SSH 配置
+- 绑定步骤见 [厂商绑定说明](docs/vendor-binding.md)
 
 ### 💻 终端
 - 交互式 SSH；命令历史与本地常见命令补全
