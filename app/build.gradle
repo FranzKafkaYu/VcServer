@@ -29,13 +29,14 @@ def patchVersion = 2
 def buildDate = getBuildDate()
 def versionNameString = "${majorVersion}.${minorVersion}.${patchVersion}-${buildDate}"
 def ndkAbiFilterList = ['armeabi-v7a', 'arm64-v8a', 'x86_64']
+def universalAbiSet = ['armeabi-v7a', 'arm64-v8a', 'x86_64'] as Set
 def requestedAbi = (findProperty('abiFilter') ?: System.getenv('ABI_FILTER') ?: '').toString().trim()
-if (requestedAbi && !ndkAbiFilterList.contains(requestedAbi)) {
-	throw new GradleException("Unsupported abiFilter '${requestedAbi}'. Allowed: ${ndkAbiFilterList.join(', ')}")
+if (requestedAbi && requestedAbi != 'universal' && !ndkAbiFilterList.contains(requestedAbi)) {
+	throw new GradleException("Unsupported abiFilter '${requestedAbi}'. Allowed: universal, ${ndkAbiFilterList.join(', ')}")
 }
-def effectiveAbiFilters = requestedAbi ? [requestedAbi] : ndkAbiFilterList
+def effectiveAbiFilters = (requestedAbi && requestedAbi != 'universal') ? [requestedAbi] : ndkAbiFilterList
 def fatAbiToken = { ->
-	effectiveAbiFilters.join('_')
+	((effectiveAbiFilters as Set) == universalAbiSet) ? 'universal' : effectiveAbiFilters.join('_')
 }
 def artifactStem = { String buildType, String abiToken ->
 	"${buildType}-${versionNameString}-${getGitCommitHash()}-${abiToken}"
