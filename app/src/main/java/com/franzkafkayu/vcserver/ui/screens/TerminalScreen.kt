@@ -320,7 +320,7 @@ fun TerminalScreen(
 								.verticalScroll(scrollState)
 						) {
 							if (uiState.terminalBuffer != null) {
-								TerminalTextContent(uiState.terminalBuffer, fontSize)
+								TerminalTextContent(uiState.terminalBuffer, fontSize, uiState.frame)
 							} else {
 								Text(
 									text = uiState.output,
@@ -658,9 +658,10 @@ fun TerminalScreen(
 @Composable
 private fun TerminalTextContent(
 	buffer: com.franzkafkayu.vcserver.utils.TerminalBuffer,
-	fontSize: androidx.compose.ui.unit.TextUnit
+	fontSize: androidx.compose.ui.unit.TextUnit,
+	frame: Int
 ) {
-	val content = buffer.getAllContent()
+	val content = androidx.compose.runtime.remember(frame) { buffer.getAllContent() }
 	
 	Column {
 		content.forEach { row ->

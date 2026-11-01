@@ -186,6 +186,9 @@ class SshShellChannel internal constructor(
 	val outputStream: OutputStream
 		get() = shell.outputStream
 
+	val errorStream: InputStream
+		get() = (shell as Session.Command).errorStream
+
 	fun isOpen(): Boolean {
 		return try {
 			shell.isOpen

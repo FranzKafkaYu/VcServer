@@ -50,7 +50,7 @@ class TerminalServiceImpl : TerminalService {
 	}
 
 	override suspend fun sendCommand(channel: SshShellChannel, command: String) = withContext(Dispatchers.IO) {
-		write(channel, (command + "\n").toByteArray())
+		write(channel, (command + "\r").toByteArray())
 	}
 
 	override suspend fun sendRawBytes(channel: SshShellChannel, bytes: ByteArray) = withContext(Dispatchers.IO) {
@@ -62,10 +62,10 @@ class TerminalServiceImpl : TerminalService {
 	}
 
 	private fun write(channel: SshShellChannel, bytes: ByteArray) {
+		if (!channel.isOpen()) {
+			throw Exception("Failed to write shell: SHELL_NOT_CONNECTED")
+		}
 		try {
-			if (!channel.isOpen()) {
-				return
-			}
 			val outputStream: OutputStream = channel.outputStream
 			outputStream.write(bytes)
 			outputStream.flush()

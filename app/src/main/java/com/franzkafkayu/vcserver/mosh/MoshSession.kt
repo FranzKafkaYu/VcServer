@@ -49,7 +49,10 @@ class MoshSession internal constructor(
 	override fun isOpen(): Boolean = open.get()
 
 	override fun write(bytes: ByteArray) {
-		if (!open.get() || bytes.isEmpty()) return
+		if (!open.get()) {
+			throw java.io.IOException("SHELL_NOT_CONNECTED")
+		}
+		if (bytes.isEmpty()) return
 		synchronized(sendLock) {
 			userStates += MoshProto.userKeystroke(bytes)
 			sendCurrent()

@@ -14,6 +14,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.util.UUID
@@ -338,24 +339,41 @@ object TerminalShellStore {
 		generation: Int
 	) {
 		tab.collectJob = h.scope.launch {
+			var reachedEof = false
 			try {
 				val buffer = ByteArray(4096)
 				val input = io.inputStream
-				while (!tab.closed && tab.connectGeneration == generation && io.isOpen()) {
-					val len = try {
-						input.read(buffer)
+				while (!tab.closed && tab.connectGeneration == generation) {
+					val len: Int
+					try {
+						len = input.read(buffer)
 					} catch (_: Exception) {
-						-1
+						if (ShellRead.classifyException(io.isOpen()) == ShellReadAction.Closed) {
+							reachedEof = true
+							break
+						}
+						delay(50)
+						continue
 					}
-					if (len < 0) break
-					if (len == 0) continue
-					tab.buffer.writeBytes(buffer.copyOf(len))
-					synchronized(h) { h.publishLocked() }
+					when (ShellRead.classify(len)) {
+						ShellReadAction.SkipEmpty -> continue
+						ShellReadAction.Closed -> {
+							reachedEof = true
+							break
+						}
+						ShellReadAction.Emit -> {
+							tab.buffer.writeBytes(buffer.copyOf(len))
+							synchronized(h) { h.publishLocked() }
+						}
+					}
 				}
 			} catch (_: Exception) {
 			}
 			synchronized(h) {
 				if (tab.closed || tab.connectGeneration != generation || !h.tabs.contains(tab)) {
+					return@launch
+				}
+				if (!reachedEof && io.isOpen()) {
 					return@launch
 				}
 				tab.isConnected = false

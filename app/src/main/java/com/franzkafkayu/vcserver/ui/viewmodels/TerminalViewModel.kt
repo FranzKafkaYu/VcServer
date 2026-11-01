@@ -12,6 +12,8 @@ import com.franzkafkayu.vcserver.utils.SessionManager
 import com.franzkafkayu.vcserver.utils.ShellTabInfo
 import com.franzkafkayu.vcserver.utils.TerminalFont
 import com.franzkafkayu.vcserver.utils.TerminalPreferences
+import com.franzkafkayu.vcserver.utils.ShellInput
+import com.franzkafkayu.vcserver.utils.ShellTab
 import com.franzkafkayu.vcserver.utils.TerminalShellStore
 import com.franzkafkayu.vcserver.utils.TerminalBuffer
 import com.franzkafkayu.vcserver.utils.toAppError
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * 终端 ViewModel
@@ -139,8 +142,8 @@ class TerminalViewModel(
 	}
 
 	fun sendCommand(command: String) {
+		val payload = ShellInput.commandLine(command) ?: return
 		val trimmed = command.trim()
-		if (trimmed.isEmpty()) return
 
 		if (!session.isConnected) {
 			if (!isReconnectingSession) {
@@ -170,10 +173,7 @@ class TerminalViewModel(
 					terminalPreferences.saveHistory(server.id, commandHistory.snapshot())
 				} catch (_: Exception) {
 				}
-
-				tab.inputMutex.withLock {
-					io.write((trimmed + "\n").toByteArray())
-				}
+				writeIo(tab, payload)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
@@ -184,20 +184,28 @@ class TerminalViewModel(
 
 	fun sendRawInput(bytes: ByteArray) {
 		val tab = TerminalShellStore.activeTab(sessionKey) ?: return
-		val io = tab.io ?: return
-		if (!io.isOpen()) {
+		if (tab.io == null || tab.io?.isOpen() != true) {
 			return
 		}
-
 		viewModelScope.launch {
 			try {
-				tab.inputMutex.withLock {
-					io.write(bytes)
-				}
+				writeIo(tab, bytes)
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
 				)
+			}
+		}
+	}
+
+	private suspend fun writeIo(tab: ShellTab, bytes: ByteArray) {
+		withContext(Dispatchers.IO) {
+			tab.inputMutex.withLock {
+				val io = tab.io ?: throw IOException("SHELL_NOT_CONNECTED")
+				if (!io.isOpen()) {
+					throw IOException("SHELL_NOT_CONNECTED")
+				}
+				io.write(bytes)
 			}
 		}
 	}
@@ -216,15 +224,12 @@ class TerminalViewModel(
 
 	private fun sendControlChar(code: Int) {
 		val tab = TerminalShellStore.activeTab(sessionKey) ?: return
-		val io = tab.io ?: return
-		if (!io.isOpen()) {
+		if (tab.io == null || tab.io?.isOpen() != true) {
 			return
 		}
 		viewModelScope.launch {
 			try {
-				tab.inputMutex.withLock {
-					io.write(byteArrayOf(code.toByte()))
-				}
+				writeIo(tab, byteArrayOf(code.toByte()))
 			} catch (e: Exception) {
 				_uiState.value = _uiState.value.copy(
 					error = e.toAppError()
