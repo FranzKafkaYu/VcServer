@@ -114,7 +114,7 @@ jobs:
         echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
       
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ env.BUILD_TYPE }}-apk-${{ matrix.abi }}
         path: ${{ env.APK_PATH }}
