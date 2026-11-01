@@ -48,6 +48,7 @@ sealed class Screen(val route: String) {
     }
 
     object Settings : Screen("settings")
+    object CustomShellCommands : Screen("custom_shell_commands")
     object About : Screen("about")
     object PrivacyPolicy : Screen("privacy_policy")
     data class Traceroute(val serverId: Long) : Screen("traceroute/{serverId}") {
@@ -225,7 +226,8 @@ fun NavGraph(
                             server = server,
                             session = session,
                             sessionKey = sessionKey,
-                            terminalPreferences = terminalPreferences
+                            terminalPreferences = terminalPreferences,
+                            settingsService = settingsService
                         )
                     )
                     com.franzkafkayu.vcserver.ui.screens.TerminalScreen(
@@ -287,8 +289,27 @@ fun NavGraph(
                 },
                 onAboutClick = {
                     navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.About.route)
+                },
+                onCustomCommandsClick = {
+                    navController.navigate(com.franzkafkayu.vcserver.ui.navigation.Screen.CustomShellCommands.route)
                 }
             )
+        }
+        composable(com.franzkafkayu.vcserver.ui.navigation.Screen.CustomShellCommands.route) {
+            val groupRepository = serverGroupRepository
+            if (groupRepository != null) {
+                val commandsViewModel = viewModel<com.franzkafkayu.vcserver.ui.viewmodels.CustomShellCommandsViewModel>(
+                    factory = CustomShellCommandsViewModelFactory(
+                        settingsService = settingsService,
+                        serverManagementService = serverManagementService,
+                        serverGroupRepository = groupRepository
+                    )
+                )
+                com.franzkafkayu.vcserver.ui.screens.CustomShellCommandsScreen(
+                    viewModel = commandsViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
         }
         composable(com.franzkafkayu.vcserver.ui.navigation.Screen.About.route) {
             com.franzkafkayu.vcserver.ui.screens.AboutScreen(
@@ -342,7 +363,8 @@ class TerminalViewModelFactory(
     private val server: com.franzkafkayu.vcserver.models.Server,
     private val session: SshClientSession,
     private val sessionKey: String,
-    private val terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences
+    private val terminalPreferences: com.franzkafkayu.vcserver.utils.TerminalPreferences,
+    private val settingsService: com.franzkafkayu.vcserver.services.SettingsService
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.TerminalViewModel::class.java)) {
@@ -353,7 +375,8 @@ class TerminalViewModelFactory(
                 server,
                 session,
                 sessionKey,
-                terminalPreferences
+                terminalPreferences,
+                settingsService
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
@@ -408,6 +431,24 @@ class PingViewModelFactory(
         if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.PingViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return com.franzkafkayu.vcserver.ui.viewmodels.PingViewModel(serverName, host) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+class CustomShellCommandsViewModelFactory(
+    private val settingsService: com.franzkafkayu.vcserver.services.SettingsService,
+    private val serverManagementService: com.franzkafkayu.vcserver.services.ServerManagementService,
+    private val serverGroupRepository: com.franzkafkayu.vcserver.repositories.ServerGroupRepository
+) : androidx.lifecycle.ViewModelProvider.Factory {
+    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(com.franzkafkayu.vcserver.ui.viewmodels.CustomShellCommandsViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return com.franzkafkayu.vcserver.ui.viewmodels.CustomShellCommandsViewModel(
+                settingsService,
+                serverManagementService,
+                serverGroupRepository
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

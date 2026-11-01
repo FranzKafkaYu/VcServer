@@ -14,7 +14,8 @@ data class AppSettings(
 	val defaultProxyHost: String = "",
 	val defaultProxyPort: Int = 8080,
 	val defaultProxyUsername: String = "",
-	val defaultProxyPassword: String = ""
+	val defaultProxyPassword: String = "",
+	val customShellCommands: List<CustomShellCommand> = emptyList()
 )
 
 /**

@@ -9,9 +9,11 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.franzkafkayu.vcserver.models.AppSettings
+import com.franzkafkayu.vcserver.models.CustomShellCommand
 import com.franzkafkayu.vcserver.models.LanguageMode
 import com.franzkafkayu.vcserver.models.ProxyType
 import com.franzkafkayu.vcserver.models.ThemeMode
+import com.franzkafkayu.vcserver.utils.CustomShellCommands
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -33,6 +35,7 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 		private val DEFAULT_PROXY_PORT_KEY = intPreferencesKey("default_proxy_port")
 		private val DEFAULT_PROXY_USERNAME_KEY = stringPreferencesKey("default_proxy_username")
 		private val DEFAULT_PROXY_PASSWORD_KEY = stringPreferencesKey("default_proxy_password")
+		private val CUSTOM_SHELL_COMMANDS_KEY = stringPreferencesKey("custom_shell_commands")
 
 		private val DEFAULT_THEME = ThemeMode.SYSTEM.ordinal
 		private val DEFAULT_LANGUAGE = LanguageMode.SYSTEM.ordinal
@@ -55,7 +58,8 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 				defaultProxyHost = preferences[DEFAULT_PROXY_HOST_KEY] ?: "",
 				defaultProxyPort = preferences[DEFAULT_PROXY_PORT_KEY] ?: DEFAULT_PROXY_PORT,
 				defaultProxyUsername = preferences[DEFAULT_PROXY_USERNAME_KEY] ?: "",
-				defaultProxyPassword = preferences[DEFAULT_PROXY_PASSWORD_KEY] ?: ""
+				defaultProxyPassword = preferences[DEFAULT_PROXY_PASSWORD_KEY] ?: "",
+				customShellCommands = CustomShellCommands.decode(preferences[CUSTOM_SHELL_COMMANDS_KEY])
 			)
 		}
 	}
@@ -118,6 +122,13 @@ class SettingsRepositoryImpl(private val context: Context) : SettingsRepository 
 			preferences[DEFAULT_PROXY_PORT_KEY] = DEFAULT_PROXY_PORT
 			preferences[DEFAULT_PROXY_USERNAME_KEY] = ""
 			preferences[DEFAULT_PROXY_PASSWORD_KEY] = ""
+			preferences[CUSTOM_SHELL_COMMANDS_KEY] = CustomShellCommands.encode(emptyList())
+		}
+	}
+
+	override suspend fun updateCustomShellCommands(commands: List<CustomShellCommand>) {
+		context.dataStore.edit { preferences ->
+			preferences[CUSTOM_SHELL_COMMANDS_KEY] = CustomShellCommands.encode(commands)
 		}
 	}
 }

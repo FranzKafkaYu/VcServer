@@ -65,9 +65,18 @@ class SettingsServiceImpl(
 		settingsRepository.resetToDefaults()
 	}
 
+	override suspend fun updateCustomShellCommands(
+		commands: List<com.franzkafkayu.vcserver.models.CustomShellCommand>
+	) {
+		settingsRepository.updateCustomShellCommands(
+			com.franzkafkayu.vcserver.utils.CustomShellCommands.sanitize(commands)
+		)
+	}
+
 	companion object {
 		internal const val RESET_DELETES_CLOUDCONE_ACCOUNT = false
 		internal const val RESET_DELETES_VIRTUALIZOR_LINKS = false
 		internal const val RESET_DELETES_GREENCLOUD_LINKS = false
+		internal const val RESET_DELETES_VENDOR_BINDINGS = false
 	}
 }

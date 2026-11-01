@@ -501,6 +501,27 @@
 	<string name="error_mosh_server_missing">远端未安装 mosh-server</string>
 	<string name="error_mosh_parse_failed">无法解析 mosh-server 输出</string>
 	<string name="error_mosh_udp_failed">UDP 连接失败，请检查防火墙是否放行 Mosh 端口</string>
+	<string name="custom_shell_commands">自定义指令集</string>
+	<string name="custom_shell_commands_entry">管理指令，并指定作用于全局、服务器组或单台服务器</string>
+	<string name="custom_shell_command_add">添加指令</string>
+	<string name="custom_shell_command_edit">编辑指令</string>
+	<string name="custom_shell_command_delete">删除指令</string>
+	<string name="custom_shell_command_name">显示名</string>
+	<string name="custom_shell_command_body">命令</string>
+	<string name="custom_shell_command_empty">还没有自定义指令。添加后可在已连接的终端一键运行。</string>
+	<string name="custom_shell_command_invalid">显示名和命令都不能为空</string>
+	<string name="custom_shell_command_scope_invalid">请选择有效的服务器组或服务器</string>
+	<string name="custom_shell_scope">作用范围</string>
+	<string name="custom_shell_scope_global">全局（所有服务器）</string>
+	<string name="custom_shell_scope_group">某个服务器组</string>
+	<string name="custom_shell_scope_server">某台服务器</string>
+	<string name="custom_shell_scope_select_group">选择服务器组</string>
+	<string name="custom_shell_scope_select_server">选择服务器</string>
+	<string name="custom_shell_scope_group_summary">服务器组：%1$s</string>
+	<string name="custom_shell_scope_server_summary">服务器：%1$s</string>
+	<string name="custom_shell_scope_invalid_target">目标已不存在，请修改范围或删除</string>
+	<string name="custom_shell_command_run">运行自定义指令</string>
+	<string name="custom_shell_command_none">当前没有可运行的自定义指令</string>
 </resources>
 
 

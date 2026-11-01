@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -45,7 +46,8 @@ import com.franzkafkayu.vcserver.ui.viewmodels.SettingsViewModel
 fun SettingsScreen(
 	viewModel: SettingsViewModel,
 	onBackClick: () -> Unit,
-	onAboutClick: () -> Unit
+	onAboutClick: () -> Unit,
+	onCustomCommandsClick: () -> Unit
 ) {
 	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 	val snackbarHostState = remember { SnackbarHostState() }
@@ -250,7 +252,36 @@ fun SettingsScreen(
 				}
 			}
 
-			// 默认代理配置（可折叠�?
+			Card(
+				modifier = Modifier
+					.fillMaxWidth()
+					.clickable(onClick = onCustomCommandsClick)
+			) {
+				Row(
+					modifier = Modifier
+						.fillMaxWidth()
+						.padding(16.dp),
+					verticalAlignment = Alignment.CenterVertically
+				) {
+					Column(modifier = Modifier.weight(1f)) {
+						Text(
+							text = stringResource(R.string.custom_shell_commands),
+							style = MaterialTheme.typography.titleMedium
+						)
+						Text(
+							text = stringResource(R.string.custom_shell_commands_entry),
+							style = MaterialTheme.typography.bodySmall,
+							color = MaterialTheme.colorScheme.onSurfaceVariant
+						)
+					}
+					Icon(
+						Icons.Default.ChevronRight,
+						contentDescription = stringResource(R.string.custom_shell_commands)
+					)
+				}
+			}
+
+			// 默认代理配置（可折叠）
 			var proxyExpanded by remember { mutableStateOf(false) }
 			Card {
 				Column(
@@ -629,6 +660,9 @@ private fun ProxyTypeSelector(
  * 将错误键值转换为本地化错误消息
  */
 private fun getLocalizedErrorMessage(context: Context, errorKey: String): String {
+	if (errorKey == "CUSTOM_SHELL_COMMAND_INVALID") {
+		return context.getString(R.string.custom_shell_command_invalid)
+	}
 	// 错误消息格式: "OPERATION_FAILED:ERROR_KEY"
 	val parts = errorKey.split(":", limit = 2)
 	if (parts.size != 2) {

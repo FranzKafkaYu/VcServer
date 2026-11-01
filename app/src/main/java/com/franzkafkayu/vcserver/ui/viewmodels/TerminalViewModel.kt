@@ -2,9 +2,12 @@ package com.franzkafkayu.vcserver.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.franzkafkayu.vcserver.models.CustomShellCommand
 import com.franzkafkayu.vcserver.models.Server
 import com.franzkafkayu.vcserver.services.ServerMonitoringService
+import com.franzkafkayu.vcserver.services.SettingsService
 import com.franzkafkayu.vcserver.services.TerminalService
+import com.franzkafkayu.vcserver.utils.CustomShellCommands
 import com.franzkafkayu.vcserver.utils.AppError
 import com.franzkafkayu.vcserver.utils.CommandAutoComplete
 import com.franzkafkayu.vcserver.utils.CommandHistory
@@ -36,7 +39,8 @@ class TerminalViewModel(
 	val server: Server,
 	var session: SshClientSession,
 	private val sessionKey: String,
-	private val terminalPreferences: TerminalPreferences
+	private val terminalPreferences: TerminalPreferences,
+	private val settingsService: SettingsService
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(TerminalUiState())
 	val uiState: StateFlow<TerminalUiState> = _uiState.asStateFlow()
@@ -67,6 +71,16 @@ class TerminalViewModel(
 					ptyRows
 				)
 			}
+			settingsService.getSettings().collect { settings ->
+				_uiState.value = _uiState.value.copy(
+					customShellCommands = CustomShellCommands.forServer(
+						settings.customShellCommands,
+						server
+					)
+				)
+			}
+		}
+		viewModelScope.launch {
 			TerminalShellStore.observe(sessionKey).collect { snap ->
 				_uiState.value = _uiState.value.copy(
 					output = snap.output,
@@ -139,6 +153,14 @@ class TerminalViewModel(
 			"\u001B[$letter"
 		}
 		sendRawInput(sequence.toByteArray(Charsets.UTF_8))
+	}
+
+	fun runCustomCommand(id: String) {
+		if (!_uiState.value.isConnected) {
+			return
+		}
+		val body = _uiState.value.customShellCommands.firstOrNull { it.id == id }?.body ?: return
+		sendCommand(body)
 	}
 
 	fun sendCommand(command: String) {
@@ -327,5 +349,6 @@ data class TerminalUiState(
 	val fontSizeSp: Int = TerminalFont.DEFAULT_SP,
 	val tabs: List<ShellTabInfo> = emptyList(),
 	val canCreateTab: Boolean = true,
-	val maxReached: Boolean = false
+	val maxReached: Boolean = false,
+	val customShellCommands: List<CustomShellCommand> = emptyList()
 )

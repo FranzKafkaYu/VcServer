@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -72,6 +73,7 @@ fun TerminalScreen(
 	var commandInput by remember { mutableStateOf(TextFieldValue("")) }
 	var realtimeInputMode by remember { mutableStateOf(false) } // 实时输入模式
 	var ctrlArmed by remember { mutableStateOf(false) }
+	var customCommandMenu by remember { mutableStateOf(false) }
 	val keyboardController = LocalSoftwareKeyboardController.current
 	val clipboardManager = LocalClipboardManager.current
 	val fontSize = uiState.fontSizeSp.sp
@@ -112,6 +114,45 @@ fun TerminalScreen(
 					}
 				},
 				actions = {
+					Box {
+						IconButton(
+							onClick = { customCommandMenu = true },
+							enabled = uiState.isConnected
+						) {
+							Icon(
+								Icons.Default.PlayArrow,
+								contentDescription = stringResource(R.string.custom_shell_command_run)
+							)
+						}
+						DropdownMenu(
+							expanded = customCommandMenu,
+							onDismissRequest = { customCommandMenu = false }
+						) {
+							if (uiState.customShellCommands.isEmpty()) {
+								DropdownMenuItem(
+									text = { Text(stringResource(R.string.custom_shell_command_none)) },
+									onClick = { customCommandMenu = false },
+									enabled = false
+								)
+							} else {
+								uiState.customShellCommands.forEach { command ->
+									DropdownMenuItem(
+										text = {
+											Text(
+												text = command.title,
+												maxLines = 1,
+												overflow = TextOverflow.Ellipsis
+											)
+										},
+										onClick = {
+											customCommandMenu = false
+											viewModel.runCustomCommand(command.id)
+										}
+									)
+								}
+							}
+						}
+					}
 					IconButton(
 						onClick = { viewModel.decreaseFont() },
 						enabled = TerminalFont.smaller(uiState.fontSizeSp) != uiState.fontSizeSp

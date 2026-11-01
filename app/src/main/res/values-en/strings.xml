@@ -501,5 +501,26 @@
 	<string name="error_mosh_server_missing">mosh-server is not installed on the remote host</string>
 	<string name="error_mosh_parse_failed">Could not parse mosh-server output</string>
 	<string name="error_mosh_udp_failed">UDP connection failed; allow the Mosh UDP port on the firewall</string>
+	<string name="custom_shell_commands">Custom commands</string>
+	<string name="custom_shell_commands_entry">Manage commands and apply them globally, to a group, or to one server</string>
+	<string name="custom_shell_command_add">Add command</string>
+	<string name="custom_shell_command_edit">Edit command</string>
+	<string name="custom_shell_command_delete">Delete command</string>
+	<string name="custom_shell_command_name">Name</string>
+	<string name="custom_shell_command_body">Command</string>
+	<string name="custom_shell_command_empty">No custom commands yet. Add some here, then run them from a connected terminal.</string>
+	<string name="custom_shell_command_invalid">Name and command cannot be empty</string>
+	<string name="custom_shell_command_scope_invalid">Select a valid server group or server</string>
+	<string name="custom_shell_scope">Scope</string>
+	<string name="custom_shell_scope_global">Global (all servers)</string>
+	<string name="custom_shell_scope_group">A server group</string>
+	<string name="custom_shell_scope_server">A single server</string>
+	<string name="custom_shell_scope_select_group">Select group</string>
+	<string name="custom_shell_scope_select_server">Select server</string>
+	<string name="custom_shell_scope_group_summary">Group: %1$s</string>
+	<string name="custom_shell_scope_server_summary">Server: %1$s</string>
+	<string name="custom_shell_scope_invalid_target">Target is gone. Change the scope or delete this command.</string>
+	<string name="custom_shell_command_run">Run custom command</string>
+	<string name="custom_shell_command_none">No custom commands apply to this server</string>
 </resources>
 
