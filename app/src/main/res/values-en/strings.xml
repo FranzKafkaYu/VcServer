@@ -393,7 +393,7 @@
 	<string name="privacy_policy_title">Privacy Policy</string>
 	<string name="about_description">VcServer is an Android application for managing remote servers via SSH.</string>
 	<!-- SFTP File Transfer -->
-	<string name="sftp_file_transfer">File Transfer</string>
+	<string name="sftp_file_transfer">File Management</string>
 	<string name="sftp_upload">Upload File</string>
 	<string name="sftp_download">Download File</string>
 	<string name="sftp_upload_title">Upload File to Server</string>
