@@ -75,6 +75,7 @@ fun CustomShellCommandsScreen(
 	var body by remember { mutableStateOf("") }
 	var scopeType by remember { mutableStateOf(CustomShellCommandScope.GLOBAL) }
 	var scopeId by remember { mutableStateOf<Long?>(null) }
+	var pendingDelete by remember { mutableStateOf<CustomShellCommand?>(null) }
 
 	fun openEditor(command: CustomShellCommand?) {
 		editorId = command?.id
@@ -133,11 +134,39 @@ fun CustomShellCommandsScreen(
 						command = command,
 						uiState = uiState,
 						onEdit = { openEditor(command) },
-						onDelete = { viewModel.deleteCommand(command.id) }
+						onDelete = { pendingDelete = command }
 					)
 				}
 			}
 		}
+	}
+
+	pendingDelete?.let { command ->
+		AlertDialog(
+			onDismissRequest = { pendingDelete = null },
+			title = { Text(stringResource(R.string.custom_shell_command_delete)) },
+			text = {
+				Text(stringResource(R.string.custom_shell_command_delete_confirm, command.title))
+			},
+			confirmButton = {
+				TextButton(
+					onClick = {
+						viewModel.deleteCommand(command.id)
+						pendingDelete = null
+					}
+				) {
+					Text(
+						stringResource(R.string.confirm),
+						color = MaterialTheme.colorScheme.error
+					)
+				}
+			},
+			dismissButton = {
+				TextButton(onClick = { pendingDelete = null }) {
+					Text(stringResource(R.string.cancel))
+				}
+			}
+		)
 	}
 
 	if (showEditor) {

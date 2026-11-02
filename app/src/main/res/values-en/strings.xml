@@ -506,6 +506,7 @@
 	<string name="custom_shell_command_add">Add command</string>
 	<string name="custom_shell_command_edit">Edit command</string>
 	<string name="custom_shell_command_delete">Delete command</string>
+	<string name="custom_shell_command_delete_confirm">Delete “%1$s”?</string>
 	<string name="custom_shell_command_name">Name</string>
 	<string name="custom_shell_command_body">Command</string>
 	<string name="custom_shell_command_empty">No custom commands yet. Add some here, then run them from a connected terminal.</string>

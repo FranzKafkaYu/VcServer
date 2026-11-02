@@ -506,6 +506,7 @@
 	<string name="custom_shell_command_add">添加指令</string>
 	<string name="custom_shell_command_edit">编辑指令</string>
 	<string name="custom_shell_command_delete">删除指令</string>
+	<string name="custom_shell_command_delete_confirm">确定要删除「%1$s」吗？</string>
 	<string name="custom_shell_command_name">显示名</string>
 	<string name="custom_shell_command_body">命令</string>
 	<string name="custom_shell_command_empty">还没有自定义指令。添加后可在已连接的终端一键运行。</string>
