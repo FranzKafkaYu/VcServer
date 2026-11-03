@@ -2,7 +2,9 @@
 .idea/
 .codex/
 .vscode/
+.dsh
 .gradle/
+.agents
 app/build/
 app/.cxx
 local.properties
