@@ -80,6 +80,8 @@ class ServerListViewModel(
 	private val _uiState = MutableStateFlow(ServerListUiState())
 	val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
 
+	private val vendorOperations = VendorOperationTracker()
+
 	init {
 		loadServers()
 		viewModelScope.launch {
@@ -336,6 +338,39 @@ class ServerListViewModel(
 		_uiState.value = _uiState.value.copy(vendorPrompt = null)
 	}
 
+	/**
+	 * 关闭执行中提示。只隐藏提示，不取消已经发出的请求。
+	 */
+	fun dismissVendorOperation() {
+		_uiState.value = _uiState.value.copy(vendorOperation = null)
+	}
+
+	/**
+	 * 执行一次厂商 API 指令，并在这段时间内显示执行中提示。
+	 *
+	 * 同一台服务器的同一项指令仍在执行时直接忽略，不会重复下发请求；
+	 * 结束后无论成功失败都会关闭提示，结果由 [block] 写入 vendorPrompt 或 Snackbar。
+	 */
+	private fun runVendorOperation(
+		serverId: Long,
+		vendor: VendorKind?,
+		kind: VendorOperationKind,
+		block: suspend () -> Unit
+	) {
+		val operation = vendorOperations.begin(serverId, vendor, kind) ?: return
+		_uiState.value = _uiState.value.copy(vendorOperation = operation)
+		viewModelScope.launch {
+			try {
+				block()
+			} finally {
+				vendorOperations.finish(operation.id)
+				if (_uiState.value.vendorOperation?.id == operation.id) {
+					_uiState.value = _uiState.value.copy(vendorOperation = null)
+				}
+			}
+		}
+	}
+
 	fun chooseVendor(kind: VendorKind) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.Choose ?: return
 		when (kind) {
@@ -356,7 +391,7 @@ class ServerListViewModel(
 
 	fun submitBandwagonBind(veid: String, apiKey: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.Bandwagon ?: return
-		viewModelScope.launch {
+		runVendorOperation(prompt.serverId, VendorKind.BANDWAGON, VendorOperationKind.BIND) {
 			when (val result = bandwagon.bind(prompt.serverId, veid, apiKey)) {
 				BandwagonBindResult.Success -> {
 					_uiState.value = _uiState.value.copy(
@@ -406,7 +441,7 @@ class ServerListViewModel(
 	) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.VirtualizorSecrets ?: return
 		val parsedPort = port.toIntOrNull() ?: return
-		viewModelScope.launch {
+		runVendorOperation(prompt.serverId, VendorKind.VIRTUALIZOR, VendorOperationKind.LIST_INSTANCES) {
 			when (val result = virtualizor.previewInstances(host, parsedPort, apiKey, apiPass, confirmedPin)) {
 				VirtualizorAccountResult.Success -> loadVirtualizorInstances(
 					prompt.serverId,
@@ -433,7 +468,7 @@ class ServerListViewModel(
 
 	fun bindVirtualizorInstance(vpsid: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.VirtualizorPick ?: return
-		viewModelScope.launch {
+		runVendorOperation(prompt.serverId, VendorKind.VIRTUALIZOR, VendorOperationKind.BIND) {
 			when (val result = virtualizor.bind(
 				prompt.serverId,
 				vpsid,
@@ -464,7 +499,7 @@ class ServerListViewModel(
 
 	fun bindCloudconeInstance(instanceId: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.CloudconePick ?: return
-		viewModelScope.launch {
+		runVendorOperation(prompt.serverId, VendorKind.CLOUDCONE, VendorOperationKind.BIND) {
 			when (val result = cloudcone.bind(prompt.serverId, instanceId, prompt.apiKey, prompt.hash)) {
 				CloudconeBindResult.Success -> {
 					_uiState.value = _uiState.value.copy(
@@ -487,7 +522,7 @@ class ServerListViewModel(
 
 	fun bindGreencloudInstance(instanceId: String) {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.GreencloudPick ?: return
-		viewModelScope.launch {
+		runVendorOperation(prompt.serverId, VendorKind.GREENCLOUD, VendorOperationKind.BIND) {
 			when (val result = greencloud.bind(prompt.serverId, instanceId, prompt.apiToken)) {
 				GreencloudBindResult.Success -> {
 					_uiState.value = _uiState.value.copy(
@@ -534,7 +569,7 @@ class ServerListViewModel(
 		}
 	}
 
-	private fun loadVirtualizorInstances(
+	private suspend fun loadVirtualizorInstances(
 		serverId: Long,
 		host: String,
 		port: Int,
@@ -542,44 +577,42 @@ class ServerListViewModel(
 		apiPass: String,
 		certPinSha256: String?
 	) {
-		viewModelScope.launch {
-			val listed = virtualizor.listInstances(host, port, apiKey, apiPass, certPinSha256)
-			if (!listed.ok) {
-				_uiState.value = _uiState.value.copy(
-					noticeMessageRes = R.string.virtualizor_list_failed,
-					noticeMessageArg = listed.message
-				)
-				return@launch
-			}
-			val taken = virtualizorLinkRows
-				.filter { it.host == host.trim() && it.port == port }
-				.map { it.vpsid }
-				.toSet()
-			val available = listed.instances.filter { it.id !in taken }
+		val listed = virtualizor.listInstances(host, port, apiKey, apiPass, certPinSha256)
+		if (!listed.ok) {
 			_uiState.value = _uiState.value.copy(
-				vendorPrompt = VendorPrompt.VirtualizorPick(
-					serverId = serverId,
-					instances = available,
-					boundServerIds = virtualizorIds,
-					host = host.trim(),
-					port = port,
-					apiKey = apiKey.trim(),
-					apiPass = apiPass.trim(),
-					certPinSha256 = certPinSha256
-				)
+				noticeMessageRes = R.string.virtualizor_list_failed,
+				noticeMessageArg = listed.message
 			)
+			return
 		}
+		val taken = virtualizorLinkRows
+			.filter { it.host == host.trim() && it.port == port }
+			.map { it.vpsid }
+			.toSet()
+		val available = listed.instances.filter { it.id !in taken }
+		_uiState.value = _uiState.value.copy(
+			vendorPrompt = VendorPrompt.VirtualizorPick(
+				serverId = serverId,
+				instances = available,
+				boundServerIds = virtualizorIds,
+				host = host.trim(),
+				port = port,
+				apiKey = apiKey.trim(),
+				apiPass = apiPass.trim(),
+				certPinSha256 = certPinSha256
+			)
+		)
 	}
 
 	private fun loadCloudconeInstances(serverId: Long, apiKey: String, hash: String) {
-		viewModelScope.launch {
+		runVendorOperation(serverId, VendorKind.CLOUDCONE, VendorOperationKind.LIST_INSTANCES) {
 			val listed = cloudcone.listInstances(apiKey, hash)
 			if (!listed.ok) {
 				_uiState.value = _uiState.value.copy(
 					noticeMessageRes = R.string.cloudcone_list_failed,
 					noticeMessageArg = listed.message
 				)
-				return@launch
+				return@runVendorOperation
 			}
 			val taken = cloudconeLinkRows.map { it.instanceId }.toSet()
 			val available = listed.instances.filter { it.id !in taken }
@@ -596,14 +629,14 @@ class ServerListViewModel(
 	}
 
 	private fun loadGreencloudInstances(serverId: Long, apiToken: String) {
-		viewModelScope.launch {
+		runVendorOperation(serverId, VendorKind.GREENCLOUD, VendorOperationKind.LIST_INSTANCES) {
 			val listed = greencloud.listInstances(apiToken)
 			if (!listed.ok) {
 				_uiState.value = _uiState.value.copy(
 					noticeMessageRes = R.string.greencloud_list_failed,
 					noticeMessageArg = listed.message
 				)
-				return@launch
+				return@runVendorOperation
 			}
 			val taken = greencloudLinkRows.map { it.instanceId }.toSet()
 			val available = listed.instances.filter { it.id !in taken }
@@ -624,8 +657,13 @@ class ServerListViewModel(
 	}
 
 	private fun dispatchPower(serverId: Long, vendor: VendorKind, stop: Boolean?) {
-		viewModelScope.launch {
-			_uiState.value = _uiState.value.copy(vendorPrompt = null)
+		val kind = when (stop) {
+			null -> VendorOperationKind.START
+			true -> VendorOperationKind.STOP
+			false -> VendorOperationKind.RESTART
+		}
+		_uiState.value = _uiState.value.copy(vendorPrompt = null)
+		runVendorOperation(serverId, vendor, kind) {
 			when (vendor) {
 				VendorKind.BANDWAGON -> {
 					val action = when (stop) {
@@ -665,7 +703,7 @@ class ServerListViewModel(
 
 	private fun queryServiceInfo(serverId: Long, vendor: VendorKind?) {
 		when (vendor) {
-			VendorKind.BANDWAGON -> viewModelScope.launch {
+			VendorKind.BANDWAGON -> runVendorOperation(serverId, vendor, VendorOperationKind.SERVICE_INFO) {
 				when (val result = bandwagon.serviceInfo(serverId)) {
 					is BandwagonServiceInfoResult.Known -> {
 						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.ServiceInfo(result.info))
@@ -674,7 +712,7 @@ class ServerListViewModel(
 					is BandwagonServiceInfoResult.Failed -> noticeArg(R.string.bandwagon_service_info_failed, result.message)
 				}
 			}
-			VendorKind.CLOUDCONE -> viewModelScope.launch {
+			VendorKind.CLOUDCONE -> runVendorOperation(serverId, vendor, VendorOperationKind.SERVICE_INFO) {
 				when (val result = cloudcone.instanceInfo(serverId)) {
 					is CloudconeInfoResult.Known -> {
 						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.CloudconeInfo(result.info))
@@ -683,7 +721,7 @@ class ServerListViewModel(
 					is CloudconeInfoResult.Failed -> noticeArg(R.string.cloudcone_service_info_failed, result.message)
 				}
 			}
-			VendorKind.GREENCLOUD -> viewModelScope.launch {
+			VendorKind.GREENCLOUD -> runVendorOperation(serverId, vendor, VendorOperationKind.SERVICE_INFO) {
 				when (val result = greencloud.instanceInfo(serverId)) {
 					is GreencloudInfoResult.Known -> {
 						_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.GreencloudInfo(result.info))
@@ -698,7 +736,7 @@ class ServerListViewModel(
 
 	private fun queryMigrateLocations(serverId: Long, vendor: VendorKind?) {
 		if (vendor != VendorKind.BANDWAGON) return
-		viewModelScope.launch {
+		runVendorOperation(serverId, vendor, VendorOperationKind.MIGRATE_LOCATIONS) {
 			when (val result = bandwagon.migrateLocations(serverId)) {
 				is BandwagonMigrateLocationsResult.Known -> {
 					_uiState.value = _uiState.value.copy(
@@ -720,7 +758,8 @@ class ServerListViewModel(
 
 	fun confirmMigrate() {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ConfirmMigrate ?: return
-		viewModelScope.launch {
+		_uiState.value = _uiState.value.copy(vendorPrompt = null)
+		runVendorOperation(prompt.serverId, VendorKind.BANDWAGON, VendorOperationKind.MIGRATE_START) {
 			when (val result = bandwagon.migrateStart(prompt.serverId, prompt.location.id, confirmed = true)) {
 				is BandwagonMigrateStartResult.Accepted -> {
 					_uiState.value = _uiState.value.copy(
@@ -742,7 +781,8 @@ class ServerListViewModel(
 
 	fun confirmResetRoot() {
 		val prompt = _uiState.value.vendorPrompt as? VendorPrompt.ConfirmResetRoot ?: return
-		viewModelScope.launch {
+		_uiState.value = _uiState.value.copy(vendorPrompt = null)
+		runVendorOperation(prompt.serverId, prompt.vendor, VendorOperationKind.RESET_ROOT) {
 			when (prompt.vendor) {
 				VendorKind.GREENCLOUD -> when (val result = greencloud.resetPassword(prompt.serverId, confirmed = true)) {
 					is GreencloudResetResult.Accepted -> {
@@ -814,7 +854,7 @@ class ServerListViewModel(
 
 	private fun queryUsage(serverId: Long, vendor: VendorKind?) {
 		if (vendor != VendorKind.BANDWAGON) return
-		viewModelScope.launch {
+		runVendorOperation(serverId, vendor, VendorOperationKind.USAGE) {
 			when (val result = bandwagon.usageStats(serverId)) {
 				is BandwagonUsageResult.Known -> {
 					_uiState.value = _uiState.value.copy(
@@ -849,7 +889,7 @@ class ServerListViewModel(
 
 	private fun queryBandwidth(serverId: Long, vendor: VendorKind?) {
 		if (vendor != VendorKind.VIRTUALIZOR) return
-		viewModelScope.launch {
+		runVendorOperation(serverId, vendor, VendorOperationKind.BANDWIDTH) {
 			when (val result = virtualizor.bandwidth(serverId)) {
 				is VirtualizorTrafficResult.Known -> {
 					_uiState.value = _uiState.value.copy(vendorPrompt = VendorPrompt.Bandwidth(result.bandwidth))
@@ -863,7 +903,7 @@ class ServerListViewModel(
 
 	private fun queryStatus(serverId: Long, vendor: VendorKind?) {
 		if (vendor == null) return
-		viewModelScope.launch {
+		runVendorOperation(serverId, vendor, VendorOperationKind.STATUS) {
 			when (vendor) {
 				VendorKind.BANDWAGON -> when (val result = bandwagon.status(serverId)) {
 					is BandwagonStatusResult.Known -> {
@@ -1215,7 +1255,8 @@ data class ServerListUiState(
 	val noticeMessageRes: Int? = null,
 	val noticeMessageArg: String? = null,
 	val serverVendors: Map<Long, VendorKind> = emptyMap(),
-	val vendorPrompt: VendorPrompt? = null
+	val vendorPrompt: VendorPrompt? = null,
+	val vendorOperation: VendorOperation? = null
 )
 
 sealed class VendorPrompt {

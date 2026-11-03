@@ -52,6 +52,8 @@ import com.franzkafkayu.vcserver.services.VendorMenu
 import com.franzkafkayu.vcserver.services.VendorMenuEntry
 import com.franzkafkayu.vcserver.services.vendorMenu
 import com.franzkafkayu.vcserver.ui.viewmodels.ServerListViewModel
+import com.franzkafkayu.vcserver.ui.viewmodels.VendorOperation
+import com.franzkafkayu.vcserver.ui.viewmodels.VendorOperationKind
 import com.franzkafkayu.vcserver.ui.viewmodels.VendorPrompt
 import com.franzkafkayu.vcserver.utils.AppError
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -294,7 +296,16 @@ fun ServerListScreen(
 			)
 		}
 
-		VendorPromptDialog(uiState.vendorPrompt, viewModel)
+		// 厂商指令执行中提示与结果对话框互斥：进度优先，结果等进度结束后再显示
+		val vendorOperation = uiState.vendorOperation
+		if (vendorOperation != null) {
+			VendorOperationDialog(
+				operation = vendorOperation,
+				onDismiss = { viewModel.dismissVendorOperation() }
+			)
+		} else {
+			VendorPromptDialog(uiState.vendorPrompt, viewModel)
+		}
 
 		// 批量删除确认对话框
 		if (uiState.showBatchDeleteConfirm) {
@@ -1415,15 +1426,69 @@ private fun VendorPromptDialog(
 }
 
 @Composable
-private fun vendorName(vendor: VendorKind): String {
-	return stringResource(
-		when (vendor) {
-			VendorKind.CLOUDCONE -> R.string.vendor_cloudcone
-			VendorKind.VIRTUALIZOR -> R.string.vendor_virtualizor
-			VendorKind.BANDWAGON -> R.string.vendor_bandwagon
-			VendorKind.GREENCLOUD -> R.string.vendor_greencloud
+private fun VendorOperationDialog(
+	operation: VendorOperation,
+	onDismiss: () -> Unit
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.vendor_operation_title)) },
+		text = {
+			Row(
+				horizontalArrangement = Arrangement.spacedBy(16.dp),
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				CircularProgressIndicator(
+					modifier = Modifier.size(28.dp),
+					strokeWidth = 3.dp
+				)
+				Text(
+					text = vendorOperationLabel(operation),
+					style = MaterialTheme.typography.bodyLarge
+				)
+			}
+		},
+		confirmButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.vendor_operation_close))
+			}
 		}
 	)
+}
+
+/**
+ * 执行中提示的文案：厂商 · 动作
+ */
+@Composable
+private fun vendorOperationLabel(operation: VendorOperation): String {
+	val vendor = vendorName(operation.vendor)
+	val action = when (operation.kind) {
+		VendorOperationKind.START -> stringResource(R.string.bandwagon_start)
+		VendorOperationKind.STOP -> stringResource(R.string.bandwagon_stop)
+		VendorOperationKind.RESTART -> stringResource(R.string.bandwagon_restart)
+		VendorOperationKind.STATUS -> stringResource(R.string.bandwagon_status)
+		VendorOperationKind.SERVICE_INFO -> stringResource(R.string.bandwagon_service_info)
+		VendorOperationKind.MIGRATE_LOCATIONS,
+		VendorOperationKind.MIGRATE_START -> stringResource(R.string.bandwagon_migrate)
+		VendorOperationKind.RESET_ROOT -> stringResource(R.string.bandwagon_reset_root)
+		VendorOperationKind.USAGE -> stringResource(R.string.bandwagon_usage)
+		VendorOperationKind.BANDWIDTH -> stringResource(R.string.virtualizor_bandwidth)
+		VendorOperationKind.LIST_INSTANCES -> stringResource(R.string.vendor_operation_listing_instances)
+		VendorOperationKind.BIND -> stringResource(R.string.vendor_operation_binding)
+	}
+	if (vendor.isEmpty()) return action
+	return stringResource(R.string.vendor_labeled_action, vendor, action)
+}
+
+@Composable
+private fun vendorName(vendor: VendorKind?): String {
+	return when (vendor) {
+		VendorKind.CLOUDCONE -> stringResource(R.string.vendor_cloudcone)
+		VendorKind.VIRTUALIZOR -> stringResource(R.string.vendor_virtualizor)
+		VendorKind.BANDWAGON -> stringResource(R.string.vendor_bandwagon)
+		VendorKind.GREENCLOUD -> stringResource(R.string.vendor_greencloud)
+		null -> ""
+	}
 }
 
 @Composable

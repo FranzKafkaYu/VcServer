@@ -143,6 +143,10 @@
 	<string name="vendor_already_bound">This server is already linked to another vendor</string>
 	<string name="vendor_confirm_stop">Stop this %1$s VPS? Existing SSH sessions will be closed.</string>
 	<string name="vendor_confirm_restart">Restart this %1$s VPS? Existing SSH sessions will be closed.</string>
+	<string name="vendor_operation_title">In progress</string>
+	<string name="vendor_operation_close">Close</string>
+	<string name="vendor_operation_listing_instances">Loading instances…</string>
+	<string name="vendor_operation_binding">Binding…</string>
 	<string name="cloudcone_account_title">CloudCone account</string>
 	<string name="cloudcone_api_key">API Key</string>
 	<string name="cloudcone_hash">Hash</string>

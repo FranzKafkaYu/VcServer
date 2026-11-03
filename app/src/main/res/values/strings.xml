@@ -143,6 +143,10 @@
 	<string name="vendor_already_bound">这台服务器已经绑定了其他厂商</string>
 	<string name="vendor_confirm_stop">确定关闭这台 %1$s？已有的 SSH 连接会被断开。</string>
 	<string name="vendor_confirm_restart">确定重启这台 %1$s？已有的 SSH 连接会被断开。</string>
+	<string name="vendor_operation_title">正在执行</string>
+	<string name="vendor_operation_close">关闭</string>
+	<string name="vendor_operation_listing_instances">正在获取实例列表…</string>
+	<string name="vendor_operation_binding">正在绑定…</string>
 	<string name="cloudcone_account_title">CloudCone 账号</string>
 	<string name="cloudcone_api_key">API Key</string>
 	<string name="cloudcone_hash">Hash</string>
